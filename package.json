@@ -18,8 +18,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "bb": "tsx packages/cli/src/main.ts",
-    "examples:check": "tsx scripts/check-examples.ts",
-    "perf": "tsx scripts/perf-scene.ts"
+    "perf": "tsx scripts/perf-scene.ts",
+    "examples:build": "tsx scripts/build-examples.ts",
+    "perf:browser": "node scripts/perf-browser.mjs",
+    "check:dist": "node scripts/check-dist.mjs"
   },
   "devDependencies": {
     "@breadboard-studio/catalog": "workspace:*",
