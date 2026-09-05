@@ -21,7 +21,8 @@
     "perf": "tsx scripts/perf-scene.ts",
     "examples:build": "tsx scripts/build-examples.ts",
     "perf:browser": "node scripts/perf-browser.mjs",
-    "check:dist": "node scripts/check-dist.mjs"
+    "check:dist": "node scripts/check-dist.mjs",
+    "check:live": "node scripts/check-live.mjs"
   },
   "devDependencies": {
     "@breadboard-studio/catalog": "workspace:*",

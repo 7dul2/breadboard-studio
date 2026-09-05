@@ -1,0 +1,23 @@
+// Smoke-test a deployed site: load, run an example, wire through the engine, export SVG.
+import { chromium } from '@playwright/test';
+const url = process.argv[2] ?? 'https://7dul2.github.io/breadboard-studio/';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await page.goto(url, { waitUntil: 'networkidle' });
+await page.getByTestId('menu-project').click();
+await page.getByTestId('example-environment_node').click();
+await page.getByTestId('fit').click();
+const r = await page.evaluate(() => window.__bbs.apply([{ op: 'add_wire', wire: { id: 'w_live', from: { hole: 'bb_a.bottom_inner_20' }, to: { hole: 'bb_a.bottom_outer_20' }, color: 'red' } }]));
+const a = await page.evaluate(() => window.__bbs.getAnalysis());
+const short = a.results.find((x) => x.code === 'power_ground_short');
+await page.getByTestId('undo').click();
+const a2 = await page.evaluate(() => window.__bbs.getAnalysis());
+const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('menu-export').click().then(() => page.getByTestId('export-svg').click())]);
+const svgPath = await dl.path();
+await page.screenshot({ path: process.argv[3] ?? 'live.png' });
+console.log(JSON.stringify({ url, title: await page.title(), applied: r.ok, short_detected: !!short, errors_after_undo: a2.summary.error, nets: a2.nets.length, svg_downloaded: !!svgPath, console_errors: errors }));
+await browser.close();
+if (errors.length || !short || a2.summary.error !== 0) process.exit(1);

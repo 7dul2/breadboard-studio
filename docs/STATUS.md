@@ -20,7 +20,7 @@
 | --- | --- |
 | `pnpm typecheck` | 6 个包全部通过 |
 | `pnpm test`（Vitest） | 55 通过：目录 3、哈希 2、面包板导通 6、导线 5、放置 9、规则 11、事务/往返 9、内嵌定义 2、CLI 8 |
-| `pnpm test:e2e`（Playwright） | 7 通过：放板→放元件→接线→出错→修复→撤销/重做→导出 SVG/JSON→新建→导入→刷新恢复；非法导入拒绝；DSL 非法/合法；旋转四次与拖动；搭建模式；Agent 批量修改与 UI 一致；自定义定义导入 |
+| `pnpm test:e2e`（Playwright） | 8 通过：放板→放元件→接线→出错→修复→撤销/重做→导出 SVG/JSON→新建→导入→刷新恢复；非法导入拒绝；DSL 非法/合法；旋转四次与拖动；搭建模式；Agent 批量修改与 UI 一致；自定义定义导入；PNG 导出为真实 PNG |
 | `pnpm build` + `pnpm check:dist` | 在 `/breadboard-studio/` 子路径下加载示例、24 根线、5 个网络、0 控制台错误 |
 
 计划第 10 节的十类关键测试与用例对应：1 `board-connectivity`；2 `two boards`；3 `wires`；4 `placement`（旋转/脱格/同孔）；5 `rules`（短路、未知→needs_review）；6 `I2C rules`；7 `file round trip`；8 `transactions`+`cli`（原子、冲突、撤销、UI/CLI 一致）；9 `e2e`；10 `cli export`（viewBox 内无裁切、徽标与标签存在）。
@@ -54,4 +54,7 @@
 
 ## 发布记录
 
-见本文件末尾“发布”一节（发布时更新）。
+- 仓库：https://github.com/7dul2/breadboard-studio （公开，MIT）
+- 演示：https://7dul2.github.io/breadboard-studio/ ，由 `Deploy GitHub Pages` 工作流自动部署；`scripts/check-live.mjs` 对线上站点做过冒烟检查（载入示例、通过引擎制造并检出电源对地短路、撤销、导出 SVG，0 控制台错误）。
+- 首次推送后 CI 因 `pnpm/action-setup` 与 `packageManager` 重复指定版本失败，已在 `eb6e758` 修复。
+- 版本标签与 Release 见仓库 Releases 页面（v0.1.0）。

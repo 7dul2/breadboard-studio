@@ -251,3 +251,16 @@ test('custom definition import through the library', async ({ page }) => {
   await page.getByTestId('definition-input').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"kind":"component","id":"x"}') });
   await expect(page.getByTestId('toast-error')).toBeVisible();
 });
+
+test('PNG export produces a real PNG of the whole design', async ({ page }) => {
+  await fresh(page);
+  await loadExample(page, 'desk_device');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('menu-export').click().then(() => page.getByTestId('export-png').click())]);
+  const buf = readFileSync(await dl.path());
+  expect(buf.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  expect(width).toBeGreaterThan(1500);
+  expect(height).toBeGreaterThan(500);
+  expect(dl.suggestedFilename()).toMatch(/\.png$/);
+});
