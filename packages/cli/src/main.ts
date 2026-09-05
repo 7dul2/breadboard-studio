@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { builtinCatalog, CATALOG_VERSION } from '@breadboard-studio/catalog';
 import { designSchema } from '@breadboard-studio/schema';
 import type { DesignDocument } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, buildSteps, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type RuleResult } from '@breadboard-studio/core';
+import { analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type RuleResult } from '@breadboard-studio/core';
 import { exportSvg } from '@breadboard-studio/render';
 
 export const EXIT = { OK: 0, PROBLEMS: 1, USAGE: 2, CONFLICT: 3 } as const;
@@ -61,10 +61,11 @@ export function buildProgram(): Command {
   const catalog = program.command('catalog').description('元件与面包板目录');
   catalog
     .command('list')
-    .description('列出目录中的定义')
+    .description('列出目录中的定义（--design 时包含设计文件内嵌的定义）')
+    .option('--design <file>', '同时列出该设计 embedded_catalog 中的定义')
     .option('--json', 'JSON 输出')
-    .action((opts: { json?: boolean }) => {
-      const c = builtinCatalog();
+    .action((opts: { json?: boolean; design?: string }) => {
+      const c = opts.design ? catalogForDesign(readDesign(opts.design), builtinCatalog()) : builtinCatalog();
       const items = c.list().map((d) => ({
         ref: `${d.id}@${d.version}`,
         kind: d.kind,
@@ -83,9 +84,10 @@ export function buildProgram(): Command {
   catalog
     .command('inspect <ref>')
     .description('显示一个定义的完整内容（含引脚、参数 schema、来源与状态）')
+    .option('--design <file>', '同时查找该设计内嵌的定义')
     .option('--json', 'JSON 输出')
-    .action((ref: string, opts: { json?: boolean }) => {
-      const d = builtinCatalog().get(ref);
+    .action((ref: string, opts: { json?: boolean; design?: string }) => {
+      const d = (opts.design ? catalogForDesign(readDesign(opts.design), builtinCatalog()) : builtinCatalog()).get(ref);
       if (!d) throw new CliError(`目录中没有 ${ref}（使用 bb catalog list 查看）`);
       out(!!opts.json, { ok: true, command: 'catalog.inspect', definition: d }, () => JSON.stringify(d, null, 2));
     });
@@ -132,7 +134,9 @@ export function buildProgram(): Command {
         { op: 'add_constraint', fields: 'constraint{id, type: isolate|wire_length_max_um|note, ...}' },
         { op: 'remove_constraint', fields: 'id' },
         { op: 'set_metadata', fields: 'patch{name?, description?, author?, tags?, notes?}' },
-        { op: 'replace_design', fields: 'design (完整设计文档)' }
+        { op: 'replace_design', fields: 'design (完整设计文档)' },
+        { op: 'add_definition', fields: 'definition (板/元件定义 JSON，内嵌到 embedded_catalog)' },
+        { op: 'remove_definition', fields: 'ref (id@version)' }
       ];
       out(!!opts.json, { ok: true, command: 'ops', ops }, () => ops.map((o) => `${o.op.padEnd(20)} ${o.fields}`).join('\n'));
     });

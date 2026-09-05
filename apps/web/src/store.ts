@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import type { DesignDocument, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
+import { analyzeDesign, applyOps, catalogForDesign, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
 import { hasPrevious, loadCurrent, loadPrevious, saveCurrent, stashPrevious, type StorageStatus } from './storage';
 import deskExample from '../../../examples/desk_device.breadboard.json';
 import envExample from '../../../examples/environment_node.breadboard.json';
+import stressExample from '../../../examples/stress_test.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
 export type RightTab = 'properties' | 'dsl' | 'build';
@@ -27,7 +28,8 @@ export interface WireDraft {
 
 export const EXAMPLES: { key: string; name: string; doc: unknown }[] = [
   { key: 'desk_device', name: '桌面设备：ESP32-S3 + OLED + 触摸键', doc: deskExample },
-  { key: 'environment_node', name: '双面包板环境节点：XIAO + 传感器 + SEN66', doc: envExample }
+  { key: 'environment_node', name: '双面包板环境节点：XIAO + 传感器 + SEN66', doc: envExample },
+  { key: 'stress_test', name: '性能测试：4 板 / 20 模块 / 100 线', doc: stressExample }
 ];
 
 const analysisCache = new WeakMap<DesignDocument, Analysis>();
@@ -235,7 +237,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     startPlacing(model) {
-      const def = builtinCatalog().getComponent(model);
+      const def = catalogForDesign(get().design, builtinCatalog()).getComponent(model);
       set({ placing: { model, rotation: def?.preferred_rotation_deg ?? 0 }, tool: 'select', wireDraft: null, selectedIds: [] });
     },
     rotatePlacing() {

@@ -1,0 +1,40 @@
+{
+  "kind": "component",
+  "id": "my_3pin_module",
+  "version": 1,
+  "name": "示例：自定义 3 针模块",
+  "manufacturer": "example",
+  "model": "custom breakout with VCC/OUT/GND header",
+  "description": "演示如何不改动应用代码就添加一个简单模块：把这个文件通过“元件库 → 导入定义”或 `add_definition` 操作内嵌到设计里。",
+  "category": "sensor",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": { "type": "single_row_header", "edge": "bottom", "inset_um": 1270 },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 },
+      "body_size_um": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "mount_orientation": { "type": "string", "enum": ["upright", "flat"] }
+    }
+  },
+  "params_default": { "pin_names": ["VCC", "OUT", "GND"], "body_size_um": [16000, 12000], "mount_orientation": "upright" },
+  "body": { "size_um": [16000, 12000], "height_um": 3000, "standoff_um": 0 },
+  "pins": [],
+  "pin_meta": {
+    "VCC": { "role": "power_in", "voltage_v": null },
+    "OUT": { "role": "signal_out", "io_voltage_v": null, "direction": "out", "drive": "push_pull" },
+    "GND": { "role": "ground" }
+  },
+  "electrical": { "supply_voltage_v": { "min": 3, "max": 5.5 }, "supply_current_ma": { "typical": 1.5, "peak": null }, "io_voltage_v": null, "i2c": null },
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 16000, "h": 12000, "rx": 600, "fill": "#0f766e", "stroke": "#134e4a", "sw": 200 },
+    { "t": "text", "x": 8000, "y": 6500, "text": "MY MODULE", "size": 1400, "fill": "#ecfeff", "anchor": "middle" }
+  ],
+  "geometry_status": "unknown",
+  "electrical_status": "unknown",
+  "status_notes": "示例定义，尺寸与电气数据均为占位。",
+  "sources": [{ "title": "example only" }],
+  "license": { "spdx": "MIT" }
+}

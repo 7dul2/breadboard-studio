@@ -6,7 +6,7 @@ import { analyzeDesign } from './analyze.js';
 import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
-import { accessibleHolesForPin, buildModel } from './model.js';
+import { accessibleHolesForPin, buildModel, catalogForDesign } from './model.js';
 import type { RuleResult } from './results.js';
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,10 @@ export type Op =
   | { op: 'add_constraint'; constraint: Constraint }
   | { op: 'remove_constraint'; id: string }
   | { op: 'set_metadata'; patch: Partial<Omit<DesignMetadata, 'revision'>> }
-  | { op: 'replace_design'; design: DesignDocument };
+  | { op: 'replace_design'; design: DesignDocument }
+  /** Embed a board/component definition (validated against the definition schema) so the design carries it. */
+  | { op: 'add_definition'; definition: unknown }
+  | { op: 'remove_definition'; ref: string };
 
 export interface Patch {
   expected_revision?: number;
@@ -336,6 +339,34 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       changed.add('design');
       return;
     }
+    case 'add_definition': {
+      const probe = new Catalog();
+      const r = probe.addUnknown(op.definition);
+      if (!r.ok) throw new OpError(`元件定义无效：${r.issues.map((i) => `${i.path} ${i.message}`).join('; ')}`);
+      const def = r.def;
+      const emb = design.embedded_catalog ?? {};
+      const ref = `${def.id}@${def.version}`;
+      if (def.kind === 'board') emb.boards = [...(emb.boards ?? []).filter((d) => `${d.id}@${d.version}` !== ref), def];
+      else emb.components = [...(emb.components ?? []).filter((d) => `${d.id}@${d.version}` !== ref), def];
+      design.embedded_catalog = emb;
+      changed.add(ref);
+      return;
+    }
+    case 'remove_definition': {
+      const emb = design.embedded_catalog;
+      const inUse = [...design.boards, ...design.components].filter((o) => o.model === op.ref);
+      if (inUse.length) throw new OpError(`定义 ${op.ref} 仍被 ${inUse.map((o) => o.id).join(', ')} 使用`);
+      if (!emb) throw new OpError(`设计中没有内嵌定义 ${op.ref}`);
+      const before = (emb.boards?.length ?? 0) + (emb.components?.length ?? 0);
+      emb.boards = (emb.boards ?? []).filter((d) => `${d.id}@${d.version}` !== op.ref);
+      emb.components = (emb.components ?? []).filter((d) => `${d.id}@${d.version}` !== op.ref);
+      if ((emb.boards.length + emb.components.length) === before) throw new OpError(`设计中没有内嵌定义 ${op.ref}`);
+      if (!emb.boards.length) delete emb.boards;
+      if (!emb.components.length) delete emb.components;
+      if (!emb.boards && !emb.components) delete design.embedded_catalog;
+      changed.add(op.ref);
+      return;
+    }
     default: {
       const unknown = op as { op?: string };
       throw new OpError(`未知操作 "${unknown.op}"`);
@@ -391,7 +422,7 @@ export function applyOps(design: DesignDocument, ops: Op[], options: ApplyOption
   const changed = new Set<string>();
   for (let i = 0; i < ops.length; i++) {
     try {
-      applyOne(draft, catalog, ops[i]!, changed);
+      applyOne(draft, catalogForDesign(draft, catalog), ops[i]!, changed);
     } catch (e) {
       if (e instanceof OpError) return { ok: false, error: { code: 'op_failed', message: `第 ${i + 1} 个操作（${ops[i]!.op}）失败：${e.message}`, op_index: i } };
       throw e;

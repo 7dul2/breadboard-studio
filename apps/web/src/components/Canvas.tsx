@@ -6,6 +6,7 @@ import {
   applyOps,
   attachBoardPosition,
   buildModel,
+  catalogForDesign,
   conductiveSet,
   groupHoles,
   holeAtLocal,
@@ -80,7 +81,7 @@ export function Canvas() {
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
   const spaceRef = useRef(false);
 
-  const catalog = builtinCatalog();
+  const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const model = analysis.model;
 
   // ---- highlight sets -------------------------------------------------------

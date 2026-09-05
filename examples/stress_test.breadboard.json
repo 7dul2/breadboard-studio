@@ -1,0 +1,2476 @@
+{
+  "schema_version": "1.0",
+  "catalog_versions": {
+    "builtin": "0.1.0"
+  },
+  "metadata": {
+    "name": "性能测试：4 板 / 20 模块 / 100 线",
+    "revision": 3,
+    "created_at": "2026-09-05T00:00:00.000Z",
+    "updated_at": "2026-09-05T00:00:00.000Z"
+  },
+  "boards": [
+    {
+      "id": "bb_1",
+      "model": "breadboard_400@1",
+      "position_um": [
+        0,
+        0
+      ],
+      "rotation_deg": 0
+    },
+    {
+      "id": "bb_2",
+      "model": "breadboard_400@1",
+      "position_um": [
+        83820,
+        0
+      ],
+      "rotation_deg": 0
+    },
+    {
+      "id": "bb_3",
+      "model": "breadboard_400@1",
+      "position_um": [
+        0,
+        60960
+      ],
+      "rotation_deg": 0
+    },
+    {
+      "id": "bb_4",
+      "model": "breadboard_400@1",
+      "position_um": [
+        83820,
+        60960
+      ],
+      "rotation_deg": 0
+    }
+  ],
+  "components": [
+    {
+      "id": "mcu_0",
+      "model": "xiao_esp32s3_sense@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_1",
+        "anchor_hole": "b2",
+        "anchor_pin": "D6",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "s_0_0",
+      "model": "sht41_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_1",
+        "anchor_hole": "j12",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_0_1",
+      "model": "bmp390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_1",
+        "anchor_hole": "j17",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_0_2",
+      "model": "ltr390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_1",
+        "anchor_hole": "j22",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_0_3",
+      "model": "oled_0_96_i2c@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_1",
+        "anchor_hole": "j27",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "mcu_1",
+      "model": "xiao_esp32s3_sense@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_2",
+        "anchor_hole": "b2",
+        "anchor_pin": "D6",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "s_1_0",
+      "model": "sht41_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_2",
+        "anchor_hole": "j12",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_1_1",
+      "model": "bmp390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_2",
+        "anchor_hole": "j17",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_1_2",
+      "model": "ltr390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_2",
+        "anchor_hole": "j22",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_1_3",
+      "model": "oled_0_96_i2c@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_2",
+        "anchor_hole": "j27",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "mcu_2",
+      "model": "xiao_esp32s3_sense@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_3",
+        "anchor_hole": "b2",
+        "anchor_pin": "D6",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "s_2_0",
+      "model": "sht41_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_3",
+        "anchor_hole": "j12",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_2_1",
+      "model": "bmp390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_3",
+        "anchor_hole": "j17",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_2_2",
+      "model": "ltr390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_3",
+        "anchor_hole": "j22",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_2_3",
+      "model": "oled_0_96_i2c@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_3",
+        "anchor_hole": "j27",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "mcu_3",
+      "model": "xiao_esp32s3_sense@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_4",
+        "anchor_hole": "b2",
+        "anchor_pin": "D6",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "s_3_0",
+      "model": "sht41_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_4",
+        "anchor_hole": "j12",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_3_1",
+      "model": "bmp390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_4",
+        "anchor_hole": "j17",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_3_2",
+      "model": "ltr390_breakout@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_4",
+        "anchor_hole": "j22",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "s_3_3",
+      "model": "oled_0_96_i2c@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_4",
+        "anchor_hole": "j27",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "w1",
+      "from": {
+        "hole": "bb_1.g6"
+      },
+      "to": {
+        "hole": "bb_1.bottom_inner_4"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          17145,
+          40000
+        ],
+        [
+          13335,
+          40000
+        ]
+      ]
+    },
+    {
+      "id": "w2",
+      "from": {
+        "hole": "bb_1.g7"
+      },
+      "to": {
+        "hole": "bb_1.bottom_outer_5"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          19685,
+          41270
+        ],
+        [
+          15875,
+          41270
+        ]
+      ]
+    },
+    {
+      "id": "w3",
+      "from": {
+        "hole": "bb_1.i12"
+      },
+      "to": {
+        "hole": "bb_1.bottom_inner_6"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          32385,
+          42540
+        ],
+        [
+          20955,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w4",
+      "from": {
+        "hole": "bb_1.i13"
+      },
+      "to": {
+        "hole": "bb_1.bottom_outer_7"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          34925,
+          43810
+        ],
+        [
+          23495,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w5",
+      "from": {
+        "hole": "bb_1.a4"
+      },
+      "to": {
+        "hole": "bb_1.h15"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          12065,
+          24760
+        ],
+        [
+          40005,
+          24760
+        ]
+      ]
+    },
+    {
+      "id": "w6",
+      "from": {
+        "hole": "bb_1.a3"
+      },
+      "to": {
+        "hole": "bb_1.h14"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          9525,
+          24760
+        ],
+        [
+          37465,
+          24760
+        ]
+      ]
+    },
+    {
+      "id": "w7",
+      "from": {
+        "hole": "bb_1.i17"
+      },
+      "to": {
+        "hole": "bb_1.bottom_inner_9"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          45085,
+          42540
+        ],
+        [
+          28575,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w8",
+      "from": {
+        "hole": "bb_1.i18"
+      },
+      "to": {
+        "hole": "bb_1.bottom_outer_10"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          47625,
+          43810
+        ],
+        [
+          31115,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w9",
+      "from": {
+        "hole": "bb_1.g15"
+      },
+      "to": {
+        "hole": "bb_1.h20"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          40005,
+          34920
+        ],
+        [
+          52705,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w10",
+      "from": {
+        "hole": "bb_1.g14"
+      },
+      "to": {
+        "hole": "bb_1.h19"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          37465,
+          34920
+        ],
+        [
+          50165,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w11",
+      "from": {
+        "hole": "bb_1.i22"
+      },
+      "to": {
+        "hole": "bb_1.bottom_inner_12"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          57785,
+          42540
+        ],
+        [
+          38735,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w12",
+      "from": {
+        "hole": "bb_1.i23"
+      },
+      "to": {
+        "hole": "bb_1.bottom_outer_13"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          60325,
+          43810
+        ],
+        [
+          41275,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w13",
+      "from": {
+        "hole": "bb_1.g20"
+      },
+      "to": {
+        "hole": "bb_1.h25"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          52705,
+          34920
+        ],
+        [
+          65405,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w14",
+      "from": {
+        "hole": "bb_1.g19"
+      },
+      "to": {
+        "hole": "bb_1.h24"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          50165,
+          34920
+        ],
+        [
+          62865,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w15",
+      "from": {
+        "hole": "bb_1.i28"
+      },
+      "to": {
+        "hole": "bb_1.bottom_inner_15"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          73025,
+          42540
+        ],
+        [
+          46355,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w16",
+      "from": {
+        "hole": "bb_1.i27"
+      },
+      "to": {
+        "hole": "bb_1.bottom_outer_16"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          70485,
+          43810
+        ],
+        [
+          51435,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w17",
+      "from": {
+        "hole": "bb_1.g25"
+      },
+      "to": {
+        "hole": "bb_1.h30"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          65405,
+          34920
+        ],
+        [
+          78105,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w18",
+      "from": {
+        "hole": "bb_1.g24"
+      },
+      "to": {
+        "hole": "bb_1.h29"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          62865,
+          34920
+        ],
+        [
+          75565,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w19",
+      "from": {
+        "hole": "bb_1.a20"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_10"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          52705,
+          10790
+        ],
+        [
+          31115,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w20",
+      "from": {
+        "hole": "bb_1.a21"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_11"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          55245,
+          10790
+        ],
+        [
+          36195,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w21",
+      "from": {
+        "hole": "bb_1.a22"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_12"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          57785,
+          10790
+        ],
+        [
+          38735,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w22",
+      "from": {
+        "hole": "bb_1.a23"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_13"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          60325,
+          10790
+        ],
+        [
+          41275,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w23",
+      "from": {
+        "hole": "bb_1.a24"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_14"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          62865,
+          10790
+        ],
+        [
+          43815,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w24",
+      "from": {
+        "hole": "bb_1.a25"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_15"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          65405,
+          10790
+        ],
+        [
+          46355,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w25",
+      "from": {
+        "hole": "bb_1.a26"
+      },
+      "to": {
+        "hole": "bb_1.top_inner_16"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          67945,
+          10790
+        ],
+        [
+          51435,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w26",
+      "from": {
+        "hole": "bb_2.g6"
+      },
+      "to": {
+        "hole": "bb_2.bottom_inner_4"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          100965,
+          40000
+        ],
+        [
+          97155,
+          40000
+        ]
+      ]
+    },
+    {
+      "id": "w27",
+      "from": {
+        "hole": "bb_2.g7"
+      },
+      "to": {
+        "hole": "bb_2.bottom_outer_5"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          103505,
+          41270
+        ],
+        [
+          99695,
+          41270
+        ]
+      ]
+    },
+    {
+      "id": "w28",
+      "from": {
+        "hole": "bb_2.i12"
+      },
+      "to": {
+        "hole": "bb_2.bottom_inner_6"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          116205,
+          42540
+        ],
+        [
+          104775,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w29",
+      "from": {
+        "hole": "bb_2.i13"
+      },
+      "to": {
+        "hole": "bb_2.bottom_outer_7"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          118745,
+          43810
+        ],
+        [
+          107315,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w30",
+      "from": {
+        "hole": "bb_2.a4"
+      },
+      "to": {
+        "hole": "bb_2.h15"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          95885,
+          24760
+        ],
+        [
+          123825,
+          24760
+        ]
+      ]
+    },
+    {
+      "id": "w31",
+      "from": {
+        "hole": "bb_2.a3"
+      },
+      "to": {
+        "hole": "bb_2.h14"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          93345,
+          24760
+        ],
+        [
+          121285,
+          24760
+        ]
+      ]
+    },
+    {
+      "id": "w32",
+      "from": {
+        "hole": "bb_2.i17"
+      },
+      "to": {
+        "hole": "bb_2.bottom_inner_9"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          128905,
+          42540
+        ],
+        [
+          112395,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w33",
+      "from": {
+        "hole": "bb_2.i18"
+      },
+      "to": {
+        "hole": "bb_2.bottom_outer_10"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          131445,
+          43810
+        ],
+        [
+          114935,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w34",
+      "from": {
+        "hole": "bb_2.g15"
+      },
+      "to": {
+        "hole": "bb_2.h20"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          123825,
+          34920
+        ],
+        [
+          136525,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w35",
+      "from": {
+        "hole": "bb_2.g14"
+      },
+      "to": {
+        "hole": "bb_2.h19"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          121285,
+          34920
+        ],
+        [
+          133985,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w36",
+      "from": {
+        "hole": "bb_2.i22"
+      },
+      "to": {
+        "hole": "bb_2.bottom_inner_12"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          141605,
+          42540
+        ],
+        [
+          122555,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w37",
+      "from": {
+        "hole": "bb_2.i23"
+      },
+      "to": {
+        "hole": "bb_2.bottom_outer_13"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          144145,
+          43810
+        ],
+        [
+          125095,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w38",
+      "from": {
+        "hole": "bb_2.g20"
+      },
+      "to": {
+        "hole": "bb_2.h25"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          136525,
+          34920
+        ],
+        [
+          149225,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w39",
+      "from": {
+        "hole": "bb_2.g19"
+      },
+      "to": {
+        "hole": "bb_2.h24"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          133985,
+          34920
+        ],
+        [
+          146685,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w40",
+      "from": {
+        "hole": "bb_2.i28"
+      },
+      "to": {
+        "hole": "bb_2.bottom_inner_15"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          156845,
+          42540
+        ],
+        [
+          130175,
+          42540
+        ]
+      ]
+    },
+    {
+      "id": "w41",
+      "from": {
+        "hole": "bb_2.i27"
+      },
+      "to": {
+        "hole": "bb_2.bottom_outer_16"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          154305,
+          43810
+        ],
+        [
+          135255,
+          43810
+        ]
+      ]
+    },
+    {
+      "id": "w42",
+      "from": {
+        "hole": "bb_2.g25"
+      },
+      "to": {
+        "hole": "bb_2.h30"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          149225,
+          34920
+        ],
+        [
+          161925,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w43",
+      "from": {
+        "hole": "bb_2.g24"
+      },
+      "to": {
+        "hole": "bb_2.h29"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          146685,
+          34920
+        ],
+        [
+          159385,
+          34920
+        ]
+      ]
+    },
+    {
+      "id": "w44",
+      "from": {
+        "hole": "bb_2.a20"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_10"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          136525,
+          10790
+        ],
+        [
+          114935,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w45",
+      "from": {
+        "hole": "bb_2.a21"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_11"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          139065,
+          10790
+        ],
+        [
+          120015,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w46",
+      "from": {
+        "hole": "bb_2.a22"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_12"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          141605,
+          10790
+        ],
+        [
+          122555,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w47",
+      "from": {
+        "hole": "bb_2.a23"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_13"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          144145,
+          10790
+        ],
+        [
+          125095,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w48",
+      "from": {
+        "hole": "bb_2.a24"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_14"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          146685,
+          10790
+        ],
+        [
+          127635,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w49",
+      "from": {
+        "hole": "bb_2.a25"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_15"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          149225,
+          10790
+        ],
+        [
+          130175,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w50",
+      "from": {
+        "hole": "bb_2.a26"
+      },
+      "to": {
+        "hole": "bb_2.top_inner_16"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          151765,
+          10790
+        ],
+        [
+          135255,
+          10790
+        ]
+      ]
+    },
+    {
+      "id": "w51",
+      "from": {
+        "hole": "bb_3.g6"
+      },
+      "to": {
+        "hole": "bb_3.bottom_inner_4"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          17145,
+          100960
+        ],
+        [
+          13335,
+          100960
+        ]
+      ]
+    },
+    {
+      "id": "w52",
+      "from": {
+        "hole": "bb_3.g7"
+      },
+      "to": {
+        "hole": "bb_3.bottom_outer_5"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          19685,
+          102230
+        ],
+        [
+          15875,
+          102230
+        ]
+      ]
+    },
+    {
+      "id": "w53",
+      "from": {
+        "hole": "bb_3.i12"
+      },
+      "to": {
+        "hole": "bb_3.bottom_inner_6"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          32385,
+          103500
+        ],
+        [
+          20955,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w54",
+      "from": {
+        "hole": "bb_3.i13"
+      },
+      "to": {
+        "hole": "bb_3.bottom_outer_7"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          34925,
+          104770
+        ],
+        [
+          23495,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w55",
+      "from": {
+        "hole": "bb_3.a4"
+      },
+      "to": {
+        "hole": "bb_3.h15"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          12065,
+          85720
+        ],
+        [
+          40005,
+          85720
+        ]
+      ]
+    },
+    {
+      "id": "w56",
+      "from": {
+        "hole": "bb_3.a3"
+      },
+      "to": {
+        "hole": "bb_3.h14"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          9525,
+          85720
+        ],
+        [
+          37465,
+          85720
+        ]
+      ]
+    },
+    {
+      "id": "w57",
+      "from": {
+        "hole": "bb_3.i17"
+      },
+      "to": {
+        "hole": "bb_3.bottom_inner_9"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          45085,
+          103500
+        ],
+        [
+          28575,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w58",
+      "from": {
+        "hole": "bb_3.i18"
+      },
+      "to": {
+        "hole": "bb_3.bottom_outer_10"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          47625,
+          104770
+        ],
+        [
+          31115,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w59",
+      "from": {
+        "hole": "bb_3.g15"
+      },
+      "to": {
+        "hole": "bb_3.h20"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          40005,
+          95880
+        ],
+        [
+          52705,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w60",
+      "from": {
+        "hole": "bb_3.g14"
+      },
+      "to": {
+        "hole": "bb_3.h19"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          37465,
+          95880
+        ],
+        [
+          50165,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w61",
+      "from": {
+        "hole": "bb_3.i22"
+      },
+      "to": {
+        "hole": "bb_3.bottom_inner_12"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          57785,
+          103500
+        ],
+        [
+          38735,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w62",
+      "from": {
+        "hole": "bb_3.i23"
+      },
+      "to": {
+        "hole": "bb_3.bottom_outer_13"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          60325,
+          104770
+        ],
+        [
+          41275,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w63",
+      "from": {
+        "hole": "bb_3.g20"
+      },
+      "to": {
+        "hole": "bb_3.h25"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          52705,
+          95880
+        ],
+        [
+          65405,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w64",
+      "from": {
+        "hole": "bb_3.g19"
+      },
+      "to": {
+        "hole": "bb_3.h24"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          50165,
+          95880
+        ],
+        [
+          62865,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w65",
+      "from": {
+        "hole": "bb_3.i28"
+      },
+      "to": {
+        "hole": "bb_3.bottom_inner_15"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          73025,
+          103500
+        ],
+        [
+          46355,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w66",
+      "from": {
+        "hole": "bb_3.i27"
+      },
+      "to": {
+        "hole": "bb_3.bottom_outer_16"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          70485,
+          104770
+        ],
+        [
+          51435,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w67",
+      "from": {
+        "hole": "bb_3.g25"
+      },
+      "to": {
+        "hole": "bb_3.h30"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          65405,
+          95880
+        ],
+        [
+          78105,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w68",
+      "from": {
+        "hole": "bb_3.g24"
+      },
+      "to": {
+        "hole": "bb_3.h29"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          62865,
+          95880
+        ],
+        [
+          75565,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w69",
+      "from": {
+        "hole": "bb_3.a20"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_10"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          52705,
+          71750
+        ],
+        [
+          31115,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w70",
+      "from": {
+        "hole": "bb_3.a21"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_11"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          55245,
+          71750
+        ],
+        [
+          36195,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w71",
+      "from": {
+        "hole": "bb_3.a22"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_12"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          57785,
+          71750
+        ],
+        [
+          38735,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w72",
+      "from": {
+        "hole": "bb_3.a23"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_13"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          60325,
+          71750
+        ],
+        [
+          41275,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w73",
+      "from": {
+        "hole": "bb_3.a24"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_14"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          62865,
+          71750
+        ],
+        [
+          43815,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w74",
+      "from": {
+        "hole": "bb_3.a25"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_15"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          65405,
+          71750
+        ],
+        [
+          46355,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w75",
+      "from": {
+        "hole": "bb_3.a26"
+      },
+      "to": {
+        "hole": "bb_3.top_inner_16"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          67945,
+          71750
+        ],
+        [
+          51435,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w76",
+      "from": {
+        "hole": "bb_4.g6"
+      },
+      "to": {
+        "hole": "bb_4.bottom_inner_4"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          100965,
+          100960
+        ],
+        [
+          97155,
+          100960
+        ]
+      ]
+    },
+    {
+      "id": "w77",
+      "from": {
+        "hole": "bb_4.g7"
+      },
+      "to": {
+        "hole": "bb_4.bottom_outer_5"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          103505,
+          102230
+        ],
+        [
+          99695,
+          102230
+        ]
+      ]
+    },
+    {
+      "id": "w78",
+      "from": {
+        "hole": "bb_4.i12"
+      },
+      "to": {
+        "hole": "bb_4.bottom_inner_6"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          116205,
+          103500
+        ],
+        [
+          104775,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w79",
+      "from": {
+        "hole": "bb_4.i13"
+      },
+      "to": {
+        "hole": "bb_4.bottom_outer_7"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          118745,
+          104770
+        ],
+        [
+          107315,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w80",
+      "from": {
+        "hole": "bb_4.a4"
+      },
+      "to": {
+        "hole": "bb_4.h15"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          95885,
+          85720
+        ],
+        [
+          123825,
+          85720
+        ]
+      ]
+    },
+    {
+      "id": "w81",
+      "from": {
+        "hole": "bb_4.a3"
+      },
+      "to": {
+        "hole": "bb_4.h14"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          93345,
+          85720
+        ],
+        [
+          121285,
+          85720
+        ]
+      ]
+    },
+    {
+      "id": "w82",
+      "from": {
+        "hole": "bb_4.i17"
+      },
+      "to": {
+        "hole": "bb_4.bottom_inner_9"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          128905,
+          103500
+        ],
+        [
+          112395,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w83",
+      "from": {
+        "hole": "bb_4.i18"
+      },
+      "to": {
+        "hole": "bb_4.bottom_outer_10"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          131445,
+          104770
+        ],
+        [
+          114935,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w84",
+      "from": {
+        "hole": "bb_4.g15"
+      },
+      "to": {
+        "hole": "bb_4.h20"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          123825,
+          95880
+        ],
+        [
+          136525,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w85",
+      "from": {
+        "hole": "bb_4.g14"
+      },
+      "to": {
+        "hole": "bb_4.h19"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          121285,
+          95880
+        ],
+        [
+          133985,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w86",
+      "from": {
+        "hole": "bb_4.i22"
+      },
+      "to": {
+        "hole": "bb_4.bottom_inner_12"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          141605,
+          103500
+        ],
+        [
+          122555,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w87",
+      "from": {
+        "hole": "bb_4.i23"
+      },
+      "to": {
+        "hole": "bb_4.bottom_outer_13"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          144145,
+          104770
+        ],
+        [
+          125095,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w88",
+      "from": {
+        "hole": "bb_4.g20"
+      },
+      "to": {
+        "hole": "bb_4.h25"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          136525,
+          95880
+        ],
+        [
+          149225,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w89",
+      "from": {
+        "hole": "bb_4.g19"
+      },
+      "to": {
+        "hole": "bb_4.h24"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          133985,
+          95880
+        ],
+        [
+          146685,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w90",
+      "from": {
+        "hole": "bb_4.i28"
+      },
+      "to": {
+        "hole": "bb_4.bottom_inner_15"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          156845,
+          103500
+        ],
+        [
+          130175,
+          103500
+        ]
+      ]
+    },
+    {
+      "id": "w91",
+      "from": {
+        "hole": "bb_4.i27"
+      },
+      "to": {
+        "hole": "bb_4.bottom_outer_16"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          154305,
+          104770
+        ],
+        [
+          135255,
+          104770
+        ]
+      ]
+    },
+    {
+      "id": "w92",
+      "from": {
+        "hole": "bb_4.g25"
+      },
+      "to": {
+        "hole": "bb_4.h30"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          149225,
+          95880
+        ],
+        [
+          161925,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w93",
+      "from": {
+        "hole": "bb_4.g24"
+      },
+      "to": {
+        "hole": "bb_4.h29"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          146685,
+          95880
+        ],
+        [
+          159385,
+          95880
+        ]
+      ]
+    },
+    {
+      "id": "w94",
+      "from": {
+        "hole": "bb_4.a20"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_10"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          136525,
+          71750
+        ],
+        [
+          114935,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w95",
+      "from": {
+        "hole": "bb_4.a21"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_11"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          139065,
+          71750
+        ],
+        [
+          120015,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w96",
+      "from": {
+        "hole": "bb_4.a22"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_12"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          141605,
+          71750
+        ],
+        [
+          122555,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w97",
+      "from": {
+        "hole": "bb_4.a23"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_13"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          144145,
+          71750
+        ],
+        [
+          125095,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w98",
+      "from": {
+        "hole": "bb_4.a24"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_14"
+      },
+      "color": "orange",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          146685,
+          71750
+        ],
+        [
+          127635,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w99",
+      "from": {
+        "hole": "bb_4.a25"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_15"
+      },
+      "color": "purple",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          149225,
+          71750
+        ],
+        [
+          130175,
+          71750
+        ]
+      ]
+    },
+    {
+      "id": "w100",
+      "from": {
+        "hole": "bb_4.a26"
+      },
+      "to": {
+        "hole": "bb_4.top_inner_16"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          151765,
+          71750
+        ],
+        [
+          135255,
+          71750
+        ]
+      ]
+    }
+  ],
+  "net_intents": [],
+  "constraints": []
+}

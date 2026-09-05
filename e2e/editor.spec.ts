@@ -235,3 +235,19 @@ test.describe('editor core flows', () => {
     expect((await state(page)).past).toBe(1);
   });
 });
+
+test('custom definition import through the library', async ({ page }) => {
+  await fresh(page);
+  await page.getByTestId('lib-breadboard_400').click();
+  const def = readFileSync(join(import.meta.dirname, '..', 'examples', 'custom_definition_example.json'), 'utf8');
+  await page.getByTestId('definition-input').setInputFiles({ name: 'def.json', mimeType: 'application/json', buffer: Buffer.from(def) });
+  await expect(page.getByTestId('toast-success')).toContainText('my_3pin_module');
+  await expect(page.getByTestId('lib-my_3pin_module')).toBeVisible();
+  await page.getByTestId('lib-my_3pin_module').click();
+  await clickHole(page, 'bb_1.j10');
+  const d = await design(page);
+  expect(d.components[0]!.placement.anchor_hole).toBe('j10');
+  expect((d as unknown as { embedded_catalog: { components: unknown[] } }).embedded_catalog.components.length).toBe(1);
+  await page.getByTestId('definition-input').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"kind":"component","id":"x"}') });
+  await expect(page.getByTestId('toast-error')).toBeVisible();
+});
