@@ -1,0 +1,36 @@
+{
+  "kind": "component",
+  "id": "led_5mm",
+  "version": 1,
+  "name": "5 mm LED",
+  "manufacturer": "generic",
+  "model": "5 mm through-hole LED",
+  "description": "两脚相距 1 孔距。A=阳极（长脚），K=阴极。两脚之间不是短路。",
+  "category": "passive",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "body": { "size_um": [5000, 5000], "height_um": 8600, "standoff_um": 1000 },
+  "pins": [
+    { "name": "A", "local_um": [1230, 2500], "kind": "header" },
+    { "name": "K", "local_um": [3770, 2500], "kind": "header" }
+  ],
+  "pin_meta": {
+    "A": { "role": "passive", "direction": "passive", "aliases": ["anode", "+"] },
+    "K": { "role": "passive", "direction": "passive", "aliases": ["cathode", "-"] }
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": { "color": { "type": "string", "description": "发光颜色（仅显示）" } }
+  },
+  "params_default": { "color": "red" },
+  "electrical": { "supply_voltage_v": null, "supply_current_ma": { "typical": 10, "peak": 20 }, "io_voltage_v": null, "i2c": null },
+  "render": [
+    { "t": "circle", "cx": 2500, "cy": 2500, "r": 2500, "fill": "#fb7185", "stroke": "#9f1239", "sw": 150, "opacity": 0.9 },
+    { "t": "circle", "cx": 2500, "cy": 2500, "r": 1300, "fill": "#fecdd3", "stroke": "#9f1239", "sw": 80 }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "sources": [{ "title": "Standard 5 mm LED with 2.54 mm lead spacing" }],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

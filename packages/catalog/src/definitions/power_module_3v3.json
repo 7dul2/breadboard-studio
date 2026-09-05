@@ -1,0 +1,56 @@
+{
+  "kind": "component",
+  "id": "power_module_3v3",
+  "version": 1,
+  "name": "3.3 V 电源模块（可配置占位）",
+  "manufacturer": "generic",
+  "model": "configurable 3.3 V supply placeholder",
+  "description": "板外电源占位模型：提供 3V3/GND 输出端子。额定/峰值输出能力必须在 config 中显式填写，否则保持 unknown 并进入待审核项。",
+  "category": "power",
+  "mount": "off_board",
+  "origin": "top_left",
+  "body": { "size_um": [40000, 22000], "height_um": 12000, "standoff_um": 0, "corner_radius_um": 1000 },
+  "pins": [
+    { "name": "VIN", "local_um": [4000, 20500], "kind": "terminal" },
+    { "name": "GND_IN", "local_um": [8000, 20500], "kind": "terminal" },
+    { "name": "3V3", "local_um": [30000, 20500], "kind": "terminal" },
+    { "name": "GND", "local_um": [34000, 20500], "kind": "terminal" }
+  ],
+  "pin_meta": {
+    "VIN": { "role": "power_in", "voltage_v": null, "notes": "输入电压未知" },
+    "GND_IN": { "role": "ground" },
+    "3V3": { "role": "power_out", "voltage_v": 3.3, "max_source_ma": null, "notes": "输出能力由 config.capacity_ma 决定" },
+    "GND": { "role": "ground" }
+  },
+  "internal_nets": [["GND_IN", "GND"]],
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "capacity_ma": { "type": ["number", "null"], "description": "持续输出能力（mA），未知留 null" },
+      "peak_ma": { "type": ["number", "null"], "description": "短时峰值能力（mA）" },
+      "input": { "type": "string", "description": "输入来源描述，如 USB 5V" }
+    }
+  },
+  "config_default": { "capacity_ma": null, "peak_ma": null, "input": "" },
+  "electrical": {
+    "supply_voltage_v": null,
+    "supply_current_ma": null,
+    "io_voltage_v": null,
+    "i2c": null,
+    "notes": "占位模型；不代表任何具体产品。"
+  },
+  "features": [{ "type": "connector", "label": "输出端子", "side": "bottom" }],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 40000, "h": 22000, "rx": 1000, "fill": "#fef3c7", "stroke": "#b45309", "sw": 250 },
+    { "t": "rect", "x": 3000, "y": 3000, "w": 16000, "h": 9000, "rx": 500, "fill": "#fde68a", "stroke": "#b45309", "sw": 120 },
+    { "t": "text", "x": 11000, "y": 8500, "text": "LDO/DC-DC", "size": 1400, "fill": "#78350f", "anchor": "middle" },
+    { "t": "text", "x": 29000, "y": 8500, "text": "3.3 V OUT", "size": 1600, "fill": "#78350f", "anchor": "middle", "weight": "bold" },
+    { "t": "text", "x": 20000, "y": 16500, "text": "电源模块（占位，能力待填）", "size": 1200, "fill": "#78350f", "anchor": "middle" }
+  ],
+  "geometry_status": "unknown",
+  "electrical_status": "unknown",
+  "status_notes": "占位模型：外形与能力均未知，使用前请在 config 中填写实际模块的输出能力。",
+  "sources": [{ "title": "Placeholder — no specific product" }],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

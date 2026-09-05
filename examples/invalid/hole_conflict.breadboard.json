@@ -1,0 +1,784 @@
+{
+  "schema_version": "1.0",
+  "catalog_versions": {
+    "builtin": "0.1.0"
+  },
+  "metadata": {
+    "name": "双面包板环境节点：XIAO ESP32-S3 Sense + 传感器 + SEN66",
+    "revision": 2,
+    "created_at": "2026-09-05T00:00:00.000Z",
+    "updated_at": "2026-09-05T00:00:00.000Z",
+    "description": "两块 400 孔板沿短边拼接（栅格对齐，几何拼接不导通）。板 A：XIAO ESP32-S3 Sense + SHT41/BMP390/LTR390 立式 I²C 模块，由 XIAO 3V3 供电；板 B：SEN66 线缆落点与独立 3.3 V 电源。两块板只共地，不并联 3.3 V。",
+    "author": "Breadboard Studio examples",
+    "tags": [
+      "xiao",
+      "esp32-s3",
+      "sen66",
+      "i2c",
+      "example"
+    ]
+  },
+  "boards": [
+    {
+      "id": "bb_a",
+      "model": "breadboard_400@1",
+      "position_um": [
+        0,
+        0
+      ],
+      "rotation_deg": 0,
+      "name": "板 A（主控）"
+    },
+    {
+      "id": "bb_b",
+      "model": "breadboard_400@1",
+      "position_um": [
+        83820,
+        0
+      ],
+      "rotation_deg": 0,
+      "name": "板 B（电源/SEN66）"
+    }
+  ],
+  "components": [
+    {
+      "id": "mcu",
+      "name": "XIAO ESP32-S3 Sense",
+      "model": "xiao_esp32s3_sense@1",
+      "notes": "旋转 90° 后 D 排在 b 行（a 行可引出），电源排在 f 行（g–j 可引出）。USB-C 朝右。",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_a",
+        "anchor_hole": "b3",
+        "anchor_pin": "D6",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "sht41",
+      "name": "SHT41",
+      "model": "sht41_breakout@1",
+      "config": {
+        "i2c_address": 68,
+        "supply_voltage_v": null
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_a",
+        "anchor_hole": "j12",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "bmp390",
+      "name": "BMP390",
+      "model": "bmp390_breakout@1",
+      "config": {
+        "i2c_address": 119,
+        "supply_voltage_v": null
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_a",
+        "anchor_hole": "j18",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "ltr390",
+      "name": "LTR390",
+      "model": "ltr390_breakout@1",
+      "config": {
+        "i2c_address": 83,
+        "supply_voltage_v": null
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_a",
+        "anchor_hole": "j24",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "sen66",
+      "name": "SEN66",
+      "model": "sen66@1",
+      "notes": "JST-GH 线缆落到板 B；SEL 接地选择 I²C。",
+      "placement": {
+        "kind": "off_board",
+        "position_um": [
+          95000,
+          75000
+        ],
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "psu",
+      "name": "3.3 V 电源",
+      "model": "power_module_3v3@1",
+      "config": {
+        "capacity_ma": null,
+        "peak_ma": null,
+        "input": "USB 5V（待定）"
+      },
+      "notes": "输出能力未填写，规则会保留待审核项。",
+      "placement": {
+        "kind": "off_board",
+        "position_um": [
+          180000,
+          8000
+        ],
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "led1",
+      "model": "led_5mm@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb_a",
+        "anchor_hole": "j12",
+        "anchor_pin": "A",
+        "rotation_deg": 0
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "w1",
+      "from": {
+        "hole": "bb_a.g7"
+      },
+      "to": {
+        "hole": "bb_a.bottom_inner_5"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          19685,
+          40000
+        ],
+        [
+          15875,
+          40000
+        ]
+      ],
+      "name": "XIAO 3V3 → A 板 + 轨"
+    },
+    {
+      "id": "w2",
+      "from": {
+        "hole": "bb_a.g8"
+      },
+      "to": {
+        "hole": "bb_a.bottom_outer_6"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          22225,
+          41270
+        ],
+        [
+          20955,
+          41270
+        ]
+      ],
+      "name": "XIAO GND → A 板 − 轨"
+    },
+    {
+      "id": "w3",
+      "from": {
+        "hole": "bb_a.i12"
+      },
+      "to": {
+        "hole": "bb_a.bottom_inner_9"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          32385,
+          42540
+        ],
+        [
+          28575,
+          42540
+        ]
+      ],
+      "name": "SHT41 VCC"
+    },
+    {
+      "id": "w4",
+      "from": {
+        "hole": "bb_a.i13"
+      },
+      "to": {
+        "hole": "bb_a.bottom_outer_10"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          34925,
+          43810
+        ],
+        [
+          31115,
+          43810
+        ]
+      ],
+      "name": "SHT41 GND"
+    },
+    {
+      "id": "w5",
+      "from": {
+        "hole": "bb_a.i18"
+      },
+      "to": {
+        "hole": "bb_a.bottom_inner_13"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          47625,
+          42540
+        ],
+        [
+          41275,
+          42540
+        ]
+      ],
+      "name": "BMP390 VCC"
+    },
+    {
+      "id": "w6",
+      "from": {
+        "hole": "bb_a.i19"
+      },
+      "to": {
+        "hole": "bb_a.bottom_outer_14"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          50165,
+          43810
+        ],
+        [
+          43815,
+          43810
+        ]
+      ],
+      "name": "BMP390 GND"
+    },
+    {
+      "id": "w7",
+      "from": {
+        "hole": "bb_a.i24"
+      },
+      "to": {
+        "hole": "bb_a.bottom_inner_18"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          62865,
+          42540
+        ],
+        [
+          56515,
+          42540
+        ]
+      ],
+      "name": "LTR390 VCC"
+    },
+    {
+      "id": "w8",
+      "from": {
+        "hole": "bb_a.i25"
+      },
+      "to": {
+        "hole": "bb_a.bottom_outer_19"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          65405,
+          43810
+        ],
+        [
+          59055,
+          43810
+        ]
+      ],
+      "name": "LTR390 GND"
+    },
+    {
+      "id": "w9",
+      "from": {
+        "hole": "bb_a.a5"
+      },
+      "to": {
+        "hole": "bb_a.h15"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          14605,
+          24760
+        ],
+        [
+          40005,
+          24760
+        ]
+      ],
+      "name": "SDA D4 → SHT41"
+    },
+    {
+      "id": "w10",
+      "from": {
+        "hole": "bb_a.a4"
+      },
+      "to": {
+        "hole": "bb_a.h14"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          12065,
+          24760
+        ],
+        [
+          37465,
+          24760
+        ]
+      ],
+      "name": "SCL D5 → SHT41"
+    },
+    {
+      "id": "w11",
+      "from": {
+        "hole": "bb_a.g15"
+      },
+      "to": {
+        "hole": "bb_a.h21"
+      },
+      "color": "blue",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          40005,
+          34920
+        ],
+        [
+          55245,
+          34920
+        ]
+      ],
+      "name": "SDA → BMP390"
+    },
+    {
+      "id": "w12",
+      "from": {
+        "hole": "bb_a.g14"
+      },
+      "to": {
+        "hole": "bb_a.h20"
+      },
+      "color": "yellow",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          37465,
+          34920
+        ],
+        [
+          52705,
+          34920
+        ]
+      ],
+      "name": "SCL → BMP390"
+    },
+    {
+      "id": "w13",
+      "from": {
+        "hole": "bb_a.g21"
+      },
+      "to": {
+        "hole": "bb_a.h27"
+      },
+      "color": "blue",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          55245,
+          34920
+        ],
+        [
+          70485,
+          34920
+        ]
+      ],
+      "name": "SDA → LTR390"
+    },
+    {
+      "id": "w14",
+      "from": {
+        "hole": "bb_a.g20"
+      },
+      "to": {
+        "hole": "bb_a.h26"
+      },
+      "color": "yellow",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          52705,
+          34920
+        ],
+        [
+          67945,
+          34920
+        ]
+      ],
+      "name": "SCL → LTR390"
+    },
+    {
+      "id": "w15",
+      "from": {
+        "hole": "bb_a.f27"
+      },
+      "to": {
+        "hole": "bb_b.a3"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          70485,
+          22220
+        ],
+        [
+          93345,
+          22220
+        ]
+      ],
+      "name": "SDA 跨板 A→B"
+    },
+    {
+      "id": "w16",
+      "from": {
+        "hole": "bb_a.f26"
+      },
+      "to": {
+        "hole": "bb_b.a5"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          67945,
+          22220
+        ],
+        [
+          98425,
+          22220
+        ]
+      ],
+      "name": "SCL 跨板 A→B"
+    },
+    {
+      "id": "w17",
+      "from": {
+        "hole": "bb_a.bottom_outer_25"
+      },
+      "to": {
+        "hole": "bb_b.bottom_outer_1"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "共地跨板"
+    },
+    {
+      "id": "w18",
+      "from": {
+        "terminal": "psu.3V3"
+      },
+      "to": {
+        "hole": "bb_b.bottom_inner_2"
+      },
+      "color": "red",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          210000,
+          36500
+        ],
+        [
+          210000,
+          46350
+        ]
+      ],
+      "name": "电源 3V3 → B 板 + 轨"
+    },
+    {
+      "id": "w19",
+      "from": {
+        "terminal": "psu.GND"
+      },
+      "to": {
+        "hole": "bb_b.bottom_outer_2"
+      },
+      "color": "black",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          214000,
+          38000
+        ],
+        [
+          214000,
+          48890
+        ]
+      ],
+      "name": "电源 GND → B 板 − 轨"
+    },
+    {
+      "id": "w20",
+      "from": {
+        "terminal": "sen66.VDD"
+      },
+      "to": {
+        "hole": "bb_b.bottom_inner_6"
+      },
+      "color": "red",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          109000,
+          120600
+        ],
+        [
+          92000,
+          120600
+        ],
+        [
+          92000,
+          46350
+        ]
+      ],
+      "name": "SEN66 VDD"
+    },
+    {
+      "id": "w21",
+      "from": {
+        "terminal": "sen66.GND"
+      },
+      "to": {
+        "hole": "bb_b.bottom_outer_6"
+      },
+      "color": "black",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          111500,
+          122100
+        ],
+        [
+          90500,
+          122100
+        ],
+        [
+          90500,
+          48890
+        ]
+      ],
+      "name": "SEN66 GND"
+    },
+    {
+      "id": "w22",
+      "from": {
+        "terminal": "sen66.SDA"
+      },
+      "to": {
+        "hole": "bb_b.b3"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          114000,
+          123600
+        ],
+        [
+          89000,
+          123600
+        ],
+        [
+          89000,
+          15870
+        ]
+      ],
+      "name": "SEN66 SDA"
+    },
+    {
+      "id": "w23",
+      "from": {
+        "terminal": "sen66.SCL"
+      },
+      "to": {
+        "hole": "bb_b.b5"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          116500,
+          125100
+        ],
+        [
+          87500,
+          125100
+        ],
+        [
+          87500,
+          15870
+        ]
+      ],
+      "name": "SEN66 SCL"
+    },
+    {
+      "id": "w24",
+      "from": {
+        "terminal": "sen66.SEL"
+      },
+      "to": {
+        "hole": "bb_b.bottom_outer_7"
+      },
+      "color": "black",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          119000,
+          126600
+        ],
+        [
+          86000,
+          126600
+        ],
+        [
+          86000,
+          48890
+        ]
+      ],
+      "name": "SEN66 SEL → GND"
+    }
+  ],
+  "net_intents": [
+    {
+      "id": "n_sda",
+      "name": "SDA",
+      "endpoints": [
+        "mcu.D4",
+        "sht41.SDA",
+        "bmp390.SDA",
+        "ltr390.SDA",
+        "sen66.SDA"
+      ]
+    },
+    {
+      "id": "n_scl",
+      "name": "SCL",
+      "endpoints": [
+        "mcu.D5",
+        "sht41.SCL",
+        "bmp390.SCL",
+        "ltr390.SCL",
+        "sen66.SCL"
+      ]
+    },
+    {
+      "id": "n_gnd",
+      "name": "GND",
+      "endpoints": [
+        "mcu.GND",
+        "sht41.GND",
+        "bmp390.GND",
+        "ltr390.GND",
+        "sen66.GND",
+        "sen66.SEL",
+        "psu.GND"
+      ]
+    },
+    {
+      "id": "n_3v3_a",
+      "name": "3V3_A",
+      "endpoints": [
+        "mcu.3V3",
+        "sht41.VCC",
+        "bmp390.VCC",
+        "ltr390.VCC"
+      ]
+    },
+    {
+      "id": "n_3v3_b",
+      "name": "3V3_B",
+      "endpoints": [
+        "psu.3V3",
+        "sen66.VDD"
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "id": "c_isolate",
+      "type": "isolate",
+      "a": "mcu.3V3",
+      "b": "psu.3V3",
+      "notes": "XIAO 的 LDO 与外部电源不得并联"
+    },
+    {
+      "id": "c_note",
+      "type": "note",
+      "text": "SEN66 峰值电流与电源模块能力未填写，供电评估保持待审核。"
+    }
+  ]
+}

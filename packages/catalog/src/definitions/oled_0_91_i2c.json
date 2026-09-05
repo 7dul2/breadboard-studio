@@ -1,0 +1,50 @@
+{
+  "kind": "component",
+  "id": "oled_0_91_i2c",
+  "version": 1,
+  "name": "0.91\" OLED 模块（I²C，4 针）",
+  "manufacturer": "generic",
+  "model": "0.91 inch 128×32 OLED breakout, SSD1306 controller",
+  "description": "细长 4 针 I²C OLED 转接板，针排通常位于短边。针序必须按丝印确认。",
+  "category": "display",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": { "type": "single_row_header", "edge": "left", "inset_um": 1270 },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": { "type": "array", "items": { "type": "string" }, "minItems": 4, "maxItems": 4 },
+      "body_size_um": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "mount_orientation": { "type": "string", "enum": ["upright", "flat"] }
+    }
+  },
+  "params_default": { "pin_names": ["GND", "VCC", "SCL", "SDA"], "body_size_um": [38000, 12000], "mount_orientation": "upright" },
+  "config_schema": { "type": "object", "additionalProperties": false, "properties": { "i2c_address": { "type": "integer", "enum": [60, 61] } } },
+  "config_default": { "i2c_address": 60 },
+  "body": { "size_um": [38000, 12000], "height_um": 3000, "standoff_um": 0, "corner_radius_um": 600 },
+  "pins": [],
+  "pin_meta": {
+    "GND": { "role": "ground" },
+    "VCC": { "role": "power_in", "voltage_v": null },
+    "SCL": { "role": "i2c_scl", "io_voltage_v": null, "direction": "in", "drive": "open_drain" },
+    "SDA": { "role": "i2c_sda", "io_voltage_v": null, "direction": "bidir", "drive": "open_drain" }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 3.3, "max": 5 },
+    "supply_current_ma": { "typical": 10, "peak": null },
+    "io_voltage_v": null,
+    "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL" }
+  },
+  "features": [{ "type": "display", "label": "128×32 OLED", "rect_um": { "x": 6000, "y": 1500, "w": 30000, "h": 9000 } }],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 38000, "h": 12000, "rx": 600, "fill": "#1d4ed8", "stroke": "#1e3a8a", "sw": 200 },
+    { "t": "rect", "x": 6000, "y": 1500, "w": 30000, "h": 9000, "rx": 300, "fill": "#0b1020", "stroke": "#334155", "sw": 120 },
+    { "t": "text", "x": 21000, "y": 6800, "text": "0.91\" OLED 128x32", "size": 1300, "fill": "#a5f3fc", "anchor": "middle" }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "外形 38×12 mm 为常见值；针排位置、针序与供电范围需按具体模块核实。",
+  "sources": [{ "title": "Common 0.91\" 128×32 I2C OLED breakout listings" }],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

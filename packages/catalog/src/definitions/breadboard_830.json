@@ -1,0 +1,30 @@
+{
+  "kind": "board",
+  "id": "breadboard_830",
+  "version": 1,
+  "name": "830 孔面包板（全尺寸，电源轨中间断开）",
+  "manufacturer": "generic",
+  "model": "MB-102 style full-size solderless breadboard",
+  "description": "63 列 × 10 行接线区，上下各两条 50 孔电源轨；每条轨在第 25/26 孔之间断开为两段（MB-102 常见做法）。",
+  "size_um": [165100, 54600],
+  "pitch_um": 2540,
+  "terminal_blocks": [
+    { "id": "ae", "rows": ["a", "b", "c", "d", "e"], "first_column": 1, "columns": 63, "origin_um": [3810, 13330] },
+    { "id": "fj", "rows": ["f", "g", "h", "i", "j"], "first_column": 1, "columns": 63, "origin_um": [3810, 31110] }
+  ],
+  "rails": [
+    { "id": "top_outer", "holes": 50, "origin_um": [8890, 5710], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25], [26, 50]], "marking": "-", "marking_color": "#2563eb", "marking_side": "above" },
+    { "id": "top_inner", "holes": 50, "origin_um": [8890, 8250], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25], [26, 50]], "marking": "+", "marking_color": "#dc2626", "marking_side": "below" },
+    { "id": "bottom_inner", "holes": 50, "origin_um": [8890, 46350], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25], [26, 50]], "marking": "+", "marking_color": "#dc2626", "marking_side": "above" },
+    { "id": "bottom_outer", "holes": 50, "origin_um": [8890, 48890], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25], [26, 50]], "marking": "-", "marking_color": "#2563eb", "marking_side": "below" }
+  ],
+  "ravines": [{ "x_um": 0, "y_um": 25700, "w_um": 165100, "h_um": 3200 }],
+  "render": { "body_color": "#f3f1e9", "edge_color": "#c9c5b6", "hole_color": "#3b3b3b", "label_color": "#6b6b6b", "corner_radius_um": 1500 },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "MB-102 类全尺寸板：电源轨在中间断开是常见但非普遍的做法，部分板整条连续。使用前请用万用表确认断点。",
+  "sources": [
+    { "title": "Generic MB-102 full-size breadboard listings (63 columns, 4 × 50-hole rails, split rails)", "note": "Outline 165.1 × 54.6 mm approximates common vendors." }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing data by Breadboard Studio contributors" }
+}

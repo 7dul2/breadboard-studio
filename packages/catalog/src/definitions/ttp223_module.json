@@ -1,0 +1,57 @@
+{
+  "kind": "component",
+  "id": "ttp223_module",
+  "version": 1,
+  "name": "TTP223 电容触摸模块",
+  "manufacturer": "generic",
+  "model": "TTP223 capacitive touch breakout (HW-139 style)",
+  "description": "3 针单排触摸按键模块。针序（常见 VCC / IO / GND 或 GND / IO / VCC）与输出模式（A/B 焊盘决定高/低有效、自锁）以实物为准。",
+  "category": "input",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": { "type": "single_row_header", "edge": "bottom", "inset_um": 1270 },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 },
+      "body_size_um": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "mount_orientation": { "type": "string", "enum": ["upright", "flat"] }
+    }
+  },
+  "params_default": { "pin_names": ["VCC", "IO", "GND"], "body_size_um": [15000, 11000], "mount_orientation": "upright" },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "output_mode": { "type": "string", "enum": ["active_high", "active_low"], "description": "A 焊盘：默认高有效" },
+      "toggle_mode": { "type": "boolean", "description": "B 焊盘：true 为自锁（toggle）" },
+      "supply_v": { "type": ["number", "null"], "description": "实际供电电压，决定 IO 输出电平" }
+    }
+  },
+  "config_default": { "output_mode": "active_high", "toggle_mode": false, "supply_v": null },
+  "body": { "size_um": [15000, 11000], "height_um": 3000, "standoff_um": 0, "corner_radius_um": 600 },
+  "pins": [],
+  "pin_meta": {
+    "VCC": { "role": "power_in", "voltage_v": null, "notes": "TTP223 工作电压 2.0–5.5 V（芯片手册）" },
+    "IO": { "role": "signal_out", "io_voltage_v": null, "direction": "out", "drive": "push_pull", "aliases": ["SIG", "OUT"], "notes": "输出电平等于供电电压；接 3.3 V 主控时请用 3.3 V 供电" },
+    "GND": { "role": "ground" }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 2, "max": 5.5 },
+    "supply_current_ma": { "typical": 0.1, "peak": null },
+    "io_voltage_v": null,
+    "i2c": null
+  },
+  "features": [{ "type": "button", "label": "触摸区", "rect_um": { "x": 3000, "y": 1500, "w": 9000, "h": 6000 } }],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 15000, "h": 11000, "rx": 600, "fill": "#b91c1c", "stroke": "#7f1d1d", "sw": 200 },
+    { "t": "circle", "cx": 7500, "cy": 4500, "r": 3200, "fill": "#fecaca", "stroke": "#7f1d1d", "sw": 120 },
+    { "t": "text", "x": 7500, "y": 5000, "text": "TOUCH", "size": 1100, "fill": "#7f1d1d", "anchor": "middle" }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "外形与针序为常见模块的近似值；输出模式由焊盘决定，未核实。",
+  "sources": [{ "title": "TTP223 touch pad detector IC datasheet (Tontek)", "note": "Operating voltage 2.0–5.5 V; output level follows VDD." }],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@breadboard-studio/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": {
+    "bb": "./bin/bb.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@breadboard-studio/core": "workspace:*",
+    "@breadboard-studio/catalog": "workspace:*",
+    "@breadboard-studio/render": "workspace:*",
+    "@breadboard-studio/schema": "workspace:*",
+    "commander": "15.0.0",
+    "tsx": "4.23.13"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "kind": "component",
+  "id": "oled_0_96_i2c",
+  "version": 1,
+  "name": "0.96\" OLED 模块（I²C，4 针）",
+  "manufacturer": "generic",
+  "model": "0.96 inch 128×64 OLED breakout, SSD1306 controller",
+  "description": "4 针单排 I²C OLED 转接板。针序因厂商而异（常见 GND-VCC-SCL-SDA 或 VCC-GND-SCL-SDA），必须按板上丝印在 params.pin_names 中确认。直插排针时模块立在面包板上，只占用针排所在的孔位。",
+  "category": "display",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": { "type": "single_row_header", "edge": "top", "inset_um": 1270 },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": { "type": "array", "items": { "type": "string" }, "minItems": 4, "maxItems": 4, "description": "自左向右针名（正视丝印面）" },
+      "body_size_um": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "mount_orientation": { "type": "string", "enum": ["upright", "flat"], "description": "upright=直排针立插；flat=弯排针平躺（板体遮挡孔位）" }
+    }
+  },
+  "params_default": { "pin_names": ["GND", "VCC", "SCL", "SDA"], "body_size_um": [27000, 27000], "mount_orientation": "upright" },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "i2c_address": { "type": "integer", "enum": [60, 61], "description": "0x3C (60) 或 0x3D (61)" }
+    }
+  },
+  "config_default": { "i2c_address": 60 },
+  "body": { "size_um": [27000, 27000], "height_um": 4000, "standoff_um": 0, "corner_radius_um": 800 },
+  "pins": [],
+  "pin_meta": {
+    "GND": { "role": "ground" },
+    "VCC": { "role": "power_in", "voltage_v": null, "notes": "模块常标 3.3–5V，取决于板载稳压/电平设计，未逐板核实" },
+    "VDD": { "role": "power_in", "voltage_v": null },
+    "SCL": { "role": "i2c_scl", "io_voltage_v": null, "direction": "in", "drive": "open_drain" },
+    "SDA": { "role": "i2c_sda", "io_voltage_v": null, "direction": "bidir", "drive": "open_drain" }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 3.3, "max": 5 },
+    "supply_current_ma": { "typical": 20, "peak": null },
+    "io_voltage_v": null,
+    "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "地址由板上电阻选择，多数出厂为 0x3C" }
+  },
+  "features": [{ "type": "display", "label": "128×64 OLED", "rect_um": { "x": 800, "y": 4500, "w": 25400, "h": 16000 } }],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 27000, "h": 27000, "rx": 800, "fill": "#1d4ed8", "stroke": "#1e3a8a", "sw": 200 },
+    { "t": "rect", "x": 800, "y": 4500, "w": 25400, "h": 16000, "rx": 300, "fill": "#0b1020", "stroke": "#334155", "sw": 120 },
+    { "t": "rect", "x": 1600, "y": 5600, "w": 23800, "h": 13000, "fill": "#0f172a", "stroke": "#475569", "sw": 80 },
+    { "t": "text", "x": 13500, "y": 12800, "text": "0.96\" OLED", "size": 1500, "fill": "#a5f3fc", "anchor": "middle" },
+    { "t": "text", "x": 13500, "y": 24500, "text": "SSD1306 I2C", "size": 900, "fill": "#e2e8f0", "anchor": "middle" }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "外形 27×27 mm 是常见值；针序、供电范围与电平按具体转接板核实后再改为 verified。未按 SSD1306 芯片手册推断外形。",
+  "sources": [
+    { "title": "Common 0.96\" 128×64 I2C OLED breakout listings", "note": "Pin order differs between vendors; check silkscreen." }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

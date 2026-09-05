@@ -1,0 +1,621 @@
+{
+  "kind": "component",
+  "id": "esp32s3_devkit_generic",
+  "version": 1,
+  "name": "ESP32-S3 开发板（通用双排针模板）",
+  "manufacturer": "generic",
+  "model": "ESP32-S3-DevKitC-1 style, dual USB-C, N16R8",
+  "description": "可配置的双排针开发板模板：每侧针数、排距、针名和外形都可通过 params 修改。默认值取自 Espressif ESP32-S3-DevKitC-1 v1.1 的 44 针排布，双 USB-C 克隆板通常沿用同样的针序，但外形和排距必须以实物为准。",
+  "category": "mcu",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "preferred_rotation_deg": 90,
+  "generator": {
+    "type": "dual_row_header",
+    "first_pin_um": 4830
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pins_per_side": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 40,
+        "description": "每侧针数"
+      },
+      "row_spacing_um": {
+        "type": "integer",
+        "minimum": 2540,
+        "description": "两排针中心距（µm）。DevKitC-1 常见 22860（0.9 in），部分板为 25400（1.0 in）。"
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "板体宽×长（µm）"
+      },
+      "left_pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "左列自上而下针名"
+      },
+      "right_pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "右列自上而下针名"
+      }
+    }
+  },
+  "params_default": {
+    "pins_per_side": 22,
+    "row_spacing_um": 22860,
+    "body_size_um": [
+      25500,
+      63000
+    ],
+    "left_pin_names": [
+      "3V3_1",
+      "3V3_2",
+      "RST",
+      "GPIO4",
+      "GPIO5",
+      "GPIO6",
+      "GPIO7",
+      "GPIO15",
+      "GPIO16",
+      "GPIO17",
+      "GPIO18",
+      "GPIO8",
+      "GPIO3",
+      "GPIO46",
+      "GPIO9",
+      "GPIO10",
+      "GPIO11",
+      "GPIO12",
+      "GPIO13",
+      "GPIO14",
+      "5V",
+      "GND_1"
+    ],
+    "right_pin_names": [
+      "GND_2",
+      "TX",
+      "RX",
+      "GPIO1",
+      "GPIO2",
+      "GPIO42",
+      "GPIO41",
+      "GPIO40",
+      "GPIO39",
+      "GPIO38",
+      "GPIO37",
+      "GPIO36",
+      "GPIO35",
+      "GPIO0",
+      "GPIO45",
+      "GPIO48",
+      "GPIO47",
+      "GPIO21",
+      "GPIO20",
+      "GPIO19",
+      "GND_3",
+      "GND_4"
+    ]
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "i2c_sda_pin": {
+        "type": "string",
+        "description": "用作 SDA 的针名（程序里 Wire.begin 指定）"
+      },
+      "i2c_scl_pin": {
+        "type": "string"
+      },
+      "supply_3v3_max_ma": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "3V3 脚可向外供给的最大电流（mA），未知留 null"
+      }
+    }
+  },
+  "config_default": {
+    "i2c_sda_pin": "GPIO8",
+    "i2c_scl_pin": "GPIO9",
+    "supply_3v3_max_ma": null
+  },
+  "body": {
+    "size_um": [
+      25500,
+      63000
+    ],
+    "height_um": 12000,
+    "standoff_um": 2500,
+    "corner_radius_um": 1200
+  },
+  "pins": [],
+  "pin_meta": {
+    "3V3_1": {
+      "role": "power_out",
+      "voltage_v": 3.3,
+      "max_source_ma": null,
+      "notes": "板载 LDO 输出，余量未知"
+    },
+    "3V3_2": {
+      "role": "power_out",
+      "voltage_v": 3.3,
+      "max_source_ma": null
+    },
+    "RST": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "aliases": [
+        "EN"
+      ]
+    },
+    "5V": {
+      "role": "power_out",
+      "voltage_v": 5,
+      "max_source_ma": null,
+      "notes": "USB VBUS 直通"
+    },
+    "GND_1": {
+      "role": "ground"
+    },
+    "GND_2": {
+      "role": "ground"
+    },
+    "GND_3": {
+      "role": "ground"
+    },
+    "GND_4": {
+      "role": "ground"
+    },
+    "TX": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": [
+        "GPIO43"
+      ]
+    },
+    "RX": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "aliases": [
+        "GPIO44"
+      ]
+    },
+    "GPIO0": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "启动模式引脚"
+    },
+    "GPIO1": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO2": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO3": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO4": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO5": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO6": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO7": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO8": {
+      "role": "i2c_sda",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "notes": "Arduino 核心默认 SDA"
+    },
+    "GPIO9": {
+      "role": "i2c_scl",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "notes": "Arduino 核心默认 SCL"
+    },
+    "GPIO10": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO11": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO12": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO13": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO14": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO15": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO16": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO17": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO18": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO19": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "USB D-"
+    },
+    "GPIO20": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "USB D+"
+    },
+    "GPIO21": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO35": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "N16R8（八线 PSRAM）型号上 GPIO35–37 被 PSRAM 占用"
+    },
+    "GPIO36": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "八线 PSRAM 占用"
+    },
+    "GPIO37": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "八线 PSRAM 占用"
+    },
+    "GPIO38": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO39": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO40": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO41": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO42": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO45": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "strapping 引脚"
+    },
+    "GPIO46": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "strapping 引脚"
+    },
+    "GPIO47": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO48": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "notes": "DevKitC-1 板载 RGB LED"
+    }
+  },
+  "internal_nets": [
+    [
+      "3V3_1",
+      "3V3_2"
+    ],
+    [
+      "GND_1",
+      "GND_2",
+      "GND_3",
+      "GND_4"
+    ]
+  ],
+  "electrical": {
+    "supply_voltage_v": {
+      "min": 5,
+      "max": 5
+    },
+    "supply_current_ma": {
+      "typical": null,
+      "peak": null
+    },
+    "io_voltage_v": 3.3,
+    "i2c": {
+      "sda_pin": "GPIO8",
+      "scl_pin": "GPIO9",
+      "configurable": true,
+      "notes": "ESP32-S3 的 I²C 可映射到任意 GPIO；通过 config.i2c_sda_pin / i2c_scl_pin 指定实际使用的引脚。"
+    }
+  },
+  "features": [
+    {
+      "type": "usb_c",
+      "label": "USB (UART)",
+      "side": "bottom",
+      "rect_um": {
+        "x": 3000,
+        "y": 61000,
+        "w": 8500,
+        "h": 3200
+      }
+    },
+    {
+      "type": "usb_c",
+      "label": "USB (native)",
+      "side": "bottom",
+      "rect_um": {
+        "x": 14000,
+        "y": 61000,
+        "w": 8500,
+        "h": 3200
+      }
+    },
+    {
+      "type": "antenna_area",
+      "label": "PCB 天线",
+      "side": "top",
+      "rect_um": {
+        "x": 6000,
+        "y": 0,
+        "w": 13500,
+        "h": 6000
+      }
+    }
+  ],
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 25500,
+      "h": 63000,
+      "rx": 1200,
+      "fill": "#0f172a",
+      "stroke": "#020617",
+      "sw": 200
+    },
+    {
+      "t": "rect",
+      "x": 6000,
+      "y": 300,
+      "w": 13500,
+      "h": 6000,
+      "rx": 400,
+      "fill": "#1e293b",
+      "stroke": "#475569",
+      "sw": 120
+    },
+    {
+      "t": "rect",
+      "x": 5500,
+      "y": 8000,
+      "w": 14500,
+      "h": 17500,
+      "rx": 500,
+      "fill": "#94a3b8",
+      "stroke": "#334155",
+      "sw": 150
+    },
+    {
+      "t": "text",
+      "x": 12750,
+      "y": 17200,
+      "text": "ESP32-S3",
+      "size": 1400,
+      "fill": "#0f172a",
+      "anchor": "middle",
+      "weight": "bold"
+    },
+    {
+      "t": "text",
+      "x": 12750,
+      "y": 19200,
+      "text": "N16R8",
+      "size": 1000,
+      "fill": "#0f172a",
+      "anchor": "middle"
+    },
+    {
+      "t": "rect",
+      "x": 4000,
+      "y": 30000,
+      "w": 4200,
+      "h": 4200,
+      "rx": 400,
+      "fill": "#e2e8f0",
+      "stroke": "#475569",
+      "sw": 120
+    },
+    {
+      "t": "text",
+      "x": 6100,
+      "y": 36000,
+      "text": "RST",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "rect",
+      "x": 17300,
+      "y": 30000,
+      "w": 4200,
+      "h": 4200,
+      "rx": 400,
+      "fill": "#e2e8f0",
+      "stroke": "#475569",
+      "sw": 120
+    },
+    {
+      "t": "text",
+      "x": 19400,
+      "y": 36000,
+      "text": "BOOT",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "rect",
+      "x": 3000,
+      "y": 61000,
+      "w": 8500,
+      "h": 3200,
+      "rx": 900,
+      "fill": "#9aa5b1",
+      "stroke": "#4b5563",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 14000,
+      "y": 61000,
+      "w": 8500,
+      "h": 3200,
+      "rx": 900,
+      "fill": "#9aa5b1",
+      "stroke": "#4b5563",
+      "sw": 150
+    },
+    {
+      "t": "text",
+      "x": 12750,
+      "y": 48000,
+      "text": "ESP32-S3 DevKit (通用模板)",
+      "size": 900,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "通用模板：默认 44 针、排距 22.86 mm、外形 25.5×63 mm 均为近似值，并未按用户手里的双 USB-C N16R8 板实测。请用卡尺量出排距与外形后修改 params，再依赖布局结果。",
+  "sources": [
+    {
+      "title": "Espressif ESP32-S3-DevKitC-1 User Guide (pin layout)",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1.html"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}

@@ -1,0 +1,342 @@
+{
+  "schema_version": "1.0",
+  "catalog_versions": {
+    "builtin": "0.1.0"
+  },
+  "metadata": {
+    "name": "桌面设备：ESP32-S3 + OLED + 触摸键",
+    "revision": 2,
+    "created_at": "2026-09-05T00:00:00.000Z",
+    "updated_at": "2026-09-05T00:00:00.000Z",
+    "description": "当前桌面设备的面包板规划：通用 ESP32-S3 DevKit 模板（尺寸未实测，approximate）、0.96\" I²C OLED、TTP223 触摸模块。全尺寸 830 孔板的电源轨在 25/26 之间断开，示例用两根跨段跳线把轨道接通。",
+    "author": "Breadboard Studio examples",
+    "tags": [
+      "esp32-s3",
+      "oled",
+      "ttp223",
+      "example"
+    ]
+  },
+  "boards": [
+    {
+      "id": "bb",
+      "model": "breadboard_830@1",
+      "position_um": [
+        0,
+        0
+      ],
+      "rotation_deg": 0,
+      "name": "主板 830"
+    }
+  ],
+  "components": [
+    {
+      "id": "mcu",
+      "name": "ESP32-S3 DevKit",
+      "model": "esp32s3_devkit_generic@1",
+      "config": {
+        "i2c_sda_pin": "GPIO8",
+        "i2c_scl_pin": "GPIO9",
+        "supply_3v3_max_ma": null
+      },
+      "notes": "排距/外形按 DevKitC-1 近似，请用卡尺核实后修改 params。c 排引脚可从 a/b 排引出；j 排引脚被板体遮挡，本例不使用。",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "c3",
+        "anchor_pin": "GND_1",
+        "rotation_deg": 90
+      }
+    },
+    {
+      "id": "oled",
+      "name": "0.96\" OLED",
+      "model": "oled_0_96_i2c@1",
+      "params": {
+        "pin_names": [
+          "GND",
+          "VCC",
+          "SCL",
+          "SDA"
+        ],
+        "body_size_um": [
+          27000,
+          27000
+        ],
+        "mount_orientation": "upright"
+      },
+      "config": {
+        "i2c_address": 60
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "j40",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "touch",
+      "name": "TTP223 触摸键",
+      "model": "ttp223_module@1",
+      "config": {
+        "output_mode": "active_high",
+        "toggle_mode": false,
+        "supply_v": 3.3
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "a50",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "w1",
+      "from": {
+        "hole": "bb.b24"
+      },
+      "to": {
+        "hole": "bb.top_inner_19"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "3V3 → 电源轨"
+    },
+    {
+      "id": "w2",
+      "from": {
+        "hole": "bb.b3"
+      },
+      "to": {
+        "hole": "bb.top_outer_2"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          8890,
+          10790
+        ],
+        [
+          11430,
+          10790
+        ]
+      ],
+      "name": "GND → 电源轨"
+    },
+    {
+      "id": "w3",
+      "from": {
+        "hole": "bb.top_inner_25"
+      },
+      "to": {
+        "hole": "bb.top_inner_26"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "+ 轨跨段跳线",
+      "notes": "830 板电源轨在 25/26 之间断开"
+    },
+    {
+      "id": "w4",
+      "from": {
+        "hole": "bb.top_outer_25"
+      },
+      "to": {
+        "hole": "bb.top_outer_26"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "− 轨跨段跳线"
+    },
+    {
+      "id": "w5",
+      "from": {
+        "hole": "bb.i41"
+      },
+      "to": {
+        "hole": "bb.top_inner_33"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "OLED VCC"
+    },
+    {
+      "id": "w6",
+      "from": {
+        "hole": "bb.i40"
+      },
+      "to": {
+        "hole": "bb.top_outer_33"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          102870,
+          22220
+        ],
+        [
+          105410,
+          22220
+        ]
+      ],
+      "name": "OLED GND"
+    },
+    {
+      "id": "w7",
+      "from": {
+        "hole": "bb.a13"
+      },
+      "to": {
+        "hole": "bb.h43"
+      },
+      "color": "blue",
+      "route": "flat",
+      "path_mode": "manual",
+      "waypoints_um": [
+        [
+          110490,
+          13330
+        ]
+      ],
+      "name": "SDA GPIO8 → OLED"
+    },
+    {
+      "id": "w8",
+      "from": {
+        "hole": "bb.b10"
+      },
+      "to": {
+        "hole": "bb.h42"
+      },
+      "color": "yellow",
+      "route": "flat",
+      "path_mode": "manual",
+      "waypoints_um": [
+        [
+          107950,
+          15870
+        ]
+      ],
+      "name": "SCL GPIO9 → OLED"
+    },
+    {
+      "id": "w9",
+      "from": {
+        "hole": "bb.b50"
+      },
+      "to": {
+        "hole": "bb.top_inner_41"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          128270,
+          12060
+        ],
+        [
+          130810,
+          12060
+        ]
+      ],
+      "name": "触摸 VCC"
+    },
+    {
+      "id": "w10",
+      "from": {
+        "hole": "bb.b52"
+      },
+      "to": {
+        "hole": "bb.top_outer_42"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "触摸 GND"
+    },
+    {
+      "id": "w11",
+      "from": {
+        "hole": "bb.b51"
+      },
+      "to": {
+        "hole": "bb.b21"
+      },
+      "color": "green",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "触摸 IO → GPIO4"
+    }
+  ],
+  "net_intents": [
+    {
+      "id": "n_sda",
+      "name": "SDA",
+      "endpoints": [
+        "mcu.GPIO8",
+        "oled.SDA"
+      ]
+    },
+    {
+      "id": "n_scl",
+      "name": "SCL",
+      "endpoints": [
+        "mcu.GPIO9",
+        "oled.SCL"
+      ]
+    },
+    {
+      "id": "n_touch",
+      "name": "TOUCH",
+      "endpoints": [
+        "mcu.GPIO4",
+        "touch.IO"
+      ]
+    },
+    {
+      "id": "n_3v3",
+      "name": "3V3",
+      "endpoints": [
+        "mcu.3V3_1",
+        "oled.VCC",
+        "touch.VCC"
+      ]
+    },
+    {
+      "id": "n_gnd",
+      "name": "GND",
+      "endpoints": [
+        "mcu.GND_1",
+        "oled.GND",
+        "touch.GND"
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "id": "c_note",
+      "type": "note",
+      "text": "DevKit 外形未实测：先量排距再依赖遮挡/可达孔结果。"
+    }
+  ]
+}

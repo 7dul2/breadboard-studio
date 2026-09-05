@@ -1,0 +1,423 @@
+{
+  "kind": "component",
+  "id": "xiao_esp32s3_sense",
+  "version": 1,
+  "name": "Seeed XIAO ESP32-S3 Sense",
+  "manufacturer": "Seeed Studio",
+  "model": "XIAO ESP32S3 Sense",
+  "variant": "with Sense expansion board (camera, mic, microSD)",
+  "description": "14 引脚 XIAO 外形（两列各 7 针，2.54 mm 间距，列间 15.24 mm）。USB-C 在上边缘；Sense 扩展板叠在主板上方，外接天线从上边缘附近的 IPEX 座引出。",
+  "category": "mcu",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "preferred_rotation_deg": 90,
+  "body": {
+    "size_um": [
+      17500,
+      21000
+    ],
+    "height_um": 10000,
+    "standoff_um": 2500,
+    "corner_radius_um": 1200
+  },
+  "pins": [
+    {
+      "name": "D0",
+      "local_um": [
+        1130,
+        4160
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D1",
+      "local_um": [
+        1130,
+        6700
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D2",
+      "local_um": [
+        1130,
+        9240
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D3",
+      "local_um": [
+        1130,
+        11780
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D4",
+      "local_um": [
+        1130,
+        14320
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D5",
+      "local_um": [
+        1130,
+        16860
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D6",
+      "local_um": [
+        1130,
+        19400
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "5V",
+      "local_um": [
+        16370,
+        4160
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "GND",
+      "local_um": [
+        16370,
+        6700
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "3V3",
+      "local_um": [
+        16370,
+        9240
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D10",
+      "local_um": [
+        16370,
+        11780
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D9",
+      "local_um": [
+        16370,
+        14320
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D8",
+      "local_um": [
+        16370,
+        16860
+      ],
+      "kind": "header"
+    },
+    {
+      "name": "D7",
+      "local_um": [
+        16370,
+        19400
+      ],
+      "kind": "header"
+    }
+  ],
+  "pin_meta": {
+    "D0": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "A0",
+        "GPIO1"
+      ]
+    },
+    "D1": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "A1",
+        "GPIO2"
+      ]
+    },
+    "D2": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "A2",
+        "GPIO3"
+      ]
+    },
+    "D3": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "A3",
+        "GPIO4"
+      ]
+    },
+    "D4": {
+      "role": "i2c_sda",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "aliases": [
+        "SDA",
+        "GPIO5"
+      ]
+    },
+    "D5": {
+      "role": "i2c_scl",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "aliases": [
+        "SCL",
+        "GPIO6"
+      ]
+    },
+    "D6": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "TX",
+        "GPIO43"
+      ]
+    },
+    "D7": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "RX",
+        "GPIO44"
+      ]
+    },
+    "D8": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "SCK",
+        "GPIO7"
+      ]
+    },
+    "D9": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "MISO",
+        "GPIO8"
+      ]
+    },
+    "D10": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "aliases": [
+        "MOSI",
+        "GPIO9"
+      ]
+    },
+    "5V": {
+      "role": "power_out",
+      "voltage_v": 5,
+      "max_source_ma": null,
+      "notes": "USB VBUS 直通；由 USB 供电时不要再从此脚灌入 5V。可供电流取决于 USB 电源，未知。"
+    },
+    "GND": {
+      "role": "ground"
+    },
+    "3V3": {
+      "role": "power_out",
+      "voltage_v": 3.3,
+      "max_source_ma": null,
+      "notes": "板载 LDO 输出。可供给外设的余量取决于 LDO 型号与自身功耗（Sense 摄像头/Wi-Fi 峰值），未在此处假设具体数值，需查阅官方资料并留出余量。"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": {
+      "min": 3.3,
+      "max": 5
+    },
+    "supply_current_ma": {
+      "typical": null,
+      "peak": null
+    },
+    "io_voltage_v": 3.3,
+    "i2c": {
+      "sda_pin": "D4",
+      "scl_pin": "D5",
+      "notes": "默认 Wire 总线为 D4/SDA、D5/SCL。"
+    },
+    "notes": "Wi-Fi 发射与摄像头工作时峰值电流显著高于空闲值，具体数值需以官方资料为准。"
+  },
+  "features": [
+    {
+      "type": "usb_c",
+      "label": "USB-C",
+      "side": "top",
+      "rect_um": {
+        "x": 4250,
+        "y": -1200,
+        "w": 9000,
+        "h": 3200
+      }
+    },
+    {
+      "type": "antenna_area",
+      "label": "外接天线 (IPEX)",
+      "side": "top",
+      "rect_um": {
+        "x": 12500,
+        "y": 1500,
+        "w": 4000,
+        "h": 2500
+      },
+      "notes": "Sense 版本随附外接天线，需为天线和线缆预留空间。"
+    },
+    {
+      "type": "sensor_window",
+      "label": "OV2640 摄像头",
+      "rect_um": {
+        "x": 4000,
+        "y": 6500,
+        "w": 9500,
+        "h": 9500
+      },
+      "notes": "Sense 扩展板叠在主板上方，整体高度约 10 mm（近似）。"
+    }
+  ],
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 17500,
+      "h": 21000,
+      "rx": 1200,
+      "fill": "#1f2933",
+      "stroke": "#0b0f14",
+      "sw": 200
+    },
+    {
+      "t": "rect",
+      "x": 4250,
+      "y": -1200,
+      "w": 9000,
+      "h": 3200,
+      "rx": 900,
+      "fill": "#9aa5b1",
+      "stroke": "#4b5563",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 2400,
+      "y": 4300,
+      "w": 12700,
+      "h": 13400,
+      "rx": 600,
+      "fill": "#2d3748",
+      "stroke": "#111827",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 4000,
+      "y": 6500,
+      "w": 9500,
+      "h": 9500,
+      "rx": 500,
+      "fill": "#0f172a",
+      "stroke": "#334155",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 8750,
+      "cy": 11250,
+      "r": 2600,
+      "fill": "#111827",
+      "stroke": "#64748b",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 8750,
+      "cy": 11250,
+      "r": 1400,
+      "fill": "#1e293b",
+      "stroke": "#93c5fd",
+      "sw": 120
+    },
+    {
+      "t": "rect",
+      "x": 13000,
+      "y": 1700,
+      "w": 3200,
+      "h": 2000,
+      "rx": 300,
+      "fill": "#c0a062",
+      "stroke": "#7c5e1e",
+      "sw": 120
+    },
+    {
+      "t": "circle",
+      "cx": 3100,
+      "cy": 18800,
+      "r": 500,
+      "fill": "#0f172a",
+      "stroke": "#64748b",
+      "sw": 100
+    },
+    {
+      "t": "text",
+      "x": 8750,
+      "y": 19900,
+      "text": "XIAO ESP32S3 Sense",
+      "size": 900,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "针脚间距 2.54 mm、两列间距 15.24 mm 与 21×17.5 mm 外形取自 Seeed 官方页面；第一针到板边的偏移、USB-C 位置和扩展板高度为近似值，未经卡尺实测。引脚顺序按官方引脚图（左列 D0–D6，右列 5V/GND/3V3/D10/D9/D8/D7）。",
+  "sources": [
+    {
+      "title": "Seeed Studio Wiki — Getting Started with Seeed Studio XIAO ESP32S3 (Sense)",
+      "url": "https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors; not derived from vendor artwork"
+  }
+}

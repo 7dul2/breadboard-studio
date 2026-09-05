@@ -1,0 +1,36 @@
+{
+  "name": "breadboard-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Breadboard layout studio for people and agents: editable canvas, versioned design DSL, headless CLI validation.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @breadboard-studio/web dev",
+    "build": "pnpm --filter @breadboard-studio/web build",
+    "preview": "pnpm --filter @breadboard-studio/web preview",
+    "typecheck": "pnpm -r --parallel --workspace-concurrency=4 typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "bb": "tsx packages/cli/src/main.ts",
+    "examples:check": "tsx scripts/check-examples.ts",
+    "perf": "tsx scripts/perf-scene.ts"
+  },
+  "devDependencies": {
+    "@breadboard-studio/catalog": "workspace:*",
+    "@breadboard-studio/cli": "workspace:*",
+    "@breadboard-studio/core": "workspace:*",
+    "@breadboard-studio/render": "workspace:*",
+    "@breadboard-studio/schema": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "catalog_versions": {
+    "builtin": "0.1.0"
+  },
+  "metadata": {
+    "name": "反例：LED 两脚插在同一电源轨",
+    "revision": 1,
+    "created_at": "2026-09-05T03:22:17.646Z",
+    "updated_at": "2026-09-05T00:00:00.000Z"
+  },
+  "boards": [
+    {
+      "id": "bb",
+      "model": "breadboard_400@1",
+      "position_um": [
+        0,
+        0
+      ],
+      "rotation_deg": 0
+    }
+  ],
+  "components": [
+    {
+      "id": "led1",
+      "model": "led_5mm@1",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "top_inner_3",
+        "anchor_pin": "A",
+        "rotation_deg": 0
+      }
+    }
+  ],
+  "wires": [],
+  "net_intents": [],
+  "constraints": []
+}

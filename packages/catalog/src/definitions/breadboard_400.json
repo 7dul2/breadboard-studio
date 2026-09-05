@@ -1,0 +1,30 @@
+{
+  "kind": "board",
+  "id": "breadboard_400",
+  "version": 1,
+  "name": "400 孔面包板（半尺寸）",
+  "manufacturer": "generic",
+  "model": "BB-400 / half-size solderless breadboard",
+  "description": "30 列 × 10 行接线区（a–e、f–j 各 5 孔一组），上下各两条 25 孔电源轨。电源轨在本型号中整条连续；轨孔相对接线列偏移半个孔距。",
+  "size_um": [82550, 54600],
+  "pitch_um": 2540,
+  "terminal_blocks": [
+    { "id": "ae", "rows": ["a", "b", "c", "d", "e"], "first_column": 1, "columns": 30, "origin_um": [4445, 13330] },
+    { "id": "fj", "rows": ["f", "g", "h", "i", "j"], "first_column": 1, "columns": 30, "origin_um": [4445, 31110] }
+  ],
+  "rails": [
+    { "id": "top_outer", "holes": 25, "origin_um": [5715, 5710], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "-", "marking_color": "#2563eb", "marking_side": "above" },
+    { "id": "top_inner", "holes": 25, "origin_um": [5715, 8250], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "+", "marking_color": "#dc2626", "marking_side": "below" },
+    { "id": "bottom_inner", "holes": 25, "origin_um": [5715, 46350], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "+", "marking_color": "#dc2626", "marking_side": "above" },
+    { "id": "bottom_outer", "holes": 25, "origin_um": [5715, 48890], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "-", "marking_color": "#2563eb", "marking_side": "below" }
+  ],
+  "ravines": [{ "x_um": 0, "y_um": 25700, "w_um": 82550, "h_um": 3200 }],
+  "render": { "body_color": "#f3f1e9", "edge_color": "#c9c5b6", "hole_color": "#3b3b3b", "label_color": "#6b6b6b", "corner_radius_um": 1500 },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "通用 BB-400 布局：30 列、a–e/f–j 五孔一组、四条 25 孔电源轨且整条连续。外形 82.55×54.6 mm 与轨孔半孔距偏移按常见型号建模，不同厂商可能不同；电源轨是否分段请用万用表确认后再依赖。",
+  "sources": [
+    { "title": "Generic half-size breadboard dimensions (2.54 mm pitch, 30 columns, 4 × 25-hole rails)", "note": "Common vendor listings agree on 30 columns and 25-hole rails; exact outline varies by vendor." }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing data by Breadboard Studio contributors" }
+}

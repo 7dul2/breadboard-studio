@@ -1,0 +1,365 @@
+/**
+ * Breadboard Studio design document types.
+ *
+ * Conventions (see docs/ARCHITECTURE.md):
+ * - All persisted lengths are integer micrometres (µm). 2.54 mm pitch = 2540 µm.
+ * - Screen coordinates: +x right, +y down. Rotations are multiples of 90° and are
+ *   positive clockwise on screen.
+ * - Every board, component, wire, net intent and constraint has a stable `id`.
+ *   Display names may change; references always use ids.
+ * - Hole addresses are `<board_id>.<hole_name>`; terminal addresses are
+ *   `<component_id>.<pin_name>`.
+ */
+
+export const SCHEMA_VERSION = '1.0' as const;
+export const SUPPORTED_SCHEMA_VERSIONS = ['1.0'] as const;
+
+export type Um = number;
+export type PointUm = [Um, Um];
+export type RotationDeg = 0 | 90 | 180 | 270;
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// ---------------------------------------------------------------------------
+// Design document
+// ---------------------------------------------------------------------------
+
+export interface DesignMetadata {
+  name: string;
+  description?: string;
+  author?: string;
+  created_at?: string;
+  updated_at?: string;
+  /** Monotonic revision counter, incremented by every successful transaction. */
+  revision: number;
+  tags?: string[];
+  notes?: string;
+}
+
+export interface BoardInstance {
+  id: string;
+  name?: string;
+  /** Catalog reference `<definition_id>@<version>`, e.g. `breadboard_400@1`. */
+  model: string;
+  position_um: PointUm;
+  rotation_deg: RotationDeg;
+  locked?: boolean;
+  notes?: string;
+}
+
+export interface BoardPlacement {
+  kind: 'board';
+  board_id: string;
+  /** Hole name on `board_id` where `anchor_pin` is inserted. */
+  anchor_hole: string;
+  anchor_pin: string;
+  /** Rotation about the anchor pin, clockwise on screen. */
+  rotation_deg: RotationDeg;
+}
+
+export interface OffBoardPlacement {
+  kind: 'off_board';
+  position_um: PointUm;
+  rotation_deg: RotationDeg;
+}
+
+export type Placement = BoardPlacement | OffBoardPlacement;
+
+export interface ComponentInstance {
+  id: string;
+  name?: string;
+  model: string;
+  placement: Placement;
+  /** Template parameters (pin order, counts, sizes). Validated against the definition's params schema. */
+  params?: Record<string, JsonValue>;
+  /** Electrical configuration (i2c_address, supply_capacity_ma, io_voltage_v, ...). */
+  config?: Record<string, JsonValue>;
+  locked?: boolean;
+  color?: string;
+  notes?: string;
+}
+
+export type WireEndpoint = { hole: string; terminal?: undefined } | { terminal: string; hole?: undefined };
+
+export type WireRoute = 'flat' | 'elevated';
+export type WirePathMode = 'auto' | 'manual';
+
+export interface WireInstance {
+  id: string;
+  name?: string;
+  from: WireEndpoint;
+  /** Missing `to` means an unfinished draft wire. Drafts are reported and never conduct. */
+  to?: WireEndpoint;
+  color: string;
+  route: WireRoute;
+  path_mode: WirePathMode;
+  /** Intermediate bend points in global µm. Endpoints are derived from `from`/`to`. */
+  waypoints_um: PointUm[];
+  locked?: boolean;
+  notes?: string;
+}
+
+export interface NetIntent {
+  id: string;
+  name: string;
+  /** Endpoint addresses: `component.pin` or `board.hole`. */
+  endpoints: string[];
+  notes?: string;
+}
+
+export type Constraint =
+  | { id: string; type: 'isolate'; a: string; b: string; notes?: string }
+  | { id: string; type: 'wire_length_max_um'; max_um: number; wire_ids?: string[]; notes?: string }
+  | { id: string; type: 'note'; text: string; notes?: string };
+
+export interface ViewState {
+  zoom?: number;
+  center_um?: PointUm;
+  show_hole_labels?: boolean;
+  show_pin_labels?: boolean;
+  build_done?: string[];
+}
+
+export interface EmbeddedCatalog {
+  boards?: BoardDefinition[];
+  components?: ComponentDefinition[];
+}
+
+export interface DesignDocument {
+  schema_version: string;
+  /** Catalog id -> catalog package version used when the design was saved. */
+  catalog_versions: Record<string, string>;
+  metadata: DesignMetadata;
+  boards: BoardInstance[];
+  components: ComponentInstance[];
+  wires: WireInstance[];
+  net_intents: NetIntent[];
+  constraints: Constraint[];
+  /** Definitions pinned inside the document so old designs survive catalog upgrades. */
+  embedded_catalog?: EmbeddedCatalog;
+  view?: ViewState;
+}
+
+// ---------------------------------------------------------------------------
+// Catalog definitions
+// ---------------------------------------------------------------------------
+
+export type ModelStatus = 'verified' | 'approximate' | 'unknown';
+
+export interface SourceRef {
+  title: string;
+  url?: string;
+  accessed?: string;
+  note?: string;
+}
+
+export interface DefinitionLicense {
+  /** License of the drawing/data in this definition (original work unless noted). */
+  spdx: string;
+  attribution?: string;
+  note?: string;
+}
+
+export interface TerminalBlockDef {
+  id: string;
+  rows: string[];
+  first_column: number;
+  columns: number;
+  /** Centre of the hole at (first row, first column) in board-local µm. */
+  origin_um: PointUm;
+}
+
+export interface RailDef {
+  id: string;
+  holes: number;
+  /** Centre of hole 1. */
+  origin_um: PointUm;
+  /** Holes are visually grouped in runs of `group_size` separated by `gap_pitches` empty pitches. */
+  group_size: number;
+  gap_pitches: number;
+  /** Electrically continuous hole ranges (1-based, inclusive). Multiple segments model a broken rail. */
+  segments: [number, number][];
+  marking: '+' | '-' | 'none';
+  marking_color: string;
+  /** Where the printed line sits relative to the holes. */
+  marking_side: 'above' | 'below';
+}
+
+export interface BoardDefinition {
+  kind: 'board';
+  id: string;
+  version: number;
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  variant?: string;
+  description?: string;
+  size_um: PointUm;
+  pitch_um: number;
+  terminal_blocks: TerminalBlockDef[];
+  rails: RailDef[];
+  /** Ravines (centre channels) separating terminal blocks, in board-local µm. */
+  ravines: { x_um: number; y_um: number; w_um: number; h_um: number }[];
+  render: {
+    body_color: string;
+    edge_color?: string;
+    hole_color?: string;
+    label_color?: string;
+    corner_radius_um?: number;
+  };
+  geometry_status: ModelStatus;
+  electrical_status: ModelStatus;
+  status_notes?: string;
+  sources: SourceRef[];
+  license: DefinitionLicense;
+}
+
+export type PinKind = 'header' | 'terminal' | 'pad';
+
+export type PinRole =
+  | 'power_in'
+  | 'power_out'
+  | 'ground'
+  | 'gpio'
+  | 'analog'
+  | 'i2c_sda'
+  | 'i2c_scl'
+  | 'signal_in'
+  | 'signal_out'
+  | 'passive'
+  | 'nc'
+  | 'unknown';
+
+export type PinDirection = 'in' | 'out' | 'bidir' | 'open_drain' | 'passive' | 'unknown';
+
+export interface PinMeta {
+  role: PinRole;
+  /** Nominal voltage for power pins (V). */
+  voltage_v?: number | null;
+  /** Logic level for signal pins (V). null = unknown. */
+  io_voltage_v?: number | null;
+  direction?: PinDirection;
+  /** Output drive type when direction is out/bidir. */
+  drive?: 'push_pull' | 'open_drain' | 'unknown';
+  /** Maximum current the pin can source when it is a power output (mA). null = unknown. */
+  max_source_ma?: number | null;
+  aliases?: string[];
+  notes?: string;
+}
+
+export interface PinDef {
+  name: string;
+  local_um: PointUm;
+  kind: PinKind;
+}
+
+export interface BodyDef {
+  size_um: PointUm;
+  /** Height of the body above the board surface, used for collision layers. */
+  height_um: number;
+  /** Gap between board surface and body underside (e.g. header standoff). */
+  standoff_um: number;
+  corner_radius_um?: number;
+}
+
+export type RenderPrimitiveDef =
+  | { t: 'rect'; x: number; y: number; w: number; h: number; rx?: number; fill?: string; stroke?: string; sw?: number; opacity?: number }
+  | { t: 'circle'; cx: number; cy: number; r: number; fill?: string; stroke?: string; sw?: number }
+  | { t: 'text'; x: number; y: number; text: string; size: number; fill?: string; anchor?: 'start' | 'middle' | 'end'; rotate?: number; weight?: string }
+  | { t: 'path'; d: string; fill?: string; stroke?: string; sw?: number }
+  | { t: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; sw?: number };
+
+export interface FeatureDef {
+  type: 'usb_c' | 'usb_micro' | 'antenna_area' | 'connector' | 'sensor_window' | 'button' | 'display' | 'fan' | 'cable';
+  label?: string;
+  /** Side of the body (local, unrotated). */
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  rect_um?: { x: number; y: number; w: number; h: number };
+  notes?: string;
+}
+
+export interface GeneratorSingleRow {
+  type: 'single_row_header';
+  /** Which body edge the pins sit on. */
+  edge: 'top' | 'bottom' | 'left' | 'right';
+  /** Distance from that edge to the pin row centre. */
+  inset_um: number;
+}
+
+export interface GeneratorDualRow {
+  type: 'dual_row_header';
+  /** Distance from the top edge to the first pin centre. */
+  first_pin_um: number;
+}
+
+export interface GeneratorAxialTwoPin {
+  type: 'axial_two_pin';
+}
+
+export type GeneratorDef = GeneratorSingleRow | GeneratorDualRow | GeneratorAxialTwoPin;
+
+export interface ElectricalDef {
+  supply_voltage_v?: { min: number; max: number } | null;
+  supply_current_ma?: { typical?: number | null; peak?: number | null } | null;
+  io_voltage_v?: number | null;
+  i2c?: {
+    address_default?: number | null;
+    address_options?: number[];
+    configurable?: boolean;
+    sda_pin: string;
+    scl_pin: string;
+    notes?: string;
+  } | null;
+  notes?: string;
+}
+
+export interface ComponentDefinition {
+  kind: 'component';
+  id: string;
+  version: number;
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  variant?: string;
+  description?: string;
+  category: 'mcu' | 'display' | 'sensor' | 'input' | 'power' | 'passive' | 'connector' | 'other';
+  /** Default mounting: pins inserted in a breadboard, or connected with cables only. */
+  mount: 'breadboard' | 'off_board';
+  origin: 'top_left';
+  /** Rotation the editor uses when the part is first added (UI hint only). */
+  preferred_rotation_deg?: RotationDeg;
+  /** Present when pins/body are generated from params. */
+  generator?: GeneratorDef;
+  /** JSON Schema (2020-12) for params; documents what is configurable. */
+  params_schema?: Record<string, JsonValue>;
+  params_default?: Record<string, JsonValue>;
+  config_schema?: Record<string, JsonValue>;
+  config_default?: Record<string, JsonValue>;
+  body: BodyDef;
+  /** Explicit pins (may be empty when generated). */
+  pins: PinDef[];
+  pin_meta: Record<string, PinMeta>;
+  /** Pins that are tied together inside the component (e.g. multiple GND pins). */
+  internal_nets?: string[][];
+  electrical: ElectricalDef;
+  features?: FeatureDef[];
+  /** Original vector drawing in body-local µm (unrotated). */
+  render: RenderPrimitiveDef[];
+  geometry_status: ModelStatus;
+  electrical_status: ModelStatus;
+  status_notes?: string;
+  sources: SourceRef[];
+  license: DefinitionLicense;
+}
+
+export type CatalogDefinition = BoardDefinition | ComponentDefinition;
+
+// ---------------------------------------------------------------------------
+// Validation results
+// ---------------------------------------------------------------------------
+
+export interface SchemaIssue {
+  path: string;
+  message: string;
+  keyword?: string;
+}
