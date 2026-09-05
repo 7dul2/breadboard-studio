@@ -22,6 +22,7 @@ export interface SceneOptions {
   /** Draw the ghost outline of upright modules as if unfolded. */
   showUprightGhost?: boolean;
   highlightHoles?: Set<string>;
+  highlightPins?: Set<string>;
   highlightWires?: Set<string>;
   highlightComponents?: Set<string>;
   selectedIds?: Set<string>;
@@ -198,7 +199,10 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
   for (const pin of pc.pins) {
     const [x, y] = [mm(pin.local_um[0]), mm(pin.local_um[1])];
     const header = pin.kind === 'header';
-    children.push({ t: 'rect', x: x - 0.7, y: y - 0.7, w: 1.4, h: 1.4, fill: header ? '#d4af37' : '#e5e7eb', stroke: '#4b5563', sw: 0.15, cls: `pin pin-${pin.kind}`, data: { pin: `${pc.instance.id}.${pin.name}` } });
+    const pinAddr = `${pc.instance.id}.${pin.name}`;
+    const pinHl = opts.highlightPins?.has(pinAddr);
+    if (pinHl) children.push({ t: 'circle', cx: x, cy: y, r: 1.5, fill: '#fde68a', stroke: '#f59e0b', sw: 0.35, cls: 'pin-highlight' });
+    children.push({ t: 'rect', x: x - 0.7, y: y - 0.7, w: 1.4, h: 1.4, fill: header ? '#d4af37' : '#e5e7eb', stroke: '#4b5563', sw: 0.15, cls: `pin pin-${pin.kind}`, data: { pin: pinAddr } });
     if (!header) children.push({ t: 'circle', cx: x, cy: y, r: 0.35, fill: '#374151', cls: 'pin-terminal-dot' });
     if (opts.showPinLabels !== false) {
       const inside = rc.outline;

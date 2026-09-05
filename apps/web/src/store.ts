@@ -1,0 +1,453 @@
+import { create } from 'zustand';
+import type { DesignDocument, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
+import { analyzeDesign, applyOps, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
+import { builtinCatalog } from '@breadboard-studio/catalog';
+import { hasPrevious, loadCurrent, loadPrevious, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import deskExample from '../../../examples/desk_device.breadboard.json';
+import envExample from '../../../examples/environment_node.breadboard.json';
+
+export type Tool = 'select' | 'wire' | 'pan';
+export type RightTab = 'properties' | 'dsl' | 'build';
+
+export interface Toast {
+  id: number;
+  kind: 'info' | 'error' | 'success';
+  text: string;
+  details?: string[];
+}
+
+export interface PlacingState {
+  model: string;
+  rotation: 0 | 90 | 180 | 270;
+}
+
+export interface WireDraft {
+  from: WireEndpoint;
+}
+
+export const EXAMPLES: { key: string; name: string; doc: unknown }[] = [
+  { key: 'desk_device', name: '桌面设备：ESP32-S3 + OLED + 触摸键', doc: deskExample },
+  { key: 'environment_node', name: '双面包板环境节点：XIAO + 传感器 + SEN66', doc: envExample }
+];
+
+const analysisCache = new WeakMap<DesignDocument, Analysis>();
+export function analysisOf(design: DesignDocument): Analysis {
+  let a = analysisCache.get(design);
+  if (!a) {
+    a = analyzeDesign(design, builtinCatalog());
+    analysisCache.set(design, a);
+  }
+  return a;
+}
+
+interface State {
+  design: DesignDocument;
+  past: DesignDocument[];
+  future: DesignDocument[];
+  selectedIds: string[];
+  selectedHole: string | null;
+  tool: Tool;
+  wireColor: string;
+  wireRoute: WireRoute;
+  placing: PlacingState | null;
+  wireDraft: WireDraft | null;
+  showHoleLabels: boolean;
+  showPinLabels: boolean;
+  connectivityHighlight: boolean;
+  rightTab: RightTab;
+  buildMode: boolean;
+  buildStep: number;
+  dslText: string;
+  dslDirty: boolean;
+  dslErrors: string[];
+  lastResults: RuleResult[];
+  toasts: Toast[];
+  storage: StorageStatus;
+  canRestorePrevious: boolean;
+  highlightEndpoints: string[];
+  highlightObjects: string[];
+  fitRequest: number;
+  requestFit: () => void;
+
+  apply: (ops: Op[], label?: string) => ApplyResult;
+  undo: () => void;
+  redo: () => void;
+  select: (ids: string[], additive?: boolean) => void;
+  selectHole: (addr: string | null) => void;
+  setTool: (t: Tool) => void;
+  setWireColor: (c: string) => void;
+  setWireRoute: (r: WireRoute) => void;
+  startPlacing: (model: string) => void;
+  rotatePlacing: () => void;
+  cancelInteraction: () => void;
+  setWireDraft: (d: WireDraft | null) => void;
+  toggleHoleLabels: () => void;
+  togglePinLabels: () => void;
+  toggleConnectivityHighlight: () => void;
+  setRightTab: (t: RightTab) => void;
+  setBuildMode: (on: boolean) => void;
+  setBuildStep: (i: number) => void;
+  toggleBuildDone: (wireId: string) => void;
+  setDslText: (t: string) => void;
+  validateDsl: () => boolean;
+  applyDsl: () => void;
+  reloadDsl: () => void;
+  newProject: () => void;
+  loadExample: (key: string) => void;
+  importJson: (text: string) => { ok: boolean; errors: string[] };
+  restorePrevious: () => void;
+  replaceDesign: (d: DesignDocument, opts?: { keepHistory?: boolean }) => void;
+  toast: (kind: Toast['kind'], text: string, details?: string[]) => void;
+  dismissToast: (id: number) => void;
+  setHighlight: (endpoints: string[], objects: string[]) => void;
+  deleteSelection: () => void;
+  rotateSelection: () => void;
+  duplicateSelection: () => void;
+  toggleLockSelection: () => void;
+}
+
+let toastId = 1;
+let saveTimer: number | null = null;
+let pendingSave: { design: DesignDocument; set: (p: Partial<State>) => void } | null = null;
+
+function scheduleSave(design: DesignDocument, set: (p: Partial<State>) => void): void {
+  if (saveTimer !== null) window.clearTimeout(saveTimer);
+  pendingSave = { design, set };
+  saveTimer = window.setTimeout(flushSave, 300);
+}
+
+/** Write any pending autosave immediately (also called when the page is hidden/unloaded). */
+export function flushSave(): void {
+  if (saveTimer !== null) window.clearTimeout(saveTimer);
+  saveTimer = null;
+  const p = pendingSave;
+  pendingSave = null;
+  if (p) p.set({ storage: saveCurrent(p.design) });
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushSave);
+  window.addEventListener('beforeunload', flushSave);
+}
+
+function nextIdFor(design: DesignDocument, prefix: string): string {
+  const used = new Set([...design.boards, ...design.components, ...design.wires, ...design.net_intents, ...design.constraints].map((o) => o.id));
+  let n = 1;
+  while (used.has(`${prefix}${n}`)) n++;
+  return `${prefix}${n}`;
+}
+
+export const useStore = create<State>((set, get) => {
+  const initial = loadCurrent() ?? createEmptyDesign('未命名项目');
+  return {
+    design: initial,
+    past: [],
+    future: [],
+    selectedIds: [],
+    selectedHole: null,
+    tool: 'select',
+    wireColor: 'red',
+    wireRoute: 'flat',
+    placing: null,
+    wireDraft: null,
+    showHoleLabels: false,
+    showPinLabels: true,
+    connectivityHighlight: true,
+    rightTab: 'properties',
+    buildMode: false,
+    buildStep: 0,
+    dslText: serializeDesign(initial),
+    dslDirty: false,
+    dslErrors: [],
+    lastResults: [],
+    toasts: [],
+    storage: { state: 'idle' },
+    canRestorePrevious: hasPrevious(),
+    highlightEndpoints: [],
+    highlightObjects: [],
+    fitRequest: 0,
+    requestFit() {
+      set({ fitRequest: get().fitRequest + 1 });
+    },
+
+    apply(ops, label) {
+      const { design, past } = get();
+      const r = applyOps(design, ops, { catalog: builtinCatalog() });
+      if (!r.ok) {
+        const details = r.error.results?.map((x) => `${x.code}: ${x.message}`) ?? r.error.issues?.map((i) => `${i.path} ${i.message}`) ?? [];
+        get().toast('error', `${label ?? '操作'}未应用：${r.error.message}`, details.slice(0, 6));
+        return r;
+      }
+      const next = r.design;
+      const patch: Partial<State> = { design: next, past: [...past.slice(-199), design], future: [], lastResults: r.results };
+      if (!get().dslDirty) patch.dslText = serializeDesign(next);
+      set(patch);
+      scheduleSave(next, set);
+      return r;
+    },
+
+    undo() {
+      const { past, design, future } = get();
+      const prev = past[past.length - 1];
+      if (!prev) return;
+      const patch: Partial<State> = { design: prev, past: past.slice(0, -1), future: [design, ...future] };
+      if (!get().dslDirty) patch.dslText = serializeDesign(prev);
+      set(patch);
+      scheduleSave(prev, set);
+    },
+
+    redo() {
+      const { past, design, future } = get();
+      const next = future[0];
+      if (!next) return;
+      const patch: Partial<State> = { design: next, past: [...past, design], future: future.slice(1) };
+      if (!get().dslDirty) patch.dslText = serializeDesign(next);
+      set(patch);
+      scheduleSave(next, set);
+    },
+
+    select(ids, additive) {
+      const cur = get().selectedIds;
+      let next: string[];
+      if (additive) {
+        next = [...cur];
+        for (const id of ids) {
+          const i = next.indexOf(id);
+          if (i >= 0) next.splice(i, 1);
+          else next.push(id);
+        }
+      } else next = ids;
+      set({ selectedIds: next, selectedHole: null, highlightEndpoints: [], highlightObjects: [] });
+    },
+
+    selectHole(addr) {
+      set({ selectedHole: addr, selectedIds: addr ? [] : get().selectedIds, highlightEndpoints: [], highlightObjects: [] });
+    },
+
+    setTool(t) {
+      set({ tool: t, placing: null, wireDraft: null });
+    },
+    setWireColor(c) {
+      set({ wireColor: c });
+    },
+    setWireRoute(r) {
+      set({ wireRoute: r });
+    },
+
+    startPlacing(model) {
+      const def = builtinCatalog().getComponent(model);
+      set({ placing: { model, rotation: def?.preferred_rotation_deg ?? 0 }, tool: 'select', wireDraft: null, selectedIds: [] });
+    },
+    rotatePlacing() {
+      const p = get().placing;
+      if (!p) return;
+      set({ placing: { ...p, rotation: (((p.rotation + 90) % 360) as 0 | 90 | 180 | 270) } });
+    },
+    cancelInteraction() {
+      set({ placing: null, wireDraft: null });
+    },
+    setWireDraft(d) {
+      set({ wireDraft: d });
+    },
+
+    toggleHoleLabels() {
+      set({ showHoleLabels: !get().showHoleLabels });
+    },
+    togglePinLabels() {
+      set({ showPinLabels: !get().showPinLabels });
+    },
+    toggleConnectivityHighlight() {
+      set({ connectivityHighlight: !get().connectivityHighlight });
+    },
+    setRightTab(t) {
+      set({ rightTab: t });
+    },
+    setBuildMode(on) {
+      set({ buildMode: on, rightTab: on ? 'build' : get().rightTab, buildStep: 0 });
+    },
+    setBuildStep(i) {
+      set({ buildStep: i });
+    },
+    toggleBuildDone(wireId) {
+      const design = get().design;
+      const done = new Set(design.view?.build_done ?? []);
+      if (done.has(wireId)) done.delete(wireId);
+      else done.add(wireId);
+      // View-only change: no revision bump, no undo entry.
+      const next: DesignDocument = { ...design, view: { ...(design.view ?? {}), build_done: [...done] } };
+      set({ design: next });
+      scheduleSave(next, set);
+    },
+
+    setDslText(t) {
+      set({ dslText: t, dslDirty: t !== serializeDesign(get().design), dslErrors: [] });
+    },
+    validateDsl() {
+      const r = loadDesign(get().dslText);
+      if (!r.ok || !r.design) {
+        set({ dslErrors: r.errors.map((e) => `${e.path}: ${e.message}`) });
+        return false;
+      }
+      const a = analyzeDesign(r.design, builtinCatalog());
+      const blocking = a.results.filter((x) => x.blocking);
+      set({ dslErrors: blocking.map((x) => `${x.code}: ${x.message}`) });
+      return blocking.length === 0;
+    },
+    applyDsl() {
+      const r = loadDesign(get().dslText);
+      if (!r.ok || !r.design) {
+        set({ dslErrors: r.errors.map((e) => `${e.path}: ${e.message}`) });
+        get().toast('error', 'DSL 草稿有格式错误，未应用；画布保持不变。');
+        return;
+      }
+      const res = get().apply([{ op: 'replace_design', design: r.design }], '应用 DSL');
+      if (res.ok) {
+        set({ dslDirty: false, dslErrors: [], dslText: serializeDesign(res.design) });
+        get().toast('success', `DSL 已应用（revision ${res.revision}）。`);
+      } else {
+        set({ dslErrors: res.error.results?.map((x) => `${x.code}: ${x.message}`) ?? [res.error.message] });
+      }
+    },
+    reloadDsl() {
+      set({ dslText: serializeDesign(get().design), dslDirty: false, dslErrors: [] });
+    },
+
+    replaceDesign(d, opts) {
+      stashPrevious(get().design);
+      set({
+        design: d,
+        past: opts?.keepHistory ? get().past : [],
+        future: [],
+        selectedIds: [],
+        selectedHole: null,
+        wireDraft: null,
+        placing: null,
+        dslText: serializeDesign(d),
+        dslDirty: false,
+        dslErrors: [],
+        lastResults: [],
+        canRestorePrevious: true,
+        buildStep: 0,
+        highlightEndpoints: [],
+        highlightObjects: [],
+        fitRequest: get().fitRequest + 1
+      });
+      scheduleSave(d, set);
+    },
+    newProject() {
+      get().replaceDesign(createEmptyDesign('未命名项目'));
+      get().toast('info', '已新建空项目。旧项目可通过“项目 → 恢复上一个项目”找回。');
+    },
+    loadExample(key) {
+      const ex = EXAMPLES.find((e) => e.key === key);
+      if (!ex) return;
+      const r = loadDesign(JSON.parse(JSON.stringify(ex.doc)));
+      if (!r.ok || !r.design) {
+        get().toast('error', '示例加载失败', r.errors.map((e) => e.message));
+        return;
+      }
+      get().replaceDesign(r.design);
+      get().toast('success', `已载入示例：${r.design.metadata.name}`);
+    },
+    importJson(text) {
+      const r = loadDesign(text);
+      if (!r.ok || !r.design) {
+        const errors = r.errors.map((e) => `${e.path}: ${e.message}`);
+        get().toast('error', '导入失败：文件格式不符合 .breadboard.json schema，当前项目未改变。', errors.slice(0, 8));
+        return { ok: false, errors };
+      }
+      get().replaceDesign(r.design);
+      const a = analysisOf(r.design);
+      get().toast(a.hasBlocking ? 'error' : 'success', `已导入 ${r.design.metadata.name}（revision ${r.design.metadata.revision}）${a.hasBlocking ? '，但存在结构错误，请查看校验面板' : ''}`);
+      return { ok: true, errors: [] };
+    },
+    restorePrevious() {
+      const prev = loadPrevious();
+      if (!prev) {
+        get().toast('info', '没有可恢复的上一个项目。');
+        return;
+      }
+      get().replaceDesign(prev);
+      get().toast('success', `已恢复：${prev.metadata.name}`);
+    },
+
+    toast(kind, text, details) {
+      const id = toastId++;
+      set({ toasts: [...get().toasts, { id, kind, text, details }] });
+      window.setTimeout(() => get().dismissToast(id), kind === 'error' ? 12000 : 5000);
+    },
+    dismissToast(id) {
+      set({ toasts: get().toasts.filter((t) => t.id !== id) });
+    },
+    setHighlight(endpoints, objects) {
+      set({ highlightEndpoints: endpoints, highlightObjects: objects, selectedIds: objects.filter((o) => get().design.boards.some((b) => b.id === o) || get().design.components.some((c) => c.id === o) || get().design.wires.some((w) => w.id === o)), selectedHole: null });
+    },
+
+    deleteSelection() {
+      const { selectedIds, design } = get();
+      if (!selectedIds.length) return;
+      const ops: Op[] = [];
+      for (const id of selectedIds) {
+        if (design.wires.some((w) => w.id === id)) ops.push({ op: 'remove_wire', id });
+        else if (design.components.some((c) => c.id === id)) ops.push({ op: 'remove_component', id, cascade: true });
+        else if (design.boards.some((b) => b.id === id)) ops.push({ op: 'remove_board', id, cascade: true });
+      }
+      const r = get().apply(ops, '删除');
+      if (r.ok) set({ selectedIds: [] });
+    },
+    rotateSelection() {
+      const { selectedIds, design } = get();
+      const ops: Op[] = [];
+      for (const id of selectedIds) {
+        if (design.components.some((c) => c.id === id)) ops.push({ op: 'rotate_component', id, by_deg: 90 });
+        else if (design.boards.some((b) => b.id === id)) ops.push({ op: 'rotate_board', id, by_deg: 90 });
+      }
+      if (ops.length) get().apply(ops, '旋转');
+    },
+    duplicateSelection() {
+      const { selectedIds, design } = get();
+      const ops: Op[] = [];
+      const newIds: string[] = [];
+      let draft = design;
+      for (const id of selectedIds) {
+        const c = draft.components.find((x) => x.id === id);
+        if (c) {
+          const nid = nextIdFor(draft, `${c.model.split('@')[0]}_`);
+          const pl = c.placement.kind === 'off_board' ? { ...c.placement, position_um: [c.placement.position_um[0] + 20000, c.placement.position_um[1] + 20000] as [number, number] } : { kind: 'off_board' as const, position_um: [0, 0] as [number, number], rotation_deg: c.placement.rotation_deg };
+          const copy = { ...JSON.parse(JSON.stringify(c)), id: nid, placement: pl, name: c.name ? `${c.name} 副本` : undefined };
+          ops.push({ op: 'add_component', component: copy });
+          draft = { ...draft, components: [...draft.components, copy] };
+          newIds.push(nid);
+          continue;
+        }
+        const b = draft.boards.find((x) => x.id === id);
+        if (b) {
+          const nid = nextIdFor(draft, 'bb_');
+          ops.push({ op: 'add_board', board: { id: nid, model: b.model, name: b.name ? `${b.name} 副本` : undefined, attach_to: { board_id: b.id, side: 'bottom', gap_um: 5000, grid_align: true }, rotation_deg: b.rotation_deg } });
+          draft = { ...draft, boards: [...draft.boards, { ...b, id: nid }] };
+          newIds.push(nid);
+        }
+      }
+      if (!ops.length) return;
+      const r = get().apply(ops, '复制');
+      if (r.ok) {
+        set({ selectedIds: newIds });
+        get().toast('info', '副本已创建（元件副本放在板外，拖到目标位置即可）。');
+      }
+    },
+    toggleLockSelection() {
+      const { selectedIds, design } = get();
+      const ops: Op[] = [];
+      for (const id of selectedIds) {
+        const obj = [...design.boards, ...design.components, ...design.wires].find((o) => o.id === id);
+        if (obj) ops.push({ op: 'update_property', id, path: 'locked', value: !obj.locked });
+      }
+      if (ops.length) get().apply(ops, '锁定/解锁');
+    }
+  };
+});
+
+export function useAnalysis(): Analysis {
+  const design = useStore((s) => s.design);
+  return analysisOf(design);
+}
