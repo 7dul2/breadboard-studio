@@ -1,0 +1,26 @@
+{
+  "kind": "board",
+  "id": "breadboard_power_strip_25",
+  "version": 1,
+  "name": "面包板拼装电源条（+/−，2×25 孔）",
+  "manufacturer": "generic",
+  "model": "Detachable 25-hole dual power rail strip",
+  "variant": "可拆拼装式 · 独立 +/- 电源条",
+  "description": "可拆拼装面包板的独立双排电源条，包含一条负极轨和一条正极轨，每条 25 孔。它是可单独放置、移动、旋转和拼接的真实板件，不会与相邻中间接线板自动导通。",
+  "size_um": [82550, 12700],
+  "pitch_um": 2540,
+  "terminal_blocks": [],
+  "rails": [
+    { "id": "negative", "holes": 25, "origin_um": [5715, 5080], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "-", "marking_color": "#2563eb", "marking_side": "above" },
+    { "id": "positive", "holes": 25, "origin_um": [5715, 7620], "group_size": 5, "gap_pitches": 1, "segments": [[1, 25]], "marking": "+", "marking_color": "#dc2626", "marking_side": "below" }
+  ],
+  "ravines": [],
+  "render": { "body_color": "#f3f1e9", "edge_color": "#c9c5b6", "hole_color": "#3b3b3b", "label_color": "#6b6b6b", "corner_radius_um": 900 },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "独立电源条按 82.55×12.70 mm、2.54 mm 孔距重建。正负轨分别整条连续；不同厂商可能存在分段或尺寸差异，依赖前请实测。",
+  "sources": [
+    { "title": "用户提供的可拆拼装 400 孔面包板实物照片", "accessed": "2026-09-06", "note": "照片显示 +/- 双排电源条可从中间接线板完整拆下，并可夹在两块接线板之间。" }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing data by Breadboard Studio contributors" }
+}

@@ -68,6 +68,50 @@ describe('transactions', () => {
     }
   });
 
+  it('cascade-removing a component prunes net intents, wires and constraints', () => {
+    const d = build([
+      { op: 'add_component', component: { id: 'mcu', model: 'xiao_esp32s3_sense@1', placement: { kind: 'off_board', position_um: [0, 0], rotation_deg: 0 } } },
+      { op: 'add_component', component: { id: 'oled', model: 'oled_0_96_ssd1315_i2c@1', placement: { kind: 'off_board', position_um: [40000, 0], rotation_deg: 0 } } },
+      { op: 'add_wire', wire: { id: 'w_power', from: { terminal: 'mcu.3V3' }, to: { terminal: 'oled.VCC' }, color: 'red' } },
+      { op: 'add_net_intent', net_intent: { id: 'n_power', name: '3V3', endpoints: ['mcu.3V3', 'oled.VCC'] } },
+      { op: 'add_net_intent', net_intent: { id: 'n_mcu_only', name: 'MCU', endpoints: ['mcu.GND'] } },
+      { op: 'add_constraint', constraint: { id: 'c_isolate', type: 'isolate', a: 'mcu.GND', b: 'oled.GND' } },
+      { op: 'add_constraint', constraint: { id: 'c_length', type: 'wire_length_max_um', max_um: 100000, wire_ids: ['w_power'] } }
+    ]);
+
+    const refused = applyOps(d, [{ op: 'remove_component', id: 'mcu' }]);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.message).toContain('网络意图 n_power, n_mcu_only');
+
+    const removed = applyOps(d, [{ op: 'remove_component', id: 'mcu', cascade: true }]);
+    expect(removed.ok).toBe(true);
+    if (removed.ok) {
+      expect(removed.design.components.map((component) => component.id)).toEqual(['oled']);
+      expect(removed.design.wires).toEqual([]);
+      expect(removed.design.net_intents).toEqual([{ id: 'n_power', name: '3V3', endpoints: ['oled.VCC'] }]);
+      expect(removed.design.constraints).toEqual([]);
+      expect(removed.results.some((result) => result.code === 'unknown_reference')).toBe(false);
+    }
+  });
+
+  it('cascade-removing a board also clears references to components on that board', () => {
+    const d = build([
+      ...oneBoard,
+      { op: 'add_component', component: { id: 'oled', model: 'oled_0_96_ssd1315_i2c@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'a10', anchor_pin: 'GND', rotation_deg: 0 } } },
+      { op: 'add_net_intent', net_intent: { id: 'n_display', name: 'DISPLAY', endpoints: ['oled.SDA', 'bb.a1'] } },
+      { op: 'add_constraint', constraint: { id: 'c_isolate', type: 'isolate', a: 'oled.GND', b: 'bb.top_inner_1' } }
+    ]);
+    const removed = applyOps(d, [{ op: 'remove_board', id: 'bb', cascade: true }]);
+    expect(removed.ok).toBe(true);
+    if (removed.ok) {
+      expect(removed.design.boards).toEqual([]);
+      expect(removed.design.components).toEqual([]);
+      expect(removed.design.net_intents).toEqual([]);
+      expect(removed.design.constraints).toEqual([]);
+      expect(removed.results.some((result) => result.code === 'unknown_reference')).toBe(false);
+    }
+  });
+
   it('update_property only accepts whitelisted paths and re-validates the schema', () => {
     const base = build(oneBoard);
     expect(applyOps(base, [{ op: 'update_property', id: 'bb', path: 'model', value: 'x@1' }]).ok).toBe(false);

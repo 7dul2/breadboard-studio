@@ -17,8 +17,8 @@
     { "name": "GND", "local_um": [34000, 20500], "kind": "terminal" }
   ],
   "pin_meta": {
-    "VIN": { "role": "power_in", "voltage_v": null, "notes": "输入电压未知" },
-    "GND_IN": { "role": "ground" },
+    "VIN": { "role": "power_in", "voltage_v": null, "auto_wire": "skip", "notes": "输入电压未知；电源模块输入端由外部电源供给，不自动接线" },
+    "GND_IN": { "role": "ground", "auto_wire": "skip", "notes": "输入侧地，与 GND 内部相连；不自动接线" },
     "3V3": { "role": "power_out", "voltage_v": 3.3, "max_source_ma": null, "notes": "输出能力由 config.capacity_ma 决定" },
     "GND": { "role": "ground" }
   },

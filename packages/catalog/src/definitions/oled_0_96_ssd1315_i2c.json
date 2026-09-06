@@ -1,0 +1,101 @@
+{
+  "kind": "component",
+  "id": "oled_0_96_ssd1315_i2c",
+  "version": 1,
+  "name": "0.96\" OLED 模块（SSD1315，4 针）",
+  "manufacturer": "generic",
+  "model": "0.96 inch 128×64 OLED breakout, SSD1315 controller",
+  "description": "按参考图近似绘制的 4 针 I²C OLED 模块，针序为 GND-VCC-SCL-SDA。屏幕为黑底，可在属性中将模拟显示颜色切换为白色或蓝色。默认使用弯排针平躺在面包板上，板体会遮挡下方孔位。",
+  "category": "display",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": { "type": "single_row_header", "edge": "top", "inset_um": 1270 },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": { "title": "针脚顺序", "type": "array", "items": { "type": "string" }, "minItems": 4, "maxItems": 4, "description": "自左向右针名（正视丝印面）" },
+      "body_size_um": { "title": "板体尺寸 (µm)", "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "mount_orientation": { "title": "安装方式", "type": "string", "enum": ["upright", "flat"], "description": "upright=直排针立插；flat=弯排针平躺" }
+    }
+  },
+  "params_default": { "pin_names": ["GND", "VCC", "SCL", "SDA"], "body_size_um": [27000, 26500], "mount_orientation": "flat" },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "i2c_address": { "title": "I²C 地址", "type": "integer", "enum": [60, 61], "description": "0x3C (60) 或 0x3D (61)" },
+      "display_color": { "title": "屏幕颜色", "type": "string", "enum": ["white", "blue"], "description": "模拟屏幕上文字和图形的发光颜色" }
+    }
+  },
+  "config_default": { "i2c_address": 60, "display_color": "white" },
+  "body": { "size_um": [27000, 26500], "height_um": 4000, "standoff_um": 0, "corner_radius_um": 500 },
+  "pins": [],
+  "pin_meta": {
+    "GND": { "role": "ground" },
+    "VCC": { "role": "power_in", "voltage_v": null, "notes": "参考图标称模块工作电压 3.3–5 V" },
+    "SCL": { "role": "i2c_scl", "io_voltage_v": null, "direction": "in", "drive": "open_drain" },
+    "SDA": { "role": "i2c_sda", "io_voltage_v": null, "direction": "bidir", "drive": "open_drain" }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 3.3, "max": 5 },
+    "supply_current_ma": { "typical": 20, "peak": null },
+    "io_voltage_v": null,
+    "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "地址通常为 0x3C，具体以模块配置为准" }
+  },
+  "features": [{ "type": "display", "label": "128×64 OLED", "rect_um": { "x": 2350, "y": 6200, "w": 22300, "h": 11500 } }],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 27000, "h": 26500, "rx": 500, "fill": "#087eae", "stroke": "#07556f", "sw": 260 },
+    { "t": "line", "x1": 900, "y1": 700, "x2": 26100, "y2": 700, "stroke": "#21a7cc", "sw": 180 },
+    { "t": "line", "x1": 900, "y1": 25000, "x2": 6500, "y2": 25000, "stroke": "#21a7cc", "sw": 180 },
+    { "t": "line", "x1": 20500, "y1": 25000, "x2": 26100, "y2": 25000, "stroke": "#21a7cc", "sw": 180 },
+
+    { "t": "circle", "cx": 2200, "cy": 2300, "r": 1200, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 2200, "cy": 2300, "r": 570, "fill": "#26343b", "stroke": "#737f85", "sw": 160 },
+    { "t": "circle", "cx": 24800, "cy": 2300, "r": 1200, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 24800, "cy": 2300, "r": 570, "fill": "#26343b", "stroke": "#737f85", "sw": 160 },
+    { "t": "circle", "cx": 2200, "cy": 23900, "r": 1200, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 2200, "cy": 23900, "r": 570, "fill": "#26343b", "stroke": "#737f85", "sw": 160 },
+    { "t": "circle", "cx": 24800, "cy": 23900, "r": 1200, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 24800, "cy": 23900, "r": 570, "fill": "#26343b", "stroke": "#737f85", "sw": 160 },
+
+    { "t": "rect", "x": 8300, "y": 180, "w": 10400, "h": 2450, "rx": 180, "fill": "#111820", "stroke": "#e2e8f0", "sw": 150 },
+    { "t": "circle", "cx": 9690, "cy": 1270, "r": 620, "fill": "#c89e32", "stroke": "#f4d166", "sw": 150 },
+    { "t": "circle", "cx": 12230, "cy": 1270, "r": 620, "fill": "#c89e32", "stroke": "#f4d166", "sw": 150 },
+    { "t": "circle", "cx": 14770, "cy": 1270, "r": 620, "fill": "#c89e32", "stroke": "#f4d166", "sw": 150 },
+    { "t": "circle", "cx": 17310, "cy": 1270, "r": 620, "fill": "#c89e32", "stroke": "#f4d166", "sw": 150 },
+    { "t": "circle", "cx": 9690, "cy": 1270, "r": 270, "fill": "#20262b" },
+    { "t": "circle", "cx": 12230, "cy": 1270, "r": 270, "fill": "#20262b" },
+    { "t": "circle", "cx": 14770, "cy": 1270, "r": 270, "fill": "#20262b" },
+    { "t": "circle", "cx": 17310, "cy": 1270, "r": 270, "fill": "#20262b" },
+    { "t": "text", "x": 9690, "y": 3650, "text": "GND", "size": 620, "fill": "#f8fafc", "anchor": "middle", "weight": "700" },
+    { "t": "text", "x": 12230, "y": 3650, "text": "VCC", "size": 620, "fill": "#f8fafc", "anchor": "middle", "weight": "700" },
+    { "t": "text", "x": 14770, "y": 3650, "text": "SCL", "size": 620, "fill": "#f8fafc", "anchor": "middle", "weight": "700" },
+    { "t": "text", "x": 17310, "y": 3650, "text": "SDA", "size": 620, "fill": "#f8fafc", "anchor": "middle", "weight": "700" },
+
+    { "t": "rect", "x": 1550, "y": 4900, "w": 23900, "h": 14300, "rx": 330, "fill": "#2c353b", "stroke": "#dbe3e7", "sw": 220 },
+    { "t": "rect", "x": 1950, "y": 5350, "w": 23100, "h": 13350, "rx": 260, "fill": "#0b1015", "stroke": "#75828a", "sw": 170 },
+    { "t": "rect", "x": 2350, "y": 6200, "w": 22300, "h": 11500, "rx": 160, "fill": "#010305", "stroke": "#27343c", "sw": 90 },
+    { "t": "line", "x1": 2750, "y1": 6500, "x2": 24200, "y2": 6500, "stroke": "#27323a", "sw": 130 },
+    { "t": "text", "x": 13500, "y": 12600, "text": "$display_color_label", "size": 2400, "fill": "$display_color", "anchor": "middle", "weight": "700" },
+    { "t": "line", "x1": 8750, "y1": 14700, "x2": 18250, "y2": 14700, "stroke": "$display_color", "sw": 240 },
+    { "t": "circle", "cx": 8050, "cy": 14700, "r": 230, "fill": "$display_color" },
+    { "t": "circle", "cx": 18950, "cy": 14700, "r": 230, "fill": "$display_color" },
+
+    { "t": "rect", "x": 10100, "y": 19000, "w": 6800, "h": 5700, "rx": 180, "fill": "#101820", "stroke": "#27343c", "sw": 140 },
+    { "t": "rect", "x": 11300, "y": 19100, "w": 4400, "h": 5700, "fill": "#b56a18", "stroke": "#e6a334", "sw": 100 },
+    { "t": "line", "x1": 12000, "y1": 19400, "x2": 12000, "y2": 24500, "stroke": "#f1c453", "sw": 170 },
+    { "t": "line", "x1": 13000, "y1": 19400, "x2": 13000, "y2": 24500, "stroke": "#f1c453", "sw": 170 },
+    { "t": "line", "x1": 14000, "y1": 19400, "x2": 14000, "y2": 24500, "stroke": "#f1c453", "sw": 170 },
+    { "t": "line", "x1": 15000, "y1": 19400, "x2": 15000, "y2": 24500, "stroke": "#f1c453", "sw": 170 },
+    { "t": "text", "x": 13500, "y": 25700, "text": "0.96 OLED · 128×64", "size": 670, "fill": "#e8f3f7", "anchor": "middle", "weight": "600" }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "依据用户提供的商品图近似建模：板体约 27×26.5 mm、显示区约 22.5×11.5 mm、安装孔约 2 mm；按弯排针平躺安装处理，未按实物复测。电气参数与针序需以实际模块丝印和资料为准。",
+  "sources": [
+    { "title": "用户提供的 0.96 英寸 SSD1315 OLED 商品图", "accessed": "2026-09-05", "note": "用于近似外形、尺寸、针序和标称工作电压；画布图形为原创绘制。" },
+    { "title": "用户提供的面包板实物安装照片", "accessed": "2026-09-05", "note": "用于确认模块平躺安装、顶部四针座、丝印、屏幕边框、安装孔与底部排线结构。" }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+}

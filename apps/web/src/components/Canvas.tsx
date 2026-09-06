@@ -132,7 +132,7 @@ export function Canvas() {
       buildScene(model, {
         showHoleLabels,
         showPinLabels,
-        showUnverifiedBadges: true,
+        showUnverifiedBadges: false,
         showUprightGhost: true,
         highlightHoles: highlight.holes,
         highlightPins: highlight.pins,
@@ -326,7 +326,14 @@ export function Canvas() {
     const rc = resolveComponent(def);
     const anchor = leadPin(rc.pins, placing.rotation);
     const cursorUm = toUm(at);
-    let placement: Placement = { kind: 'off_board', position_um: [cursorUm[0] - Math.round(rc.outline.w / 2), cursorUm[1] - Math.round(rc.outline.h / 2)], rotation_deg: placing.rotation };
+    const anchorOffset = anchor ? rotateVec(anchor.local_um, placing.rotation) : null;
+    let placement: Placement = {
+      kind: 'off_board',
+      position_um: anchorOffset
+        ? [cursorUm[0] - anchorOffset[0], cursorUm[1] - anchorOffset[1]]
+        : [cursorUm[0] - Math.round(rc.outline.w / 2), cursorUm[1] - Math.round(rc.outline.h / 2)],
+      rotation_deg: placing.rotation
+    };
     if (anchor) {
       for (const pb of model.boards.values()) {
         const local = toLocal(cursorUm, pb.transform);
@@ -532,7 +539,20 @@ export function Canvas() {
       return;
     }
     if (tool === 'wire') {
-      const ep = endpointFromHit(h);
+      // A routed wire may visually pass over a hole. In wire mode, recover the
+      // underlying board hole from the click position so it remains usable.
+      let endpointHit = h;
+      if (!h.hole && !h.pin) {
+        const global = toUm(toMm(e.clientX, e.clientY));
+        for (const pb of model.boards.values()) {
+          const hole = holeAtLocal(pb.resolved, toLocal(global, pb.transform), SNAP_UM);
+          if (hole) {
+            endpointHit = { hole: `${pb.instance.id}.${hole.name}` };
+            break;
+          }
+        }
+      }
+      const ep = endpointFromHit(endpointHit);
       if (!ep) return;
       if (!wireDraft) {
         setWireDraft({ from: ep });
@@ -725,12 +745,12 @@ export function Canvas() {
 }
 
 /** The visually top-left header pin after rotation: the pin the cursor holds while placing. */
-function leadPin(pins: { name: string; local_um: PointUm; kind: string }[], rotation: 0 | 90 | 180 | 270): { name: string } | undefined {
-  let best: { name: string; x: number; y: number } | undefined;
+function leadPin(pins: { name: string; local_um: PointUm; kind: string }[], rotation: 0 | 90 | 180 | 270): { name: string; local_um: PointUm; x: number; y: number } | undefined {
+  let best: { name: string; local_um: PointUm; x: number; y: number } | undefined;
   for (const p of pins) {
     if (p.kind !== 'header') continue;
     const [x, y] = rotateVec(p.local_um, rotation);
-    if (!best || y < best.y - 1 || (Math.abs(y - best.y) <= 1 && x < best.x)) best = { name: p.name, x, y };
+    if (!best || y < best.y - 1 || (Math.abs(y - best.y) <= 1 && x < best.x)) best = { name: p.name, local_um: p.local_um, x, y };
   }
   return best;
 }

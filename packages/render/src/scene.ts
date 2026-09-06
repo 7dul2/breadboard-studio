@@ -54,7 +54,8 @@ function transformAttr(t: Transform): string {
   return `translate(${mm(t.position[0])} ${mm(t.position[1])}) rotate(${t.rotation})`;
 }
 
-function primToNode(p: RenderPrimitiveDef): SceneNode {
+/** One definition drawing primitive (µm) as a scene node (mm). */
+export function primitiveToNode(p: RenderPrimitiveDef): SceneNode {
   switch (p.t) {
     case 'rect':
       return { t: 'rect', x: mm(p.x), y: mm(p.y), w: mm(p.w), h: mm(p.h), rx: p.rx !== undefined ? mm(p.rx) : undefined, fill: p.fill, stroke: p.stroke, sw: p.sw !== undefined ? mm(p.sw) : undefined, opacity: p.opacity };
@@ -177,7 +178,7 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
   if (upright) {
     // Ghost of the module face (as if unfolded) + solid pin strip footprint.
     if (opts.showUprightGhost !== false) {
-      children.push({ t: 'group', opacity: 0.28, cls: 'upright-ghost', children: rc.render.map(primToNode) });
+      children.push({ t: 'group', opacity: 0.28, cls: 'upright-ghost', children: rc.render.map(primitiveToNode) });
       children.push({ t: 'rect', x: mm(outline.x), y: mm(outline.y), w: mm(outline.w), h: mm(outline.h), fill: 'none', stroke: '#475569', sw: 0.25, dash: '1 0.8', cls: 'upright-ghost' });
     }
     const f = rc.footprint;
@@ -187,7 +188,7 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     const ly = mm(f.y) - 1.2;
     children.push({ t: 'text', x: lx, y: ly, text: label, size: 1.5, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' });
   } else {
-    children.push(...rc.render.map(primToNode));
+    children.push(...rc.render.map(primitiveToNode));
     if (!rc.render.length) {
       children.push({ t: 'rect', x: mm(outline.x), y: mm(outline.y), w: mm(outline.w), h: mm(outline.h), rx: 0.5, fill: '#cbd5e1', stroke: '#334155', sw: 0.2, cls: 'component-body' });
     }
@@ -202,9 +203,18 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     const pinAddr = `${pc.instance.id}.${pin.name}`;
     const pinHl = opts.highlightPins?.has(pinAddr);
     if (pinHl) children.push({ t: 'circle', cx: x, cy: y, r: 1.5, fill: '#fde68a', stroke: '#f59e0b', sw: 0.35, cls: 'pin-highlight' });
-    children.push({ t: 'rect', x: x - 0.7, y: y - 0.7, w: 1.4, h: 1.4, fill: header ? '#d4af37' : '#e5e7eb', stroke: '#4b5563', sw: 0.15, cls: `pin pin-${pin.kind}`, data: { pin: pinAddr } });
-    if (!header) children.push({ t: 'circle', cx: x, cy: y, r: 0.35, fill: '#374151', cls: 'pin-terminal-dot' });
-    if (opts.showPinLabels !== false) {
+    const pinRender = header ? pc.def.pin_render : undefined;
+    const pinSize = mm(pinRender?.size_um ?? 1400);
+    if (pinRender?.shape === 'circle') {
+      children.push({ t: 'circle', cx: x, cy: y, r: pinSize / 2, fill: pinRender.fill ?? '#d4af37', stroke: pinRender.stroke ?? '#4b5563', sw: mm(pinRender.stroke_width_um ?? 150), cls: `pin pin-${pin.kind}`, data: { pin: pinAddr } });
+      if (pinRender.hole_fill && (pinRender.hole_size_um ?? 0) > 0) {
+        children.push({ t: 'circle', cx: x, cy: y, r: mm(pinRender.hole_size_um!) / 2, fill: pinRender.hole_fill, cls: 'pin-hole' });
+      }
+    } else {
+      children.push({ t: 'rect', x: x - pinSize / 2, y: y - pinSize / 2, w: pinSize, h: pinSize, fill: pinRender?.fill ?? (header ? '#d4af37' : '#e5e7eb'), stroke: pinRender?.stroke ?? '#4b5563', sw: mm(pinRender?.stroke_width_um ?? 150), cls: `pin pin-${pin.kind}`, data: { pin: pinAddr } });
+      if (!header) children.push({ t: 'circle', cx: x, cy: y, r: 0.35, fill: '#374151', cls: 'pin-terminal-dot' });
+    }
+    if (opts.showPinLabels !== false && pinRender?.show_labels !== false) {
       const inside = rc.outline;
       const cx = inside.x + inside.w / 2;
       const cy = inside.y + inside.h / 2;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeDesign, applyOps } from '../src/index.js';
+import { analyzeDesign, applyOps, autoRoute, segmentIntersectsRect } from '../src/index.js';
 import { build, oneBoard } from './helpers.js';
 
 describe('wires', () => {
@@ -56,17 +56,37 @@ describe('wires', () => {
     const d = build([{ op: 'add_wire', wire: { id: 'w1', from: { hole: 'bb.a1' }, to: { hole: 'bb.j10' }, color: 'red' } }], build(oneBoard));
     const a = analyzeDesign(d);
     const rw = a.model.wires.get('w1')!;
-    expect(rw.points.length).toBe(4);
+    expect(rw.points.length).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < rw.points.length; i++) {
       const p = rw.points[i - 1]!;
       const q = rw.points[i]!;
       expect(p[0] === q[0] || p[1] === q[1]).toBe(true);
     }
-    expect(d.wires[0]!.waypoints_um.length).toBe(2);
+    expect(d.wires[0]!.waypoints_um.length).toBe(rw.points.length - 2);
     expect(rw.length_um).toBeGreaterThan(0);
     const manual = build([{ op: 'update_wire', id: 'w1', patch: { waypoints_um: [[50000, 50000]] } }], d);
     expect(manual.wires[0]!.path_mode).toBe('manual');
     expect(analyzeDesign(manual).model.wires.get('w1')!.points.length).toBe(3);
+  });
+
+  it('routes hard jumpers around component footprints while Dupont wires connect the two points directly', () => {
+    const obstacle = { x: 4000, y: -1000, w: 2000, h: 2000 };
+    const start: [number, number] = [0, 0];
+    const end: [number, number] = [10000, 0];
+    const waypoints = autoRoute(start, end, [obstacle]);
+    const points = [start, ...waypoints, end];
+    expect(waypoints.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1]!;
+      const b = points[i]!;
+      expect(a[0] === b[0] || a[1] === b[1]).toBe(true);
+      expect(segmentIntersectsRect(a, b, obstacle)).toBe(false);
+    }
+
+    const elevated = build([{ op: 'add_wire', wire: { id: 'dupont', from: { hole: 'bb.a1' }, to: { hole: 'bb.j10' }, color: 'blue', route: 'elevated' } }], build(oneBoard));
+    const rw = analyzeDesign(elevated).model.wires.get('dupont')!;
+    expect(rw.points).toHaveLength(2);
+    expect(elevated.wires[0]!.waypoints_um).toEqual([]);
   });
 
   it('a wire with one end is a dangling draft that never conducts', () => {

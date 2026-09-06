@@ -65,7 +65,7 @@ function legendNodes(model: DesignModel, x: number, y: number): { nodes: SceneNo
     const from = rw.from?.address ?? '?';
     const to = rw.to?.address ?? '（草稿）';
     const len = rw.to ? `${(rw.length_um / 1000).toFixed(1)} mm` : '';
-    nodes.push({ t: 'text', x: x + 12, y: cy, text: `${w.name ?? w.id} · ${w.color}${w.route === 'elevated' ? '（软线）' : ''} · ${from} → ${to} · ${len}`, size: 2, fill: '#1f2937' });
+    nodes.push({ t: 'text', x: x + 12, y: cy, text: `${w.name ?? w.id} · ${w.color}（${w.route === 'elevated' ? '杜邦线' : '硬质跳线'}）· ${from} → ${to} · ${len}`, size: 2, fill: '#1f2937' });
     cy += rowH;
   });
   cy += 1;

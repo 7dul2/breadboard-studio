@@ -93,6 +93,69 @@ describe('placement', () => {
     expect(a.model.components.get('oled')!.blockedHoles.length).toBe(0);
   });
 
+  it('places the 25.4 mm N16R8 pin rows across b/j on a full-size breadboard', () => {
+    const d = build([
+      { op: 'add_board', board: { id: 'bb', model: 'breadboard_830@1', position_um: [0, 0], rotation_deg: 0 } },
+      { op: 'add_component', component: { id: 'mcu', model: 'esp32s3_n16r8_dual_usb@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'b30', anchor_pin: 'GND_3', rotation_deg: 90 } } }
+    ]);
+    const a = analyzeDesign(d);
+    const pins = a.model.components.get('mcu')!.pins;
+    expect(pins).toHaveLength(44);
+    expect(pins.find((pin) => pin.name === 'GND_3')?.hole?.hole).toBe('b30');
+    expect(pins.find((pin) => pin.name === '3V3_1')?.hole?.hole).toBe('j30');
+    expect(a.hasBlocking).toBe(false);
+  });
+
+  it('places every N16R8 header across j/a on two vertically joined half-size boards', () => {
+    const d = build([
+      { op: 'add_board', board: { id: 'upper', model: 'breadboard_400@1', position_um: [0, 0], rotation_deg: 0 } },
+      { op: 'add_board', board: { id: 'lower', model: 'breadboard_400@1', attach_to: { board_id: 'upper', side: 'bottom', grid_align: true } } },
+      { op: 'add_component', component: { id: 'mcu', model: 'esp32s3_n16r8_dual_usb@1', placement: { kind: 'board', board_id: 'upper', anchor_hole: 'j9', anchor_pin: 'GND_3', rotation_deg: 90 } } }
+    ]);
+    const a = analyzeDesign(d);
+    const pins = a.model.components.get('mcu')!.pins;
+    const upperPins = pins.filter((pin) => pin.hole?.board_id === 'upper');
+    const lowerPins = pins.filter((pin) => pin.hole?.board_id === 'lower');
+    const upper = a.model.boards.get('upper')!;
+    const lower = a.model.boards.get('lower')!;
+    const upperJ = upper.resolved.holes.get('j9')!.local_um;
+    const lowerA = lower.resolved.holes.get('a9')!.local_um;
+
+    expect(d.boards.find((board) => board.id === 'lower')?.position_um).toEqual([0, 53340]);
+    expect(upper.bounds.y + upper.bounds.h).toBe(lower.bounds.y);
+    expect(lower.transform.position[1] + lowerA[1] - (upper.transform.position[1] + upperJ[1])).toBe(25400);
+    expect(upperPins).toHaveLength(22);
+    expect(lowerPins).toHaveLength(22);
+    expect(upperPins.every((pin) => pin.hole?.hole.startsWith('j'))).toBe(true);
+    expect(lowerPins.every((pin) => pin.hole?.hole.startsWith('a'))).toBe(true);
+    expect(pins.find((pin) => pin.name === 'GND_3')?.hole).toEqual({ board_id: 'upper', hole: 'j9' });
+    expect(pins.find((pin) => pin.name === '3V3_1')?.hole).toEqual({ board_id: 'lower', hole: 'a9' });
+    expect(a.hasBlocking).toBe(false);
+  });
+
+  it('places every N16R8 header across h/b with one modular power strip between two terminal blocks', () => {
+    const d = build([
+      { op: 'add_board', board: { id: 'upper', model: 'breadboard_400_terminal@1', position_um: [0, 0] } },
+      { op: 'add_board', board: { id: 'rail', model: 'breadboard_power_strip_25@1', attach_to: { board_id: 'upper', side: 'bottom', grid_align: true } } },
+      { op: 'add_board', board: { id: 'lower', model: 'breadboard_400_terminal@1', attach_to: { board_id: 'rail', side: 'bottom', grid_align: true } } },
+      { op: 'add_component', component: { id: 'mcu', model: 'esp32s3_n16r8_dual_usb@1', placement: { kind: 'board', board_id: 'upper', anchor_hole: 'h9', anchor_pin: 'GND_3', rotation_deg: 90 } } }
+    ]);
+    const a = analyzeDesign(d);
+    const pins = a.model.components.get('mcu')!.pins;
+    const upperPins = pins.filter((pin) => pin.hole?.board_id === 'upper');
+    const lowerPins = pins.filter((pin) => pin.hole?.board_id === 'lower');
+
+    expect(d.boards.find((board) => board.id === 'rail')?.position_um).toEqual([0, 35560]);
+    expect(d.boards.find((board) => board.id === 'lower')?.position_um).toEqual([0, 48260]);
+    expect(upperPins).toHaveLength(22);
+    expect(lowerPins).toHaveLength(22);
+    expect(upperPins.every((pin) => pin.hole?.hole.startsWith('h'))).toBe(true);
+    expect(lowerPins.every((pin) => pin.hole?.hole.startsWith('b'))).toBe(true);
+    expect(pins.find((pin) => pin.name === 'GND_3')?.hole).toEqual({ board_id: 'upper', hole: 'h9' });
+    expect(pins.find((pin) => pin.name === '3V3_1')?.hole).toEqual({ board_id: 'lower', hole: 'b9' });
+    expect(a.hasBlocking).toBe(false);
+  });
+
   it('detects body collisions on the same height layer', () => {
     const base = build([...oneBoard, xiao('b3', 90)]);
     const r = applyOps(base, [xiao('b10', 90, 'mcu2')]);

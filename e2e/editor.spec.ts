@@ -1,67 +1,146 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { analysis, clickHole, design, fit, fresh, loadExample, state } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, state } from './helpers';
 
 test.describe('editor core flows', () => {
+  test('shows the curated library with integrated and modular breadboard groups', async ({ page }) => {
+    await fresh(page);
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(6);
+    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '主控', '显示']);
+    await expect(page.getByTestId('lib-breadboard_400')).toBeVisible();
+    await expect(page.getByTestId('lib-breadboard_400_terminal')).toBeVisible();
+    await expect(page.getByTestId('lib-breadboard_power_strip_25')).toBeVisible();
+    await expect(page.getByTestId('lib-breadboard_830')).toBeVisible();
+    await expect(page.getByTestId('lib-esp32s3_n16r8_dual_usb')).toBeVisible();
+    await expect(page.getByTestId('lib-oled_0_96_ssd1315_i2c')).toBeVisible();
+    await expect(page.getByTestId('lib-xiao_esp32s3_sense')).toHaveCount(0);
+
+    await page.getByTestId('lib-esp32s3_n16r8_dual_usb').hover();
+    const card = page.getByTestId('model-detail-card');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('ESP32-S3 N16R8');
+    await expect(card).toContainText('44');
+    await expect(card.locator('.model-preview svg')).toBeVisible();
+    await card.hover();
+    await page.waitForTimeout(250);
+    await expect(card).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(card).toHaveCount(0);
+
+    await page.getByTestId('lib-oled_0_96_ssd1315_i2c').hover();
+    await expect(page.getByTestId('model-detail-card')).toBeVisible();
+    await page.getByTestId('tool-select').hover();
+    await expect(page.getByTestId('model-detail-card')).toHaveCount(0);
+  });
+
+  test('assembles terminal + power + terminal so the N16R8 spans h/b', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400_terminal');
+    await addFromLibrary(page, 'breadboard_power_strip_25');
+    await page.locator('.board-body[data-board="bb_2"]').click({ force: true });
+    await page.getByTestId('board-join-target').selectOption('bb_1');
+    await page.getByTestId('board-join-bottom').click();
+    await addFromLibrary(page, 'breadboard_400_terminal');
+    await page.locator('.board-body[data-board="bb_3"]').click({ force: true });
+    await page.getByTestId('board-join-target').selectOption('bb_2');
+    await page.getByTestId('board-join-bottom').click();
+    await fit(page);
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    await clickHole(page, 'bb_1.h9');
+
+    const placed = await design(page);
+    expect(placed.boards.map((board) => board.position_um[1])).toEqual([0, 35560, 48260]);
+    expect(placed.components[0]?.placement).toMatchObject({ board_id: 'bb_1', anchor_hole: 'h9', anchor_pin: 'GND_3' });
+    const pins = await page.locator('[data-component="esp32s3_n16r8_dual_usb_1"] [data-pin]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-pin')));
+    expect(pins).toHaveLength(44);
+    await expect(page.locator('[data-pin="esp32s3_n16r8_dual_usb_1.GND_3"]')).toBeVisible();
+    expect((await analysis(page)).summary.blocking).toBe(0);
+  });
+
+  test('joins breadboards on any selected edge with an aligned hole grid', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await addFromLibrary(page, 'breadboard_400');
+
+    await expect(page.getByTestId('board-join-panel')).toBeVisible();
+    await expect(page.getByTestId('board-join-panel')).toContainText('已拼接：bb_2 位于 bb_1 的右侧');
+    await page.getByTestId('board-join-target').selectOption('bb_1');
+    await page.getByTestId('board-join-bottom').click();
+
+    const d = await design(page);
+    const first = d.boards.find((board) => board.id === 'bb_1')!;
+    const second = d.boards.find((board) => board.id === 'bb_2')!;
+    expect(second.position_um[1] - first.position_um[1]).toBe(53340);
+    expect((second.position_um[0] - first.position_um[0]) % 2540).toBe(0);
+    await expect(page.getByTestId('board-join-panel')).toContainText('已拼接：bb_2 位于 bb_1 的下方');
+    await expect(page.getByTestId('toast-success')).toContainText('bb_2 已拼到下方 bb_1');
+
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    await clickHole(page, 'bb_1.j9');
+    const placed = await design(page);
+    expect(placed.components[0]!.placement).toMatchObject({ kind: 'board', board_id: 'bb_1', anchor_hole: 'j9', anchor_pin: 'GND_3', rotation_deg: 90 });
+    expect((await analysis(page)).summary.blocking).toBe(0);
+  });
+
   test('place boards and a module, wire, hit an error, fix it, export, import, refresh', async ({ page }) => {
     await fresh(page);
 
     // 1. two boards from the library (second one attaches to the right, grid aligned)
-    await page.getByTestId('lib-breadboard_400').click();
-    await page.getByTestId('lib-breadboard_400').click();
+    await addFromLibrary(page, 'breadboard_400');
+    await addFromLibrary(page, 'breadboard_400');
     let d = await design(page);
     expect(d.boards.map((b) => b.id)).toEqual(['bb_1', 'bb_2']);
     expect(d.boards[1]!.position_um[0]).toBeGreaterThan(80000);
     expect((d.boards[1]!.position_um[0] - d.boards[0]!.position_um[0]) % 2540).toBe(0);
     await fit(page);
 
-    // 2. place a XIAO by clicking a hole while in placing mode
-    await page.getByTestId('lib-xiao_esp32s3_sense').click();
+    // 2. place the retained OLED by clicking a hole while in placing mode
+    await addFromLibrary(page, 'oled_0_96_ssd1315_i2c');
     await expect(page.getByTestId('placing-hint')).toBeVisible();
-    await clickHole(page, 'bb_1.b5');
+    await clickHole(page, 'bb_1.j9');
     d = await design(page);
     expect(d.components.length).toBe(1);
     const mcu = d.components[0]!;
     expect(mcu.placement.kind).toBe('board');
-    expect(mcu.placement.anchor_hole).toBe('b5');
-    expect(mcu.placement.rotation_deg).toBe(90);
+    expect(mcu.placement.anchor_hole).toBe('j9');
+    expect(mcu.placement.rotation_deg).toBe(0);
     let a = await analysis(page);
     expect(a.summary.blocking).toBe(0);
 
-    // pins map to holes: D6 anchor at b5 → 3V3 at f9, GND at f10
+    // pins map to j9–j12; their five-hole groups remain available from f–i.
     const pinHoles = await page.evaluate(() => {
       const w = window as unknown as { __bbs: { getAnalysis: () => { nets: unknown } } };
       return w.__bbs.getAnalysis();
     });
     expect(pinHoles).toBeTruthy();
 
-    // 3. click a hole in the 3V3 group and check the properties panel + highlight
+    // 3. click a hole in the GND group and check the properties panel + highlight
     await page.getByTestId('tool-select').click();
     await clickHole(page, 'bb_1.g9');
     expect((await state(page)).selectedHole).toBe('bb_1.g9');
     await expect(page.getByTestId('props-hole')).toContainText('f9 g9 h9 i9 j9');
     expect(await page.locator('[data-hole="bb_1.h9"][class*="hole"]').first().getAttribute('stroke')).toBe('#f59e0b');
 
-    // 4. wire tool: 3V3 group → top_inner rail, GND group → top_outer rail
+    // 4. wire tool: GND group → inner rail, VCC group → outer rail
     await page.getByTestId('tool-wire').click();
     await page.getByTestId('wire-color').selectOption('red');
     await clickHole(page, 'bb_1.g9');
-    await clickHole(page, 'bb_1.bottom_inner_5');
+    await clickHole(page, 'bb_1.top_inner_5');
     await page.getByTestId('wire-color').selectOption('black');
     await clickHole(page, 'bb_1.g10');
-    await clickHole(page, 'bb_1.bottom_outer_6');
+    await clickHole(page, 'bb_1.top_outer_6');
     d = await design(page);
     expect(d.wires.length).toBe(2);
     expect(d.wires[0]!.from).toEqual({ hole: 'bb_1.g9' });
-    expect(d.wires[0]!.to).toEqual({ hole: 'bb_1.bottom_inner_5' });
+    expect(d.wires[0]!.to).toEqual({ hole: 'bb_1.top_inner_5' });
     a = await analysis(page);
-    expect(a.nets.find((n) => n.name === '3V3')!.pins).toContain(`${mcu.id}.3V3`);
+    expect(a.nets.some((n) => n.pins.includes(`${mcu.id}.VCC`))).toBe(true);
     expect(a.summary.error).toBe(0);
 
     // 5. make a mistake: bridge + rail to − rail → power_ground_short
-    await clickHole(page, 'bb_1.bottom_inner_8');
-    await clickHole(page, 'bb_1.bottom_outer_8');
+    await clickHole(page, 'bb_1.top_inner_8');
+    await clickHole(page, 'bb_1.top_outer_8');
     a = await analysis(page);
     expect(a.results.some((r) => r.code === 'power_ground_short')).toBe(true);
     await expect(page.getByTestId('count-error')).toContainText('错误 1');
@@ -218,6 +297,157 @@ test.describe('editor core flows', () => {
     await expect(page.getByTestId('build-panel')).toContainText('1/11 已完成');
   });
 
+  test('multi-selection auto-wires components to one host with selectable Dupont or hard jumpers', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'desk_device');
+    await page.evaluate(() => {
+      const api = (window as unknown as { __bbs: { getDesign: () => { wires: { id: string }[]; net_intents: { id: string }[] }; apply: (ops: unknown[]) => unknown } }).__bbs;
+      const d = api.getDesign();
+      api.apply([
+        ...d.wires.map((w) => ({ op: 'remove_wire', id: w.id })),
+        ...d.net_intents.map((n) => ({ op: 'remove_net_intent', id: n.id }))
+      ]);
+    });
+    await fit(page);
+    await page.locator('[data-component="mcu"].component-hit').first().click({ force: true });
+    await page.locator('[data-component="oled"].component-body').first().click({ force: true, modifiers: ['Shift'] });
+    await page.locator('[data-component="touch"].component-body').first().click({ force: true, modifiers: ['Shift'] });
+    await expect(page.getByTestId('autowire-panel')).toBeVisible();
+    await expect(page.getByTestId('autowire-host')).toHaveValue('mcu');
+    // Default "auto": short rail taps and feeders are hard jumpers, the long I²C/IO runs across the DevKit are Dupont wires.
+    await expect(page.getByTestId('autowire-route')).toHaveValue('auto');
+    await expect(page.getByTestId('autowire-global')).toBeChecked();
+    await page.getByTestId('autowire-run').click();
+    const done = page.getByTestId('toast-success').filter({ hasText: '自动排线完成' });
+    await expect(done).toBeVisible();
+    await expect(done).toContainText('全局优化');
+    await expect(done).toContainText('目标值');
+    const auto = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { wires: { name?: string; route: string; from: { hole?: string }; to?: { hole?: string } }[]; net_intents: { name: string }[] } } }).__bbs.getDesign());
+    expect(auto.wires.filter((w) => w.route === 'flat').length).toBeGreaterThan(0);
+    expect(auto.wires.filter((w) => w.route === 'elevated').length).toBeGreaterThan(0);
+    expect(auto.wires.filter((w) => w.name?.includes('馈线')).length).toBe(2);
+    expect(auto.wires.filter((w) => w.name?.includes('桥线')).length).toBe(2);
+    expect(auto.net_intents.map((n) => n.name).sort()).toEqual(['3V3', 'GND', 'SCL', 'SDA', 'TOUCH_IO']);
+    let a = await analysis(page);
+    expect(a.summary.error).toBe(0);
+    expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(false);
+    expect((await state(page)).selectedIds).toEqual(['mcu', 'oled', 'touch']);
+    await page.getByTestId('undo').click();
+    expect((await design(page)).wires).toHaveLength(0);
+
+    // Forced Dupont wires: every wire is a straight span.
+    await page.getByTestId('autowire-route').selectOption('elevated');
+    await page.getByTestId('autowire-run').click();
+    await expect(page.getByTestId('toast-success').filter({ hasText: '自动排线完成' }).last()).toBeVisible();
+    const after = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { wires: { route: string; waypoints_um: unknown[] }[] } } }).__bbs.getDesign());
+    expect(after.wires.length).toBeGreaterThan(0);
+    expect(after.wires.every((w) => w.route === 'elevated' && w.waypoints_um.length === 0)).toBe(true);
+    a = await analysis(page);
+    expect(a.summary.error).toBe(0);
+    await page.getByTestId('undo').click();
+    expect((await design(page)).wires).toHaveLength(0);
+  });
+
+  test('artwork editor: move, copy, delete parts of a board drawing and save it into the project', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await fit(page);
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    await clickHole(page, 'bb_1.a9');
+    await page.getByTestId('tool-select').click();
+    await page.locator('.component-hit').first().click({ force: true });
+    await page.getByTestId('prop-edit-artwork').click();
+    await expect(page.getByTestId('artwork-editor')).toBeVisible();
+    const parts = page.locator('[data-testid="artwork-part"]');
+    const count = await parts.count();
+    expect(count).toBeGreaterThan(100);
+    // A framed capacitor is one part of four primitives; arrows nudge it by 0.1 mm / 1 mm.
+    await page.locator('[data-part="s1"]').click({ force: true });
+    await expect(page.getByTestId('artwork-selected')).toContainText('s1 · 4 个图元');
+    const x0 = Number(await page.getByTestId('artwork-x').inputValue());
+    const y0 = Number(await page.getByTestId('artwork-y').inputValue());
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Shift+ArrowDown');
+    expect(Number(await page.getByTestId('artwork-x').inputValue())).toBeCloseTo(x0 + 0.1, 5);
+    expect(Number(await page.getByTestId('artwork-y').inputValue())).toBeCloseTo(y0 + 1, 5);
+    // Copy makes a new part selected; delete removes it again. The main editor's shortcuts stay untouched.
+    await page.getByTestId('artwork-duplicate').click();
+    expect(await parts.count()).toBe(count + 1);
+    await expect(page.getByTestId('artwork-selected')).toContainText('n1');
+    await page.keyboard.press('Delete');
+    expect(await parts.count()).toBe(count);
+    expect((await design(page)).components.length).toBe(1);
+    // Save embeds the definition (same ref) with tagged parts; the design now carries the custom drawing and undo removes it.
+    await page.getByTestId('artwork-save').click();
+    await expect(page.getByTestId('toast-success').filter({ hasText: '新绘图' })).toBeVisible();
+    await expect(page.getByTestId('artwork-editor')).toHaveCount(0);
+    const d = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { embedded_catalog?: { components?: { id: string; version: number; render: { g?: string; x?: number }[] }[] } } } }).__bbs.getDesign());
+    const emb = d.embedded_catalog!.components!.find((c) => c.id === 'esp32s3_n16r8_dual_usb')!;
+    expect(emb.version).toBe(1);
+    expect(emb.render.every((p) => typeof p.g === 'string')).toBe(true);
+    expect((await analysis(page)).summary.blocking).toBe(0);
+    await expect(page.getByTestId('props-component')).toContainText('本项目使用自定义绘图');
+    await page.getByTestId('undo').click();
+    expect((await design(page)).components.length).toBe(1);
+    expect(((await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { embedded_catalog?: unknown } } }).__bbs.getDesign())).embedded_catalog)).toBeUndefined();
+  });
+
+  test('deleting a component also prunes its network-intent references', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'desk_device');
+    await fit(page);
+    const before = await design(page);
+    expect(before.net_intents.some((intent) => intent.endpoints.some((endpoint) => endpoint.startsWith('mcu.')))).toBe(true);
+
+    await page.locator('[data-component="mcu"].component-hit').first().click({ force: true });
+    await page.keyboard.press('Delete');
+
+    const after = await design(page);
+    expect(after.components.some((component) => component.id === 'mcu')).toBe(false);
+    expect(after.net_intents.some((intent) => intent.endpoints.some((endpoint) => endpoint.startsWith('mcu.')))).toBe(false);
+    expect((await analysis(page)).results.some((result) => result.code === 'unknown_reference')).toBe(false);
+    await expect(page.getByTestId('toast-error')).toHaveCount(0);
+  });
+
+  test('places the detailed dual-USB N16R8 board and changes its RGB LED', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_830');
+    await fit(page);
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    await clickHole(page, 'bb_1.b30');
+
+    const d = await design(page);
+    const mcu = d.components[0]!;
+    expect(mcu.model).toBe('esp32s3_n16r8_dual_usb@1');
+    expect(mcu.placement.rotation_deg).toBe(90);
+    await expect(page.locator(`[data-pin^="${mcu.id}."]`)).toHaveCount(44);
+    await expect(page.locator(`#component\\:${mcu.id} rect[fill="#0b0e0f"]`)).toBeVisible();
+
+    await page.getByLabel('板载 RGB 灯 R').fill('12');
+    await page.getByLabel('板载 RGB 灯 G').fill('34');
+    await page.getByLabel('板载 RGB 灯 B').fill('56');
+    await page.getByLabel('板载 RGB 灯 B').press('Enter');
+    await expect(page.locator(`#component\\:${mcu.id} circle[fill="rgb(12, 34, 56)"]`)).toBeVisible();
+    expect((await analysis(page)).summary.blocking).toBe(0);
+  });
+
+  test('keeps the placement cursor centered on the selected anchor pin', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    const canvas = await page.getByTestId('canvas').boundingBox();
+    expect(canvas).not.toBeNull();
+    const target = { x: canvas!.x + 650, y: canvas!.y + 240 };
+
+    await page.mouse.click(target.x, target.y);
+
+    const placed = (await design(page)).components[0]!;
+    expect(placed.placement.kind).toBe('off_board');
+    const anchor = await page.locator(`[data-pin="${placed.id}.GND_3"]`).boundingBox();
+    expect(anchor).not.toBeNull();
+    expect(Math.abs(anchor!.x + anchor!.width / 2 - target.x)).toBeLessThan(1);
+    expect(Math.abs(anchor!.y + anchor!.height / 2 - target.y)).toBeLessThan(1);
+  });
+
   test('agent-style batch through the same engine matches the UI analysis', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'environment_node');
@@ -238,12 +468,12 @@ test.describe('editor core flows', () => {
 
 test('custom definition import through the library', async ({ page }) => {
   await fresh(page);
-  await page.getByTestId('lib-breadboard_400').click();
+  await addFromLibrary(page, 'breadboard_400');
   const def = readFileSync(join(import.meta.dirname, '..', 'examples', 'custom_definition_example.json'), 'utf8');
   await page.getByTestId('definition-input').setInputFiles({ name: 'def.json', mimeType: 'application/json', buffer: Buffer.from(def) });
   await expect(page.getByTestId('toast-success')).toContainText('my_3pin_module');
   await expect(page.getByTestId('lib-my_3pin_module')).toBeVisible();
-  await page.getByTestId('lib-my_3pin_module').click();
+  await addFromLibrary(page, 'my_3pin_module');
   await clickHole(page, 'bb_1.j10');
   const d = await design(page);
   expect(d.components[0]!.placement.anchor_hole).toBe('j10');

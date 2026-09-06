@@ -113,6 +113,7 @@ const pinMeta = {
     drive: { type: 'string', enum: ['push_pull', 'open_drain', 'unknown'] },
     max_source_ma: { type: ['number', 'null'] },
     aliases: { type: 'array', items: { type: 'string' } },
+    auto_wire: { type: 'string', enum: ['default', 'avoid', 'skip', 'to_ground', 'to_power'] },
     notes: { type: 'string' }
   }
 } as const;
@@ -120,7 +121,7 @@ const pinMeta = {
 const renderPrimitive = {
   type: 'object',
   required: ['t'],
-  properties: { t: { type: 'string', enum: ['rect', 'circle', 'text', 'path', 'line'] } }
+  properties: { t: { type: 'string', enum: ['rect', 'circle', 'text', 'path', 'line'] }, g: { type: 'string', description: '外观编辑器中的部件分组标签' } }
 } as const;
 
 export const componentDefinitionSchema = {
@@ -181,6 +182,21 @@ export const componentDefinitionSchema = {
         corner_radius_um: { type: 'number' }
       }
     },
+    pin_render: {
+      type: 'object',
+      required: ['shape'],
+      additionalProperties: false,
+      properties: {
+        shape: { type: 'string', enum: ['rect', 'circle'] },
+        show_labels: { type: 'boolean' },
+        size_um: { type: 'number', minimum: 1 },
+        fill: { type: 'string' },
+        stroke: { type: 'string' },
+        stroke_width_um: { type: 'number', minimum: 0 },
+        hole_fill: { type: 'string' },
+        hole_size_um: { type: 'number', minimum: 0 }
+      }
+    },
     pins: {
       type: 'array',
       items: {
@@ -222,6 +238,8 @@ export const componentDefinitionSchema = {
             configurable: { type: 'boolean' },
             sda_pin: { type: 'string' },
             scl_pin: { type: 'string' },
+            controllers: { type: 'integer', minimum: 1 },
+            mappable: { type: 'boolean' },
             notes: { type: 'string' }
           }
         },

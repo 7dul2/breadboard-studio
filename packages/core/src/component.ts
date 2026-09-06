@@ -42,6 +42,36 @@ function mergeDefaults(defaults: Record<string, JsonValue> | undefined, override
   return { ...(defaults ?? {}), ...(overrides ?? {}) };
 }
 
+function rgbPaintOf(value: JsonValue | undefined): string | null {
+  if (Array.isArray(value) && value.length === 3 && value.every((channel) => typeof channel === 'number' && Number.isInteger(channel) && channel >= 0 && channel <= 255)) {
+    return `rgb(${value[0]}, ${value[1]}, ${value[2]})`;
+  }
+  if (value === 'red') return '#ef4444';
+  if (value === 'green') return '#22c55e';
+  if (value === 'blue') return '#3b82f6';
+  if (value === 'white') return '#f8fafc';
+  if (value === 'off') return '#475569';
+  return null;
+}
+
+/** Resolve the small set of declarative appearance tokens supported by catalog drawings. */
+function applyRenderConfig(render: RenderPrimitiveDef[], config: Record<string, JsonValue>): RenderPrimitiveDef[] {
+  const displayColor = config.display_color;
+  const displayPaint = displayColor === 'white' ? '#f8fafc' : displayColor === 'blue' ? '#38bdf8' : null;
+  const displayLabel = displayColor === 'white' ? 'White' : displayColor === 'blue' ? 'Blue' : null;
+  const rgbPaint = rgbPaintOf(config.rgb_led_color);
+  if (!displayPaint && !rgbPaint) return render;
+  return render.map((primitive) => {
+    let resolved = { ...primitive } as RenderPrimitiveDef;
+    if (displayPaint && 'fill' in resolved && resolved.fill === '$display_color') resolved = { ...resolved, fill: displayPaint };
+    if (displayPaint && 'stroke' in resolved && resolved.stroke === '$display_color') resolved = { ...resolved, stroke: displayPaint };
+    if (displayLabel && resolved.t === 'text' && resolved.text === '$display_color_label') resolved = { ...resolved, text: displayLabel };
+    if (rgbPaint && 'fill' in resolved && resolved.fill === '$rgb_led_color') resolved = { ...resolved, fill: rgbPaint };
+    if (rgbPaint && 'stroke' in resolved && resolved.stroke === '$rgb_led_color') resolved = { ...resolved, stroke: rgbPaint };
+    return resolved;
+  });
+}
+
 /**
  * Resolve a component definition + instance params into concrete pins, body and
  * drawing. Params are validated against the definition's params_schema; any
@@ -174,6 +204,7 @@ export function resolveComponent(
     outline = { x: 0, y: 0, w, h: PITCH_UM };
   }
 
+  render = applyRenderConfig(render, config);
   return { def, params, config, pins, body, footprint, outline, orientation, render, issues };
 }
 

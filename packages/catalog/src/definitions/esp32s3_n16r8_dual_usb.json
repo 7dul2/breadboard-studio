@@ -1,0 +1,3688 @@
+{
+  "kind": "component",
+  "id": "esp32s3_n16r8_dual_usb",
+  "version": 1,
+  "name": "ESP32-S3 N16R8 开发板（双 Type-C，44 针）",
+  "manufacturer": "generic",
+  "model": "ESP32-S3-N16R8 dual USB-C 44-pin development board",
+  "variant": "16 MB Flash + 8 MB octal PSRAM, CH343, onboard RGB LED",
+  "description": "依据商品尺寸图和面包板实物照片建模的黑色双 Type-C ESP32-S3 开发板。板体约 27.94×57.15 mm，每侧 22 针、2.54 mm 间距，两排中心距约 25.40 mm；平躺跨面包板中央沟槽安装。",
+  "category": "mcu",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "preferred_rotation_deg": 90,
+  "generator": {
+    "type": "dual_row_header",
+    "first_pin_um": 1905
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pins_per_side": {
+        "title": "每侧针数",
+        "type": "integer",
+        "const": 22
+      },
+      "row_spacing_um": {
+        "title": "两排中心距 (µm)",
+        "type": "integer",
+        "const": 25400
+      },
+      "body_size_um": {
+        "title": "板体尺寸 (µm)",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "left_pin_names": {
+        "title": "左排针脚",
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 22,
+        "maxItems": 22,
+        "description": "USB 接口朝上时左排自上而下"
+      },
+      "right_pin_names": {
+        "title": "右排针脚",
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 22,
+        "maxItems": 22,
+        "description": "USB 接口朝上时右排自上而下"
+      }
+    }
+  },
+  "params_default": {
+    "pins_per_side": 22,
+    "row_spacing_um": 25400,
+    "body_size_um": [
+      27940,
+      57150
+    ],
+    "left_pin_names": [
+      "GND_1",
+      "GND_2",
+      "GPIO19",
+      "GPIO20",
+      "GPIO21",
+      "GPIO47",
+      "GPIO48",
+      "GPIO45",
+      "GPIO0",
+      "GPIO35",
+      "GPIO36",
+      "GPIO37",
+      "GPIO38",
+      "GPIO39",
+      "GPIO40",
+      "GPIO41",
+      "GPIO42",
+      "GPIO2",
+      "GPIO1",
+      "RX",
+      "TX",
+      "GND_3"
+    ],
+    "right_pin_names": [
+      "GND_4",
+      "5V",
+      "GPIO14",
+      "GPIO13",
+      "GPIO12",
+      "GPIO11",
+      "GPIO10",
+      "GPIO9",
+      "GPIO46",
+      "GPIO3",
+      "GPIO8",
+      "GPIO18",
+      "GPIO17",
+      "GPIO16",
+      "GPIO15",
+      "GPIO7",
+      "GPIO6",
+      "GPIO5",
+      "GPIO4",
+      "RST",
+      "3V3_2",
+      "3V3_1"
+    ]
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "i2c_sda_pin": {
+        "title": "I²C SDA",
+        "type": "string",
+        "description": "程序中映射为 SDA 的针脚"
+      },
+      "i2c_scl_pin": {
+        "title": "I²C SCL",
+        "type": "string",
+        "description": "程序中映射为 SCL 的针脚"
+      },
+      "supply_3v3_max_ma": {
+        "title": "3V3 最大输出 (mA)",
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "未知时保持 null"
+      },
+      "rgb_led_color": {
+        "title": "板载 RGB 灯",
+        "description": "输入红、绿、蓝三个 0–255 数值；画布会显示对应颜色",
+        "x-ui": "rgb",
+        "anyOf": [
+          {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3
+          },
+          {
+            "type": "string",
+            "enum": [
+              "off",
+              "red",
+              "green",
+              "blue",
+              "white"
+            ]
+          }
+        ]
+      },
+      "i2c_buses": {
+        "title": "额外 I²C 总线",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "sda",
+            "scl"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sda": {
+              "type": "string"
+            },
+            "scl": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "第 2 条起的 I²C 总线所用针脚（固件里 Wire1.begin(sda, scl)）；自动排线遇到地址冲突时会自动填写"
+      }
+    }
+  },
+  "config_default": {
+    "i2c_sda_pin": "GPIO8",
+    "i2c_scl_pin": "GPIO9",
+    "supply_3v3_max_ma": null,
+    "rgb_led_color": [
+      0,
+      0,
+      0
+    ]
+  },
+  "body": {
+    "size_um": [
+      27940,
+      57150
+    ],
+    "height_um": 13000,
+    "standoff_um": 2500,
+    "corner_radius_um": 700
+  },
+  "pin_render": {
+    "shape": "circle",
+    "show_labels": false,
+    "size_um": 1750,
+    "fill": "#b8bdc0",
+    "stroke": "#f1f3f4",
+    "stroke_width_um": 150,
+    "hole_fill": "#34393d",
+    "hole_size_um": 620
+  },
+  "pins": [],
+  "pin_meta": {
+    "GND_1": {
+      "role": "ground"
+    },
+    "GND_2": {
+      "role": "ground"
+    },
+    "GND_3": {
+      "role": "ground"
+    },
+    "GND_4": {
+      "role": "ground"
+    },
+    "5V": {
+      "role": "power_out",
+      "voltage_v": 5,
+      "max_source_ma": null,
+      "notes": "USB VBUS；供电方向与可用电流取决于接线状态"
+    },
+    "3V3_1": {
+      "role": "power_out",
+      "voltage_v": 3.3,
+      "max_source_ma": null,
+      "notes": "板载稳压输出，余量未知"
+    },
+    "3V3_2": {
+      "role": "power_out",
+      "voltage_v": 3.3,
+      "max_source_ma": null
+    },
+    "RST": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "aliases": [
+        "EN"
+      ],
+      "auto_wire": "skip"
+    },
+    "TX": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": [
+        "GPIO43"
+      ],
+      "auto_wire": "skip"
+    },
+    "RX": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "aliases": [
+        "GPIO44"
+      ],
+      "auto_wire": "skip"
+    },
+    "GPIO0": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "启动配置引脚"
+    },
+    "GPIO1": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO2": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO3": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "strapping 引脚"
+    },
+    "GPIO4": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO5": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO6": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO7": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO8": {
+      "role": "i2c_sda",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "notes": "默认 SDA，可由程序重映射"
+    },
+    "GPIO9": {
+      "role": "i2c_scl",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain",
+      "notes": "默认 SCL，可由程序重映射"
+    },
+    "GPIO10": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO11": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO12": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO13": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO14": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO15": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO16": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO17": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO18": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO19": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "USB D-"
+    },
+    "GPIO20": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "USB D+"
+    },
+    "GPIO21": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO35": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "N16R8 八线 PSRAM 占用"
+    },
+    "GPIO36": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "N16R8 八线 PSRAM 占用"
+    },
+    "GPIO37": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "N16R8 八线 PSRAM 占用"
+    },
+    "GPIO38": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO39": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO40": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO41": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO42": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO45": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "strapping 引脚"
+    },
+    "GPIO46": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "strapping 引脚"
+    },
+    "GPIO47": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull"
+    },
+    "GPIO48": {
+      "role": "gpio",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "板载 RGB LED"
+    }
+  },
+  "internal_nets": [
+    [
+      "3V3_1",
+      "3V3_2"
+    ],
+    [
+      "GND_1",
+      "GND_2",
+      "GND_3",
+      "GND_4"
+    ]
+  ],
+  "electrical": {
+    "supply_voltage_v": {
+      "min": 5,
+      "max": 5
+    },
+    "supply_current_ma": {
+      "typical": null,
+      "peak": null
+    },
+    "io_voltage_v": 3.3,
+    "i2c": {
+      "sda_pin": "GPIO8",
+      "scl_pin": "GPIO9",
+      "configurable": true,
+      "notes": "ESP32-S3 外设矩阵可重映射 I²C；模型默认使用 GPIO8/GPIO9。",
+      "controllers": 2,
+      "mappable": true
+    },
+    "notes": "N16R8 表示 16 MB Flash 与 8 MB 八线 PSRAM；GPIO35–37 不应作为普通外接 GPIO 使用。"
+  },
+  "features": [
+    {
+      "type": "usb_c",
+      "label": "USB-UART (CH343)",
+      "side": "top",
+      "rect_um": {
+        "x": 2900,
+        "y": 0,
+        "w": 9000,
+        "h": 5600
+      }
+    },
+    {
+      "type": "usb_c",
+      "label": "USB-OTG",
+      "side": "top",
+      "rect_um": {
+        "x": 15800,
+        "y": 0,
+        "w": 9000,
+        "h": 5600
+      }
+    },
+    {
+      "type": "button",
+      "label": "BOOT",
+      "rect_um": {
+        "x": 7000,
+        "y": 26700,
+        "w": 3900,
+        "h": 3400
+      }
+    },
+    {
+      "type": "button",
+      "label": "RST",
+      "rect_um": {
+        "x": 7000,
+        "y": 31900,
+        "w": 3900,
+        "h": 3400
+      }
+    },
+    {
+      "type": "antenna_area",
+      "label": "ESP32-S3-WROOM PCB 天线",
+      "side": "bottom",
+      "rect_um": {
+        "x": 5000,
+        "y": 55200,
+        "w": 18000,
+        "h": 8300
+      }
+    }
+  ],
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 27940,
+      "h": 57150,
+      "rx": 260,
+      "fill": "#0b0e0f",
+      "stroke": "#030505",
+      "sw": 220
+    },
+    {
+      "t": "line",
+      "x1": 2450,
+      "y1": 850,
+      "x2": 25490,
+      "y2": 850,
+      "stroke": "#d9dcda",
+      "sw": 80
+    },
+    {
+      "t": "line",
+      "x1": 2450,
+      "y1": 56280,
+      "x2": 25490,
+      "y2": 56280,
+      "stroke": "#d9dcda",
+      "sw": 80
+    },
+    {
+      "t": "line",
+      "x1": 2900,
+      "y1": 8350,
+      "x2": 25000,
+      "y2": 8350,
+      "stroke": "#1d2424",
+      "sw": 110
+    },
+    {
+      "t": "line",
+      "x1": 3100,
+      "y1": 14500,
+      "x2": 24200,
+      "y2": 14500,
+      "stroke": "#182020",
+      "sw": 100
+    },
+    {
+      "t": "line",
+      "x1": 3500,
+      "y1": 30700,
+      "x2": 23900,
+      "y2": 30700,
+      "stroke": "#182020",
+      "sw": 100
+    },
+    {
+      "t": "rect",
+      "x": 3400,
+      "y": -1900,
+      "w": 9300,
+      "h": 9800,
+      "rx": 260,
+      "fill": "#8f9492",
+      "stroke": "#dfe2df",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 3750,
+      "y": -1500,
+      "w": 8600,
+      "h": 9000,
+      "rx": 180,
+      "fill": "#b4b7b3",
+      "stroke": "#717674",
+      "sw": 100
+    },
+    {
+      "t": "line",
+      "x1": 3950,
+      "y1": 950,
+      "x2": 12150,
+      "y2": 950,
+      "stroke": "#d8dad7",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 4350,
+      "y": 2300,
+      "w": 1700,
+      "h": 850,
+      "rx": 140,
+      "fill": "#565c5b",
+      "stroke": "#d9dcda",
+      "sw": 90
+    },
+    {
+      "t": "rect",
+      "x": 10050,
+      "y": 2300,
+      "w": 1700,
+      "h": 850,
+      "rx": 140,
+      "fill": "#565c5b",
+      "stroke": "#d9dcda",
+      "sw": 90
+    },
+    {
+      "t": "line",
+      "x1": 3900,
+      "y1": 6500,
+      "x2": 12200,
+      "y2": 6500,
+      "stroke": "#727775",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 3200,
+      "y": -1400,
+      "w": 350,
+      "h": 5800,
+      "fill": "#c7cac7"
+    },
+    {
+      "t": "rect",
+      "x": 12550,
+      "y": -1400,
+      "w": 350,
+      "h": 5800,
+      "fill": "#c7cac7"
+    },
+    {
+      "t": "line",
+      "x1": 4800,
+      "y1": 7600,
+      "x2": 4800,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 5550,
+      "y1": 7600,
+      "x2": 5550,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 6300,
+      "y1": 7600,
+      "x2": 6300,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 7050,
+      "y1": 7600,
+      "x2": 7050,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 7800,
+      "y1": 7600,
+      "x2": 7800,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 8550,
+      "y1": 7600,
+      "x2": 8550,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 9300,
+      "y1": 7600,
+      "x2": 9300,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 10050,
+      "y1": 7600,
+      "x2": 10050,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 10800,
+      "y1": 7600,
+      "x2": 10800,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 15000,
+      "y": -1900,
+      "w": 9300,
+      "h": 9800,
+      "rx": 260,
+      "fill": "#8f9492",
+      "stroke": "#dfe2df",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 15350,
+      "y": -1500,
+      "w": 8600,
+      "h": 9000,
+      "rx": 180,
+      "fill": "#b4b7b3",
+      "stroke": "#717674",
+      "sw": 100
+    },
+    {
+      "t": "line",
+      "x1": 15550,
+      "y1": 950,
+      "x2": 23750,
+      "y2": 950,
+      "stroke": "#d8dad7",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 15950,
+      "y": 2300,
+      "w": 1700,
+      "h": 850,
+      "rx": 140,
+      "fill": "#565c5b",
+      "stroke": "#d9dcda",
+      "sw": 90
+    },
+    {
+      "t": "rect",
+      "x": 21650,
+      "y": 2300,
+      "w": 1700,
+      "h": 850,
+      "rx": 140,
+      "fill": "#565c5b",
+      "stroke": "#d9dcda",
+      "sw": 90
+    },
+    {
+      "t": "line",
+      "x1": 15500,
+      "y1": 6500,
+      "x2": 23800,
+      "y2": 6500,
+      "stroke": "#727775",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 14800,
+      "y": -1400,
+      "w": 350,
+      "h": 5800,
+      "fill": "#c7cac7"
+    },
+    {
+      "t": "rect",
+      "x": 24150,
+      "y": -1400,
+      "w": 350,
+      "h": 5800,
+      "fill": "#c7cac7"
+    },
+    {
+      "t": "line",
+      "x1": 16400,
+      "y1": 7600,
+      "x2": 16400,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 17150,
+      "y1": 7600,
+      "x2": 17150,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 17900,
+      "y1": 7600,
+      "x2": 17900,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 18650,
+      "y1": 7600,
+      "x2": 18650,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 19400,
+      "y1": 7600,
+      "x2": 19400,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 20150,
+      "y1": 7600,
+      "x2": 20150,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 20900,
+      "y1": 7600,
+      "x2": 20900,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 21650,
+      "y1": 7600,
+      "x2": 21650,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 22400,
+      "y1": 7600,
+      "x2": 22400,
+      "y2": 8300,
+      "stroke": "#d8c28a",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 4200,
+      "y": 12200,
+      "w": 4400,
+      "h": 4400,
+      "rx": 180,
+      "fill": "#1b2021",
+      "stroke": "#727975",
+      "sw": 100
+    },
+    {
+      "t": "circle",
+      "cx": 4780,
+      "cy": 12800,
+      "r": 170,
+      "fill": "#b4bab6"
+    },
+    {
+      "t": "text",
+      "x": 6400,
+      "y": 14650,
+      "text": "CH343",
+      "size": 560,
+      "fill": "#59605d",
+      "anchor": "middle"
+    },
+    {
+      "t": "line",
+      "x1": 3650,
+      "y1": 13000,
+      "x2": 4200,
+      "y2": 13000,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 3650,
+      "y1": 13950,
+      "x2": 4200,
+      "y2": 13950,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 3650,
+      "y1": 14900,
+      "x2": 4200,
+      "y2": 14900,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 3650,
+      "y1": 15850,
+      "x2": 4200,
+      "y2": 15850,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 8600,
+      "y1": 13000,
+      "x2": 9150,
+      "y2": 13000,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 8600,
+      "y1": 13950,
+      "x2": 9150,
+      "y2": 13950,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 8600,
+      "y1": 14900,
+      "x2": 9150,
+      "y2": 14900,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "line",
+      "x1": 8600,
+      "y1": 15850,
+      "x2": 9150,
+      "y2": 15850,
+      "stroke": "#c8ccca",
+      "sw": 150
+    },
+    {
+      "t": "rect",
+      "x": 10200,
+      "y": 12700,
+      "w": 650,
+      "h": 1150,
+      "fill": "#cfd2ce"
+    },
+    {
+      "t": "rect",
+      "x": 10200,
+      "y": 14500,
+      "w": 650,
+      "h": 1150,
+      "fill": "#a99364"
+    },
+    {
+      "t": "rect",
+      "x": 11600,
+      "y": 12600,
+      "w": 650,
+      "h": 1150,
+      "fill": "#cfd2ce"
+    },
+    {
+      "t": "rect",
+      "x": 11600,
+      "y": 14400,
+      "w": 650,
+      "h": 1150,
+      "fill": "#a99364"
+    },
+    {
+      "t": "rect",
+      "x": 15275,
+      "y": 11775,
+      "w": 1650,
+      "h": 2500,
+      "rx": 100,
+      "fill": "#222728",
+      "stroke": "#c2c6c4",
+      "sw": 110
+    },
+    {
+      "t": "rect",
+      "x": 15475,
+      "y": 11975,
+      "w": 1250,
+      "h": 2100,
+      "fill": "#15191a"
+    },
+    {
+      "t": "rect",
+      "x": 17675,
+      "y": 11775,
+      "w": 1650,
+      "h": 2500,
+      "rx": 100,
+      "fill": "#222728",
+      "stroke": "#c2c6c4",
+      "sw": 110
+    },
+    {
+      "t": "rect",
+      "x": 17875,
+      "y": 11975,
+      "w": 1250,
+      "h": 2100,
+      "fill": "#15191a"
+    },
+    {
+      "t": "rect",
+      "x": 20075,
+      "y": 11775,
+      "w": 1650,
+      "h": 2500,
+      "rx": 100,
+      "fill": "#222728",
+      "stroke": "#c2c6c4",
+      "sw": 110
+    },
+    {
+      "t": "rect",
+      "x": 20275,
+      "y": 11975,
+      "w": 1250,
+      "h": 2100,
+      "fill": "#15191a"
+    },
+    {
+      "t": "text",
+      "x": 24100,
+      "y": 16300,
+      "text": "IN-OUT",
+      "size": 560,
+      "fill": "#eef0ef",
+      "anchor": "middle",
+      "weight": "700",
+      "rotate": 90
+    },
+    {
+      "t": "path",
+      "d": "M 15400 15100 L 15800 14700 L 16200 15100 M 22900 15100 L 23300 14700 L 23700 15100",
+      "fill": "none",
+      "stroke": "#e7eae8",
+      "sw": 100
+    },
+    {
+      "t": "rect",
+      "x": 4875,
+      "y": 18560,
+      "w": 1250,
+      "h": 2800,
+      "rx": 100,
+      "fill": "#d9dfdc",
+      "stroke": "#65706b",
+      "sw": 90
+    },
+    {
+      "t": "rect",
+      "x": 5075,
+      "y": 19110,
+      "w": 850,
+      "h": 1700,
+      "fill": "#d5eee5"
+    },
+    {
+      "t": "rect",
+      "x": 7525,
+      "y": 18560,
+      "w": 1250,
+      "h": 2800,
+      "rx": 100,
+      "fill": "#d9dfdc",
+      "stroke": "#65706b",
+      "sw": 90
+    },
+    {
+      "t": "rect",
+      "x": 7725,
+      "y": 19110,
+      "w": 850,
+      "h": 1700,
+      "fill": "#d5eee5"
+    },
+    {
+      "t": "rect",
+      "x": 10075,
+      "y": 18560,
+      "w": 1250,
+      "h": 2800,
+      "rx": 100,
+      "fill": "#d9dfdc",
+      "stroke": "#65706b",
+      "sw": 90
+    },
+    {
+      "t": "rect",
+      "x": 10275,
+      "y": 19110,
+      "w": 850,
+      "h": 1700,
+      "fill": "#d5eee5"
+    },
+    {
+      "t": "text",
+      "x": 14500,
+      "y": 19700,
+      "text": "RGB",
+      "size": 600,
+      "fill": "#eef0ef",
+      "anchor": "middle",
+      "rotate": 90,
+      "weight": "700"
+    },
+    {
+      "t": "rect",
+      "x": 4700,
+      "y": 23300,
+      "w": 3000,
+      "h": 1500,
+      "rx": 100,
+      "fill": "#181d1e"
+    },
+    {
+      "t": "line",
+      "x1": 5200,
+      "y1": 22900,
+      "x2": 5200,
+      "y2": 23300,
+      "stroke": "#c7cbc8",
+      "sw": 170
+    },
+    {
+      "t": "line",
+      "x1": 6900,
+      "y1": 22900,
+      "x2": 6900,
+      "y2": 23300,
+      "stroke": "#c7cbc8",
+      "sw": 170
+    },
+    {
+      "t": "line",
+      "x1": 6050,
+      "y1": 24800,
+      "x2": 6050,
+      "y2": 25300,
+      "stroke": "#c7cbc8",
+      "sw": 190
+    },
+    {
+      "t": "rect",
+      "x": 9600,
+      "y": 23300,
+      "w": 3000,
+      "h": 1500,
+      "rx": 100,
+      "fill": "#181d1e"
+    },
+    {
+      "t": "line",
+      "x1": 10100,
+      "y1": 22900,
+      "x2": 10100,
+      "y2": 23300,
+      "stroke": "#c7cbc8",
+      "sw": 170
+    },
+    {
+      "t": "line",
+      "x1": 11800,
+      "y1": 22900,
+      "x2": 11800,
+      "y2": 23300,
+      "stroke": "#c7cbc8",
+      "sw": 170
+    },
+    {
+      "t": "line",
+      "x1": 10950,
+      "y1": 24800,
+      "x2": 10950,
+      "y2": 25300,
+      "stroke": "#c7cbc8",
+      "sw": 190
+    },
+    {
+      "t": "rect",
+      "x": 16800,
+      "y": 15500,
+      "w": 5600,
+      "h": 5000,
+      "rx": 260,
+      "fill": "#e7e8df",
+      "stroke": "#7e8581",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 19600,
+      "cy": 18000,
+      "r": 1780,
+      "fill": "$rgb_led_color",
+      "stroke": "#c5c9c3",
+      "sw": 160
+    },
+    {
+      "t": "circle",
+      "cx": 19600,
+      "cy": 18000,
+      "r": 1050,
+      "fill": "none",
+      "stroke": "#9ba29d",
+      "sw": 90
+    },
+    {
+      "t": "line",
+      "x1": 18500,
+      "y1": 18000,
+      "x2": 20700,
+      "y2": 18000,
+      "stroke": "#989f9a",
+      "sw": 80
+    },
+    {
+      "t": "line",
+      "x1": 19600,
+      "y1": 16900,
+      "x2": 19600,
+      "y2": 19100,
+      "stroke": "#989f9a",
+      "sw": 80
+    },
+    {
+      "t": "text",
+      "x": 23200,
+      "y": 20100,
+      "text": "+",
+      "size": 820,
+      "fill": "#f0f2f1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "rect",
+      "x": 16500,
+      "y": 21500,
+      "w": 5600,
+      "h": 2800,
+      "rx": 120,
+      "fill": "#d8d9d3",
+      "stroke": "#8d928f",
+      "sw": 110
+    },
+    {
+      "t": "rect",
+      "x": 17300,
+      "y": 21750,
+      "w": 4000,
+      "h": 2300,
+      "fill": "#806e59"
+    },
+    {
+      "t": "rect",
+      "x": 7000,
+      "y": 26700,
+      "w": 3900,
+      "h": 3400,
+      "rx": 180,
+      "fill": "#aaaead",
+      "stroke": "#e2e5e2",
+      "sw": 120
+    },
+    {
+      "t": "rect",
+      "x": 7400,
+      "y": 27000,
+      "w": 3100,
+      "h": 2700,
+      "rx": 140,
+      "fill": "#c4c7c5",
+      "stroke": "#656b69",
+      "sw": 90
+    },
+    {
+      "t": "circle",
+      "cx": 8950,
+      "cy": 28350,
+      "r": 760,
+      "fill": "#6f7573",
+      "stroke": "#303534",
+      "sw": 100
+    },
+    {
+      "t": "circle",
+      "cx": 8950,
+      "cy": 28350,
+      "r": 480,
+      "fill": "#858b88"
+    },
+    {
+      "t": "text",
+      "x": 8950,
+      "y": 26000,
+      "text": "BOOT",
+      "size": 650,
+      "fill": "#f0f2f1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "rect",
+      "x": 7000,
+      "y": 31900,
+      "w": 3900,
+      "h": 3400,
+      "rx": 180,
+      "fill": "#aaaead",
+      "stroke": "#e2e5e2",
+      "sw": 120
+    },
+    {
+      "t": "rect",
+      "x": 7400,
+      "y": 32200,
+      "w": 3100,
+      "h": 2700,
+      "rx": 140,
+      "fill": "#c4c7c5",
+      "stroke": "#656b69",
+      "sw": 90
+    },
+    {
+      "t": "circle",
+      "cx": 8950,
+      "cy": 33550,
+      "r": 760,
+      "fill": "#6f7573",
+      "stroke": "#303534",
+      "sw": 100
+    },
+    {
+      "t": "circle",
+      "cx": 8950,
+      "cy": 33550,
+      "r": 480,
+      "fill": "#858b88"
+    },
+    {
+      "t": "text",
+      "x": 8950,
+      "y": 31200,
+      "text": "RST",
+      "size": 650,
+      "fill": "#f0f2f1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "rect",
+      "x": 15250,
+      "y": 25250,
+      "w": 5000,
+      "h": 5700,
+      "rx": 120,
+      "fill": "#202526",
+      "stroke": "#8b908d",
+      "sw": 120
+    },
+    {
+      "t": "rect",
+      "x": 16050,
+      "y": 25850,
+      "w": 3600,
+      "h": 4500,
+      "fill": "#303536"
+    },
+    {
+      "t": "text",
+      "x": 17600,
+      "y": 28100,
+      "text": "1117",
+      "size": 520,
+      "fill": "#606663",
+      "anchor": "middle",
+      "rotate": -90
+    },
+    {
+      "t": "line",
+      "x1": 20250,
+      "y1": 26350,
+      "x2": 20950,
+      "y2": 26350,
+      "stroke": "#d2d5d2",
+      "sw": 360
+    },
+    {
+      "t": "line",
+      "x1": 20250,
+      "y1": 28100,
+      "x2": 20950,
+      "y2": 28100,
+      "stroke": "#d2d5d2",
+      "sw": 360
+    },
+    {
+      "t": "line",
+      "x1": 20250,
+      "y1": 29850,
+      "x2": 20950,
+      "y2": 29850,
+      "stroke": "#d2d5d2",
+      "sw": 360
+    },
+    {
+      "t": "rect",
+      "x": 14550,
+      "y": 27400,
+      "w": 700,
+      "h": 1400,
+      "fill": "#c9cdca"
+    },
+    {
+      "t": "rect",
+      "x": 16900,
+      "y": 32700,
+      "w": 4800,
+      "h": 2400,
+      "rx": 120,
+      "fill": "#e4e6e0",
+      "stroke": "#8e938f",
+      "sw": 110
+    },
+    {
+      "t": "rect",
+      "x": 17600,
+      "y": 33000,
+      "w": 3400,
+      "h": 1800,
+      "rx": 70,
+      "fill": "#d9a528"
+    },
+    {
+      "t": "rect",
+      "x": 4100,
+      "y": 36000,
+      "w": 19800,
+      "h": 27500,
+      "rx": 180,
+      "fill": "#111516",
+      "stroke": "#292e2e",
+      "sw": 100
+    },
+    {
+      "t": "rect",
+      "x": 5000,
+      "y": 55200,
+      "w": 18000,
+      "h": 8300,
+      "rx": 120,
+      "fill": "#15191a",
+      "stroke": "#292f30",
+      "sw": 100
+    },
+    {
+      "t": "line",
+      "x1": 6100,
+      "y1": 56800,
+      "x2": 21900,
+      "y2": 56800,
+      "stroke": "#252b2b",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 6100,
+      "y1": 58200,
+      "x2": 21900,
+      "y2": 58200,
+      "stroke": "#252b2b",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 6100,
+      "y1": 59600,
+      "x2": 21900,
+      "y2": 59600,
+      "stroke": "#252b2b",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 6100,
+      "y1": 61000,
+      "x2": 21900,
+      "y2": 61000,
+      "stroke": "#252b2b",
+      "sw": 180
+    },
+    {
+      "t": "line",
+      "x1": 6100,
+      "y1": 62400,
+      "x2": 21900,
+      "y2": 62400,
+      "stroke": "#252b2b",
+      "sw": 180
+    },
+    {
+      "t": "circle",
+      "cx": 7600,
+      "cy": 55900,
+      "r": 180,
+      "fill": "#b99542"
+    },
+    {
+      "t": "circle",
+      "cx": 20300,
+      "cy": 55900,
+      "r": 180,
+      "fill": "#b99542"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 37700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 38900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 40100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 41300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 42500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 43700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 44900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 46100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 47300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 48500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 49700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 50900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 52100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 53300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 4550,
+      "y": 54500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 37700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 38900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 40100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 41300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 42500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 43700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 44900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 46100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 47300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 48500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 49700,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 50900,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 52100,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 53300,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 22700,
+      "y": 54500,
+      "w": 700,
+      "h": 900,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 6000,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 7350,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 8700,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 10050,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 11400,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 12750,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 14100,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 15450,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 16800,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 18150,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 19500,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 20850,
+      "y": 36400,
+      "w": 700,
+      "h": 950,
+      "fill": "#c9a956"
+    },
+    {
+      "t": "rect",
+      "x": 5100,
+      "y": 37500,
+      "w": 17800,
+      "h": 17700,
+      "rx": 250,
+      "fill": "#a5a99d",
+      "stroke": "#e2e4dc",
+      "sw": 180
+    },
+    {
+      "t": "rect",
+      "x": 5550,
+      "y": 37950,
+      "w": 16900,
+      "h": 16800,
+      "rx": 120,
+      "fill": "#969b8e",
+      "stroke": "#686e66",
+      "sw": 100
+    },
+    {
+      "t": "line",
+      "x1": 6000,
+      "y1": 38500,
+      "x2": 22000,
+      "y2": 38500,
+      "stroke": "#c5c8be",
+      "sw": 90
+    },
+    {
+      "t": "circle",
+      "cx": 6700,
+      "cy": 39300,
+      "r": 420,
+      "fill": "#111516",
+      "stroke": "#c4c7bd",
+      "sw": 80
+    },
+    {
+      "t": "text",
+      "x": 14000,
+      "y": 41400,
+      "text": "ESP32-S3-N16R8",
+      "size": 1150,
+      "fill": "#d8dbd1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 14000,
+      "y": 43250,
+      "text": "FCC ID: 2AC7Z-ESP32S3N16R8",
+      "size": 480,
+      "fill": "#d1d4ca",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 14000,
+      "y": 44400,
+      "text": "IC: 21098-ESP32S3N16R8",
+      "size": 480,
+      "fill": "#d1d4ca",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 14000,
+      "y": 45600,
+      "text": "CE",
+      "size": 1100,
+      "fill": "#d8dbd1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 7600,
+      "y": 47700,
+      "text": "N16R8",
+      "size": 780,
+      "fill": "#d8dbd1",
+      "anchor": "middle",
+      "weight": "700"
+    },
+    {
+      "t": "rect",
+      "x": 10500,
+      "y": 46700,
+      "w": 4200,
+      "h": 4200,
+      "fill": "none",
+      "stroke": "#d7dad0",
+      "sw": 100
+    },
+    {
+      "t": "rect",
+      "x": 10900,
+      "y": 47100,
+      "w": 1050,
+      "h": 1050,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 11200,
+      "y": 47400,
+      "w": 450,
+      "h": 450,
+      "fill": "#969b8e"
+    },
+    {
+      "t": "rect",
+      "x": 13250,
+      "y": 47100,
+      "w": 1050,
+      "h": 1050,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 13550,
+      "y": 47400,
+      "w": 450,
+      "h": 450,
+      "fill": "#969b8e"
+    },
+    {
+      "t": "rect",
+      "x": 10900,
+      "y": 49400,
+      "w": 1050,
+      "h": 1050,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 11200,
+      "y": 49700,
+      "w": 450,
+      "h": 450,
+      "fill": "#969b8e"
+    },
+    {
+      "t": "rect",
+      "x": 12300,
+      "y": 48100,
+      "w": 500,
+      "h": 500,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 13000,
+      "y": 48800,
+      "w": 500,
+      "h": 500,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 12100,
+      "y": 49800,
+      "w": 600,
+      "h": 600,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "rect",
+      "x": 13800,
+      "y": 49600,
+      "w": 500,
+      "h": 700,
+      "fill": "#d7dad0"
+    },
+    {
+      "t": "text",
+      "x": 18900,
+      "y": 49500,
+      "text": "Espressif",
+      "size": 620,
+      "fill": "#d0d3c9",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 18900,
+      "y": 50700,
+      "text": "Systems",
+      "size": 480,
+      "fill": "#d0d3c9",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 2120,
+      "text": "GND",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 4660,
+      "text": "GND",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 7200,
+      "text": "19",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 9740,
+      "text": "20",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 12280,
+      "text": "21",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 14820,
+      "text": "47",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 17360,
+      "text": "48",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 19900,
+      "text": "45",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 22440,
+      "text": "0",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 24980,
+      "text": "35",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 27520,
+      "text": "36",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 30060,
+      "text": "37",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 32600,
+      "text": "38",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 35140,
+      "text": "39",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 37680,
+      "text": "40",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 40220,
+      "text": "41",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 42760,
+      "text": "42",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 45300,
+      "text": "2",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 47840,
+      "text": "1",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 50380,
+      "text": "RX",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 52920,
+      "text": "TX",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 2500,
+      "y": 55460,
+      "text": "GND",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "start",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 2120,
+      "text": "GND",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 4660,
+      "text": "5V",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 7200,
+      "text": "14",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 9740,
+      "text": "13",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 12280,
+      "text": "12",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 14820,
+      "text": "11",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 17360,
+      "text": "10",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 19900,
+      "text": "9",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 22440,
+      "text": "46",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 24980,
+      "text": "3",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 27520,
+      "text": "8",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 30060,
+      "text": "18",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 32600,
+      "text": "17",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 35140,
+      "text": "16",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 37680,
+      "text": "15",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 40220,
+      "text": "7",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 42760,
+      "text": "6",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 45300,
+      "text": "5",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 47840,
+      "text": "4",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 50380,
+      "text": "RST",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 52920,
+      "text": "3V3",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "text",
+      "x": 25440,
+      "y": 55460,
+      "text": "3V3",
+      "size": 560,
+      "fill": "#f1f3f4",
+      "anchor": "end",
+      "weight": "700"
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 1905,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 4445,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 6985,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 9525,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 12065,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 14605,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 17145,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 19685,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 22225,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 24765,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 27305,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 29845,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 32385,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 34925,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 37465,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 40005,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 42545,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 45085,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 47625,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 50165,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 52705,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 1270,
+      "cy": 55245,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 1905,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 4445,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 6985,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 9525,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 12065,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 14605,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 17145,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 19685,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 22225,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 24765,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 27305,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 29845,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 32385,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 34925,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 37465,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 40005,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 42545,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 45085,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 47625,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 50165,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 52705,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "circle",
+      "cx": 26670,
+      "cy": 55245,
+      "r": 830,
+      "fill": "#aeb2b3",
+      "stroke": "#eef0ef",
+      "sw": 130
+    },
+    {
+      "t": "rect",
+      "x": 11850,
+      "y": 33400,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s1"
+    },
+    {
+      "t": "rect",
+      "x": 12200,
+      "y": 33750,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s1"
+    },
+    {
+      "t": "rect",
+      "x": 12200,
+      "y": 33750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s1"
+    },
+    {
+      "t": "rect",
+      "x": 13280,
+      "y": 33750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s1"
+    },
+    {
+      "t": "rect",
+      "x": 13050,
+      "y": 33400,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s2"
+    },
+    {
+      "t": "rect",
+      "x": 13400,
+      "y": 33750,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#1f2426",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s2"
+    },
+    {
+      "t": "rect",
+      "x": 13400,
+      "y": 33750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s2"
+    },
+    {
+      "t": "rect",
+      "x": 14480,
+      "y": 33750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s2"
+    },
+    {
+      "t": "rect",
+      "x": 13980,
+      "y": 33870,
+      "w": 240,
+      "h": 460,
+      "fill": "#d9dcd8",
+      "opacity": 0.35,
+      "g": "s2"
+    },
+    {
+      "t": "rect",
+      "x": 11950,
+      "y": 26800,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s3"
+    },
+    {
+      "t": "rect",
+      "x": 12300,
+      "y": 27150,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s3"
+    },
+    {
+      "t": "rect",
+      "x": 12300,
+      "y": 27150,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s3"
+    },
+    {
+      "t": "rect",
+      "x": 13380,
+      "y": 27150,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s3"
+    },
+    {
+      "t": "rect",
+      "x": 7400,
+      "y": 21550,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s4"
+    },
+    {
+      "t": "rect",
+      "x": 7400,
+      "y": 21550,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s4"
+    },
+    {
+      "t": "rect",
+      "x": 8480,
+      "y": 21550,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s4"
+    },
+    {
+      "t": "rect",
+      "x": 13600,
+      "y": 24650,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#1f2426",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s5"
+    },
+    {
+      "t": "rect",
+      "x": 13600,
+      "y": 24650,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s5"
+    },
+    {
+      "t": "rect",
+      "x": 14680,
+      "y": 24650,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s5"
+    },
+    {
+      "t": "rect",
+      "x": 14180,
+      "y": 24770,
+      "w": 240,
+      "h": 460,
+      "fill": "#d9dcd8",
+      "opacity": 0.35,
+      "g": "s5"
+    },
+    {
+      "t": "rect",
+      "x": 13600,
+      "y": 23050,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#1f2426",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s6"
+    },
+    {
+      "t": "rect",
+      "x": 13600,
+      "y": 23050,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s6"
+    },
+    {
+      "t": "rect",
+      "x": 14680,
+      "y": 23050,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s6"
+    },
+    {
+      "t": "rect",
+      "x": 14180,
+      "y": 23170,
+      "w": 240,
+      "h": 460,
+      "fill": "#d9dcd8",
+      "opacity": 0.35,
+      "g": "s6"
+    },
+    {
+      "t": "rect",
+      "x": 12950,
+      "y": 17100,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s7"
+    },
+    {
+      "t": "rect",
+      "x": 13300,
+      "y": 17450,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#1f2426",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s7"
+    },
+    {
+      "t": "rect",
+      "x": 13300,
+      "y": 17450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s7"
+    },
+    {
+      "t": "rect",
+      "x": 14380,
+      "y": 17450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s7"
+    },
+    {
+      "t": "rect",
+      "x": 13880,
+      "y": 17570,
+      "w": 240,
+      "h": 460,
+      "fill": "#d9dcd8",
+      "opacity": 0.35,
+      "g": "s7"
+    },
+    {
+      "t": "rect",
+      "x": 9800,
+      "y": 15150,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s8"
+    },
+    {
+      "t": "rect",
+      "x": 9800,
+      "y": 15150,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s8"
+    },
+    {
+      "t": "rect",
+      "x": 10880,
+      "y": 15150,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s8"
+    },
+    {
+      "t": "rect",
+      "x": 10600,
+      "y": 14450,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s9"
+    },
+    {
+      "t": "rect",
+      "x": 10600,
+      "y": 14450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s9"
+    },
+    {
+      "t": "rect",
+      "x": 11680,
+      "y": 14450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s9"
+    },
+    {
+      "t": "rect",
+      "x": 6350,
+      "y": 10100,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s10"
+    },
+    {
+      "t": "rect",
+      "x": 6700,
+      "y": 10450,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s10"
+    },
+    {
+      "t": "rect",
+      "x": 6700,
+      "y": 10450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s10"
+    },
+    {
+      "t": "rect",
+      "x": 7780,
+      "y": 10450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s10"
+    },
+    {
+      "t": "rect",
+      "x": 9950,
+      "y": 10100,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s11"
+    },
+    {
+      "t": "rect",
+      "x": 10300,
+      "y": 10450,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s11"
+    },
+    {
+      "t": "rect",
+      "x": 10300,
+      "y": 10450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s11"
+    },
+    {
+      "t": "rect",
+      "x": 11380,
+      "y": 10450,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s11"
+    },
+    {
+      "t": "rect",
+      "x": 13900,
+      "y": 14950,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#1f2426",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s12"
+    },
+    {
+      "t": "rect",
+      "x": 13900,
+      "y": 14950,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s12"
+    },
+    {
+      "t": "rect",
+      "x": 14980,
+      "y": 14950,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s12"
+    },
+    {
+      "t": "rect",
+      "x": 14480,
+      "y": 15070,
+      "w": 240,
+      "h": 460,
+      "fill": "#d9dcd8",
+      "opacity": 0.35,
+      "g": "s12"
+    },
+    {
+      "t": "rect",
+      "x": 21700,
+      "y": 22950,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s13"
+    },
+    {
+      "t": "rect",
+      "x": 21700,
+      "y": 22950,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s13"
+    },
+    {
+      "t": "rect",
+      "x": 22780,
+      "y": 22950,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s13"
+    },
+    {
+      "t": "rect",
+      "x": 23100,
+      "y": 22550,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s14"
+    },
+    {
+      "t": "rect",
+      "x": 23100,
+      "y": 22550,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s14"
+    },
+    {
+      "t": "rect",
+      "x": 24180,
+      "y": 22550,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s14"
+    },
+    {
+      "t": "rect",
+      "x": 21550,
+      "y": 32350,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s15"
+    },
+    {
+      "t": "rect",
+      "x": 21900,
+      "y": 32700,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s15"
+    },
+    {
+      "t": "rect",
+      "x": 21900,
+      "y": 32700,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s15"
+    },
+    {
+      "t": "rect",
+      "x": 22980,
+      "y": 32700,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s15"
+    },
+    {
+      "t": "rect",
+      "x": 13850,
+      "y": 6400,
+      "w": 2100,
+      "h": 1400,
+      "rx": 80,
+      "fill": "none",
+      "stroke": "#e4e7e3",
+      "sw": 90,
+      "g": "s16"
+    },
+    {
+      "t": "rect",
+      "x": 13500,
+      "y": 6750,
+      "w": 1400,
+      "h": 700,
+      "rx": 60,
+      "fill": "#a8865a",
+      "stroke": "#3a3f40",
+      "sw": 50,
+      "g": "s16"
+    },
+    {
+      "t": "rect",
+      "x": 13500,
+      "y": 6750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s16"
+    },
+    {
+      "t": "rect",
+      "x": 14580,
+      "y": 6750,
+      "w": 320,
+      "h": 700,
+      "fill": "#c9cdc9",
+      "g": "s16"
+    }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "商品图标注外形约 57.15×27.94 mm、针排有效长度 53.34 mm；以用户红框标注的正面照片为器件清单，并以两排 2.54 mm 针脚为坐标标尺重新校准双 Type-C、CH343、保护器件、RGB、稳压区、状态灯、BOOT/RST 与 N16R8 模组的位置。未使用卡尺或万用表复核，局部尺寸仍按照片比例近似。2026-09-06 依据用户实物照片二次校准：状态灯间距 2.6 mm、稳压器引脚朝向、上方 Type-C 位置与外壳出板，并按照片补画 16 颗 0402/0603 级小电容电阻及丝印框（位置按照片比例估算，元件种类为推测）。",
+  "sources": [
+    {
+      "title": "用户提供的 ESP32-S3 N16R8 双 Type-C 商品尺寸图",
+      "accessed": "2026-09-05",
+      "note": "用于型号、主要尺寸、存储规格与整体布局。"
+    },
+    {
+      "title": "用户提供的 ESP32-S3 N16R8 面包板实物照片",
+      "accessed": "2026-09-05",
+      "note": "用于确认 44 针丝印顺序、双接口、板载器件位置及跨沟槽安装。"
+    },
+    {
+      "title": "用户提供的 ESP32-S3 N16R8 三张微距照片",
+      "accessed": "2026-09-05",
+      "note": "用于逐区校准接口外壳、SMD 器件、按键、模组半孔焊盘、屏蔽罩丝印和天线细节。"
+    },
+    {
+      "title": "用户提供的红框器件标注正面图",
+      "accessed": "2026-09-05",
+      "note": "以红框为最终器件清单，并以针脚排为标尺校准所有标注器件的相对位置。"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}

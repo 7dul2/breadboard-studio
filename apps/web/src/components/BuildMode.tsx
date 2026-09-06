@@ -20,7 +20,7 @@ export function BuildMode() {
           <div className="step-head">
             <span className="wire-no" style={{ borderColor: WIRE_COLORS[cur.color] ?? cur.color }}>{cur.index}</span>
             <b>{cur.name}</b>
-            <span className="muted">{cur.color}{cur.route === 'elevated' ? ' · 软线' : ' · 硬跳线'}{cur.length_mm !== null ? ` · ~${cur.length_mm} mm` : ''}</span>
+            <span className="muted">{cur.color}{cur.route === 'elevated' ? ' · 杜邦线' : ' · 硬质跳线'}{cur.length_mm !== null ? ` · ~${cur.length_mm} mm` : ''}</span>
           </div>
           <div className="step-body">
             <div><span className="muted">从</span> <b>{cur.from}</b> <span className="muted">{cur.from_label}</span></div>

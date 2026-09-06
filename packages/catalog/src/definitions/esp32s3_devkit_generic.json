@@ -127,6 +127,27 @@
           "null"
         ],
         "description": "3V3 脚可向外供给的最大电流（mA），未知留 null"
+      },
+      "i2c_buses": {
+        "title": "额外 I²C 总线",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "sda",
+            "scl"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sda": {
+              "type": "string"
+            },
+            "scl": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "第 2 条起的 I²C 总线所用针脚（固件里 Wire1.begin(sda, scl)）；自动排线遇到地址冲突时会自动填写"
       }
     }
   },
@@ -163,7 +184,8 @@
       "direction": "in",
       "aliases": [
         "EN"
-      ]
+      ],
+      "auto_wire": "skip"
     },
     "5V": {
       "role": "power_out",
@@ -190,7 +212,8 @@
       "drive": "push_pull",
       "aliases": [
         "GPIO43"
-      ]
+      ],
+      "auto_wire": "skip"
     },
     "RX": {
       "role": "signal_in",
@@ -198,14 +221,16 @@
       "direction": "in",
       "aliases": [
         "GPIO44"
-      ]
+      ],
+      "auto_wire": "skip"
     },
     "GPIO0": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "启动模式引脚"
+      "notes": "启动模式引脚",
+      "auto_wire": "avoid"
     },
     "GPIO1": {
       "role": "gpio",
@@ -223,7 +248,9 @@
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "auto_wire": "avoid",
+      "notes": "strapping 引脚（JTAG 选择）"
     },
     "GPIO4": {
       "role": "gpio",
@@ -322,14 +349,16 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "USB D-"
+      "notes": "USB D-",
+      "auto_wire": "avoid"
     },
     "GPIO20": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "USB D+"
+      "notes": "USB D+",
+      "auto_wire": "avoid"
     },
     "GPIO21": {
       "role": "gpio",
@@ -342,21 +371,24 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "N16R8（八线 PSRAM）型号上 GPIO35–37 被 PSRAM 占用"
+      "notes": "N16R8（八线 PSRAM）型号上 GPIO35–37 被 PSRAM 占用",
+      "auto_wire": "avoid"
     },
     "GPIO36": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "八线 PSRAM 占用"
+      "notes": "八线 PSRAM 占用",
+      "auto_wire": "avoid"
     },
     "GPIO37": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "八线 PSRAM 占用"
+      "notes": "八线 PSRAM 占用",
+      "auto_wire": "avoid"
     },
     "GPIO38": {
       "role": "gpio",
@@ -393,14 +425,16 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "strapping 引脚"
+      "notes": "strapping 引脚",
+      "auto_wire": "avoid"
     },
     "GPIO46": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "strapping 引脚"
+      "notes": "strapping 引脚",
+      "auto_wire": "avoid"
     },
     "GPIO47": {
       "role": "gpio",
@@ -413,7 +447,8 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "DevKitC-1 板载 RGB LED"
+      "notes": "DevKitC-1 板载 RGB LED",
+      "auto_wire": "avoid"
     }
   },
   "internal_nets": [
@@ -442,7 +477,9 @@
       "sda_pin": "GPIO8",
       "scl_pin": "GPIO9",
       "configurable": true,
-      "notes": "ESP32-S3 的 I²C 可映射到任意 GPIO；通过 config.i2c_sda_pin / i2c_scl_pin 指定实际使用的引脚。"
+      "notes": "ESP32-S3 的 I²C 可映射到任意 GPIO；通过 config.i2c_sda_pin / i2c_scl_pin 指定实际使用的引脚。",
+      "controllers": 2,
+      "mappable": true
     }
   },
   "features": [

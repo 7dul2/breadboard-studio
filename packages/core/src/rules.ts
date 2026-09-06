@@ -36,7 +36,8 @@ function isPower(meta: PinMeta): boolean {
   return meta.role === 'power_in' || meta.role === 'power_out';
 }
 
-function supplyRange(pc: PlacedComponent): { min: number; max: number } | null {
+/** Allowed supply range from instance config, falling back to the definition. */
+export function supplyRange(pc: PlacedComponent): { min: number; max: number } | null {
   const cfg = pc.resolved.config.supply_voltage_v;
   if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) {
     const min = numOrNull(cfg.min);
@@ -55,7 +56,8 @@ function sourceCapacity(ref: PinRef): number | null {
   return typeof ref.pin.meta.max_source_ma === 'number' ? ref.pin.meta.max_source_ma : null;
 }
 
-function i2cPins(pc: PlacedComponent): { sda: string; scl: string } | null {
+/** Effective SDA/SCL pin names (config override, then definition). */
+export function i2cPins(pc: PlacedComponent): { sda: string; scl: string } | null {
   const i2c = pc.def.electrical.i2c;
   if (!i2c) return null;
   const cfg = pc.resolved.config;
@@ -65,7 +67,38 @@ function i2cPins(pc: PlacedComponent): { sda: string; scl: string } | null {
   return { sda, scl };
 }
 
-function i2cAddress(pc: PlacedComponent): number | null {
+export interface I2cBus {
+  /** 0 = the default bus (definition or config.i2c_sda_pin/scl), ≥1 = config.i2c_buses[index-1]. */
+  index: number;
+  sda: string;
+  scl: string;
+}
+
+/** Every I²C bus a host exposes: the default pair plus any extra pairs declared in `config.i2c_buses`. */
+export function i2cBuses(pc: PlacedComponent): I2cBus[] {
+  const first = i2cPins(pc);
+  if (!first) return [];
+  const buses: I2cBus[] = [{ index: 0, sda: first.sda, scl: first.scl }];
+  const extra = pc.resolved.config.i2c_buses;
+  if (Array.isArray(extra)) {
+    for (const [i, raw] of extra.entries()) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const sda = (raw as Record<string, unknown>).sda;
+      const scl = (raw as Record<string, unknown>).scl;
+      if (typeof sda !== 'string' || typeof scl !== 'string') continue;
+      if (!pc.pins.some((p) => p.name === sda) || !pc.pins.some((p) => p.name === scl)) continue;
+      buses.push({ index: i + 1, sda, scl });
+    }
+  }
+  return buses;
+}
+
+export function busLabel(ctl: PlacedComponent, bus: I2cBus): string {
+  return bus.index === 0 ? ctl.instance.id : `${ctl.instance.id} 第 ${bus.index + 1} 条总线（${bus.sda}/${bus.scl}）`;
+}
+
+/** Effective I²C address from config (explicit null = unknown) or the catalog default. */
+export function i2cAddress(pc: PlacedComponent): number | null {
   const cfg = pc.resolved.config;
   // An explicit null in config means "unknown" and overrides the catalog default.
   if ('i2c_address' in cfg) return numOrNull(cfg.i2c_address);
@@ -160,11 +193,11 @@ export function checkModel(model: DesignModel): CheckOutput {
       if (w.instance.route === 'flat') {
         results.push(
           res('warning', 'wire_crosses_body', 'wire', `硬跳线 ${w.instance.id} 的走线穿过元件 ${crossed.join('、')} 的板体`, [w.instance.id, ...crossed], {
-            suggestion: '改为抬高的软线（route = elevated）或调整拐点绕开。未做三维碰撞分析。'
+            suggestion: '改为可跨元件的杜邦线（route = elevated）或调整拐点绕开。未做三维碰撞分析。'
           })
         );
       } else {
-        results.push(res('info', 'wire_over_body', 'wire', `软线 ${w.instance.id} 跨越元件 ${crossed.join('、')} 上方（示意，未做三维碰撞分析）`, [w.instance.id, ...crossed]));
+        results.push(res('info', 'wire_over_body', 'wire', `杜邦线 ${w.instance.id} 跨越元件 ${crossed.join('、')} 上方（示意，未做三维碰撞分析）`, [w.instance.id, ...crossed]));
       }
     }
   }
@@ -423,15 +456,31 @@ export function checkModel(model: DesignModel): CheckOutput {
   // ------------------------------------------------------------ I2C buses
   const controllers = comps.filter((pc) => pc.def.category === 'mcu' && i2cPins(pc));
   const devices = comps.filter((pc) => pc.def.category !== 'mcu' && i2cPins(pc));
-  const buses: { controller: PlacedComponent; sdaRoot: string; sclRoot: string; devices: PlacedComponent[] }[] = [];
+  const buses: { controller: PlacedComponent; bus: I2cBus; label: string; sdaRoot: string; sclRoot: string; devices: PlacedComponent[] }[] = [];
   for (const ctl of controllers) {
-    const p = i2cPins(ctl)!;
-    const sdaRoot = conn.full.find(pinKey(ctl.instance.id, p.sda));
-    const sclRoot = conn.full.find(pinKey(ctl.instance.id, p.scl));
-    if (sdaRoot === sclRoot) {
-      results.push(res('error', 'i2c_sda_scl_shorted', 'interface', `${ctl.instance.id} 的 SDA 与 SCL 在同一网络`, [ctl.instance.id], { endpoints: [pinKey(ctl.instance.id, p.sda), pinKey(ctl.instance.id, p.scl)] }));
+    const declared = i2cBuses(ctl);
+    const rawExtra = ctl.resolved.config.i2c_buses;
+    if (Array.isArray(rawExtra) && rawExtra.length !== declared.length - 1) {
+      results.push(res('warning', 'i2c_bus_config_invalid', 'interface', `${ctl.instance.id} 的 config.i2c_buses 中有条目引用了不存在的引脚，已忽略`, [ctl.instance.id], { suggestion: '每条总线需要 {sda, scl} 两个存在的针名。' }));
     }
-    buses.push({ controller: ctl, sdaRoot, sclRoot, devices: [] });
+    const maxBuses = ctl.def.electrical.i2c?.controllers;
+    if (typeof maxBuses === 'number' && declared.length > maxBuses) {
+      results.push(res('warning', 'i2c_bus_count_exceeded', 'interface', `${ctl.instance.id} 声明了 ${declared.length} 条 I²C 总线，但目录记录它只有 ${maxBuses} 个 I²C 控制器`, [ctl.instance.id], { suggestion: '删除多余的 config.i2c_buses 条目，或改用软件 I²C 并自行核实。' }));
+    }
+    const seenPins = new Set<string>();
+    for (const bus of declared) {
+      const label = busLabel(ctl, bus);
+      for (const pin of [bus.sda, bus.scl]) {
+        if (seenPins.has(pin)) results.push(res('error', 'i2c_bus_pin_reused', 'interface', `${ctl.instance.id} 的引脚 ${pin} 被多条 I²C 总线使用`, [ctl.instance.id], { endpoints: [pinKey(ctl.instance.id, pin)] }));
+        seenPins.add(pin);
+      }
+      const sdaRoot = conn.full.find(pinKey(ctl.instance.id, bus.sda));
+      const sclRoot = conn.full.find(pinKey(ctl.instance.id, bus.scl));
+      if (sdaRoot === sclRoot) {
+        results.push(res('error', 'i2c_sda_scl_shorted', 'interface', `${label} 的 SDA 与 SCL 在同一网络`, [ctl.instance.id], { endpoints: [pinKey(ctl.instance.id, bus.sda), pinKey(ctl.instance.id, bus.scl)] }));
+      }
+      buses.push({ controller: ctl, bus, label, sdaRoot, sclRoot, devices: [] });
+    }
   }
   for (const dev of devices) {
     const p = i2cPins(dev)!;
@@ -450,7 +499,7 @@ export function checkModel(model: DesignModel): CheckOutput {
         matched = true;
       } else if (sdaOk || sclOk || bus.sdaRoot === sclRoot || bus.sclRoot === sdaRoot) {
         results.push(
-          res('warning', 'i2c_bus_mismatch', 'interface', `${dev.instance.id} 的 SDA/SCL 只有一根接到 ${bus.controller.instance.id} 的总线，或 SDA/SCL 接反`, [dev.instance.id, bus.controller.instance.id], {
+          res('warning', 'i2c_bus_mismatch', 'interface', `${dev.instance.id} 的 SDA/SCL 只有一根接到 ${bus.label} 的总线，或 SDA/SCL 接反`, [dev.instance.id, bus.controller.instance.id], {
             endpoints: [pinKey(dev.instance.id, p.sda), pinKey(dev.instance.id, p.scl)]
           })
         );
@@ -467,7 +516,7 @@ export function checkModel(model: DesignModel): CheckOutput {
       const addr = i2cAddress(dev);
       if (addr === null) {
         results.push(
-          res('needs_review', 'i2c_address_unknown', 'evidence', `${dev.instance.id} 在 ${bus.controller.instance.id} 的 I²C 总线上，但地址未知，无法检查冲突`, [dev.instance.id], {
+          res('needs_review', 'i2c_address_unknown', 'evidence', `${dev.instance.id} 在 ${bus.label} 的 I²C 总线上，但地址未知，无法检查冲突`, [dev.instance.id], {
             suggestion: '在 config.i2c_address 填写实际地址。'
           })
         );
@@ -478,7 +527,7 @@ export function checkModel(model: DesignModel): CheckOutput {
     for (const [addr, devs] of byAddr) {
       if (devs.length > 1) {
         results.push(
-          res('error', 'i2c_address_conflict', 'interface', `同一 I²C 总线（${bus.controller.instance.id}）上有多个器件使用地址 ${hex(addr)}：${devs.map((d) => d.instance.id).join('、')}`, devs.map((d) => d.instance.id), {
+          res('error', 'i2c_address_conflict', 'interface', `同一 I²C 总线（${bus.label}）上有多个器件使用地址 ${hex(addr)}：${devs.map((d) => d.instance.id).join('、')}`, devs.map((d) => d.instance.id), {
             suggestion: '修改可配置地址（config.i2c_address）、换用第二条总线或加 I²C 多路复用器。'
           })
         );
@@ -504,4 +553,3 @@ export function checkModel(model: DesignModel): CheckOutput {
 
   return { results, connectivity: conn };
 }
-

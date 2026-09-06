@@ -23,7 +23,7 @@
     "GND": { "role": "ground" },
     "SDA": { "role": "i2c_sda", "io_voltage_v": 3.3, "direction": "bidir", "drive": "open_drain" },
     "SCL": { "role": "i2c_scl", "io_voltage_v": 3.3, "direction": "in", "drive": "open_drain" },
-    "SEL": { "role": "signal_in", "io_voltage_v": 3.3, "direction": "in", "notes": "接地选择 I²C 接口" },
+    "SEL": { "role": "signal_in", "io_voltage_v": 3.3, "direction": "in", "auto_wire": "to_ground", "notes": "接地选择 I²C 接口；自动布线时接主板 GND" },
     "NC": { "role": "nc" }
   },
   "electrical": {

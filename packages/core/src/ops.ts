@@ -7,7 +7,8 @@ import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
 import { accessibleHolesForPin, buildModel, catalogForDesign } from './model.js';
-import type { RuleResult } from './results.js';
+import { AutoWireError, planAutoWire, type AutoWireOptions, type AutoWirePlan } from './autowire.js';
+import { sortResults, type RuleResult } from './results.js';
 
 // ---------------------------------------------------------------------------
 // Operation vocabulary (structured domain operations; no scripts, no eval)
@@ -70,7 +71,12 @@ export type Op =
   | { op: 'replace_design'; design: DesignDocument }
   /** Embed a board/component definition (validated against the definition schema) so the design carries it. */
   | { op: 'add_definition'; definition: unknown }
-  | { op: 'remove_definition'; ref: string };
+  | { op: 'remove_definition'; ref: string }
+  /** Auto-wire peripherals to a host by pin role (power/ground via rails, I²C, free GPIOs). Expands into add_wire / net intent ops. */
+  | { op: 'auto_wire'; host: string; components: string[]; options?: AutoWireOptions };
+
+/** Extra output produced by ops that plan work (currently only `auto_wire`). */
+export type OpReport = { op: 'auto_wire'; op_index: number; plan: AutoWirePlan };
 
 export interface Patch {
   expected_revision?: number;
@@ -89,7 +95,7 @@ export interface ApplyOptions {
 }
 
 export type ApplyResult =
-  | { ok: true; design: DesignDocument; results: RuleResult[]; changed: string[]; revision: number; hash: string; previous_hash: string }
+  | { ok: true; design: DesignDocument; results: RuleResult[]; changed: string[]; revision: number; hash: string; previous_hash: string; reports: OpReport[] }
   | {
       ok: false;
       error: { code: 'revision_conflict' | 'op_failed' | 'blocking_errors' | 'schema_invalid'; message: string; op_index?: number; results?: RuleResult[]; issues?: { path: string; message: string }[] };
@@ -123,6 +129,42 @@ function nextId(design: DesignDocument, prefix: string): string {
   return `${prefix}${n}`;
 }
 
+function addressBelongsTo(address: string, owners: Set<string>): boolean {
+  const parsed = parseAddress(address);
+  return !!parsed && owners.has(parsed.owner);
+}
+
+function wireBelongsToOwners(wire: WireInstance, owners: Set<string>): boolean {
+  return [wire.from, wire.to].some((endpoint) => {
+    const address = endpoint?.hole ?? endpoint?.terminal;
+    return !!address && addressBelongsTo(address, owners);
+  });
+}
+
+/** Remove or trim declarations that would otherwise retain dangling references after a cascade. */
+function pruneDependentReferences(design: DesignDocument, removedOwners: Set<string>, removedWireIds: Set<string>, changed: Set<string>): void {
+  design.net_intents = design.net_intents.flatMap((intent) => {
+    const endpoints = intent.endpoints.filter((endpoint) => !addressBelongsTo(endpoint, removedOwners));
+    if (endpoints.length === intent.endpoints.length) return [intent];
+    changed.add(intent.id);
+    return endpoints.length ? [{ ...intent, endpoints }] : [];
+  });
+
+  design.constraints = design.constraints.flatMap((constraint) => {
+    if (constraint.type === 'isolate' && (addressBelongsTo(constraint.a, removedOwners) || addressBelongsTo(constraint.b, removedOwners))) {
+      changed.add(constraint.id);
+      return [];
+    }
+    if (constraint.type === 'wire_length_max_um' && constraint.wire_ids) {
+      const wireIds = constraint.wire_ids.filter((id) => !removedWireIds.has(id));
+      if (wireIds.length === constraint.wire_ids.length) return [constraint];
+      changed.add(constraint.id);
+      return wireIds.length ? [{ ...constraint, wire_ids: wireIds }] : [];
+    }
+    return [constraint];
+  });
+}
+
 function resolveOpEndpoint(design: DesignDocument, catalog: Catalog, ep: OpEndpoint, exclude: Set<string>): WireEndpoint {
   if ('pin' in ep) {
     const parsed = parseAddress(ep.pin);
@@ -140,7 +182,14 @@ function resolveOpEndpoint(design: DesignDocument, catalog: Catalog, ep: OpEndpo
   return ep;
 }
 
-function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set<string>): void {
+interface OpContext {
+  changed: Set<string>;
+  reports: OpReport[];
+  notes: RuleResult[];
+  op_index: number;
+}
+
+function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set<string>, ctx?: OpContext): void {
   switch (op.op) {
     case 'add_board': {
       const def = catalog.getBoard(op.board.model);
@@ -164,15 +213,19 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const b = mustFind(design.boards, op.id, '面包板');
       ensureUnlocked(b, '面包板');
       const dependents = design.components.filter((c) => c.placement.kind === 'board' && c.placement.board_id === op.id);
-      const wires = design.wires.filter((w) => [w.from, w.to].some((e) => e?.hole?.startsWith(`${op.id}.`)));
-      if ((dependents.length || wires.length) && !op.cascade) {
-        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}。设置 cascade=true 一并删除`);
+      const owners = new Set([op.id, ...dependents.map((component) => component.id)]);
+      const wires = design.wires.filter((wire) => wireBelongsToOwners(wire, owners));
+      const intents = design.net_intents.filter((intent) => intent.endpoints.some((endpoint) => addressBelongsTo(endpoint, owners)));
+      const constraints = design.constraints.filter((constraint) => constraint.type === 'isolate' && (addressBelongsTo(constraint.a, owners) || addressBelongsTo(constraint.b, owners)));
+      if ((dependents.length || wires.length || intents.length || constraints.length) && !op.cascade) {
+        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((c) => c.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
       }
       for (const d of dependents) changed.add(d.id);
       for (const w of wires) changed.add(w.id);
       design.components = design.components.filter((c) => !dependents.includes(c));
       design.wires = design.wires.filter((w) => !wires.includes(w));
       design.boards = design.boards.filter((x) => x.id !== op.id);
+      pruneDependentReferences(design, owners, new Set(wires.map((wire) => wire.id)), changed);
       changed.add(op.id);
       return;
     }
@@ -207,11 +260,17 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
     case 'remove_component': {
       const c = mustFind(design.components, op.id, '元件');
       ensureUnlocked(c, '元件');
-      const wires = design.wires.filter((w) => [w.from, w.to].some((e) => e?.terminal?.startsWith(`${op.id}.`)));
-      if (wires.length && !op.cascade) throw new OpError(`元件 "${op.id}" 的端子仍连着导线 ${wires.map((w) => w.id).join(', ')}。设置 cascade=true 一并删除`);
+      const owners = new Set([op.id]);
+      const wires = design.wires.filter((wire) => wireBelongsToOwners(wire, owners));
+      const intents = design.net_intents.filter((intent) => intent.endpoints.some((endpoint) => addressBelongsTo(endpoint, owners)));
+      const constraints = design.constraints.filter((constraint) => constraint.type === 'isolate' && (addressBelongsTo(constraint.a, owners) || addressBelongsTo(constraint.b, owners)));
+      if ((wires.length || intents.length || constraints.length) && !op.cascade) {
+        throw new OpError(`元件 "${op.id}" 仍被使用：导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((item) => item.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
+      }
       design.wires = design.wires.filter((w) => !wires.includes(w));
       for (const w of wires) changed.add(w.id);
       design.components = design.components.filter((x) => x.id !== op.id);
+      pruneDependentReferences(design, owners, new Set(wires.map((wire) => wire.id)), changed);
       changed.add(op.id);
       return;
     }
@@ -257,6 +316,7 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const w = mustFind(design.wires, op.id, '导线');
       ensureUnlocked(w, '导线');
       design.wires = design.wires.filter((x) => x.id !== op.id);
+      pruneDependentReferences(design, new Set(), new Set([op.id]), changed);
       changed.add(op.id);
       return;
     }
@@ -367,6 +427,24 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       changed.add(op.ref);
       return;
     }
+    case 'auto_wire': {
+      let plan: AutoWirePlan;
+      try {
+        plan = planAutoWire(design, catalog, { host: op.host, components: op.components, ...(op.options ?? {}) });
+      } catch (e) {
+        if (e instanceof AutoWireError) throw new OpError(`自动布线失败：${e.message}`);
+        throw e;
+      }
+      if (op.options?.require_all && plan.unresolved.length) {
+        throw new OpError(`自动布线有 ${plan.unresolved.length} 个引脚无法连接（require_all）：${plan.unresolved.map((u) => `${u.component}.${u.pin} ${u.reason}`).join('；')}`);
+      }
+      for (const sub of plan.ops) applyOne(design, catalog, sub, changed);
+      if (ctx) {
+        ctx.reports.push({ op: 'auto_wire', op_index: ctx.op_index, plan });
+        ctx.notes.push(...plan.results);
+      }
+      return;
+    }
     default: {
       const unknown = op as { op?: string };
       throw new OpError(`未知操作 "${unknown.op}"`);
@@ -420,9 +498,11 @@ export function applyOps(design: DesignDocument, ops: Op[], options: ApplyOption
   }
   const draft = cloneDesign(design);
   const changed = new Set<string>();
+  const ctx: OpContext = { changed, reports: [], notes: [], op_index: 0 };
   for (let i = 0; i < ops.length; i++) {
+    ctx.op_index = i;
     try {
-      applyOne(draft, catalogForDesign(draft, catalog), ops[i]!, changed);
+      applyOne(draft, catalogForDesign(draft, catalog), ops[i]!, changed, ctx);
     } catch (e) {
       if (e instanceof OpError) return { ok: false, error: { code: 'op_failed', message: `第 ${i + 1} 个操作（${ops[i]!.op}）失败：${e.message}`, op_index: i } };
       throw e;
@@ -440,7 +520,8 @@ export function applyOps(design: DesignDocument, ops: Op[], options: ApplyOption
     const blocking = analysis.results.filter((r) => r.blocking);
     return { ok: false, error: { code: 'blocking_errors', message: `修改后存在 ${blocking.length} 个结构/物理错误，补丁未应用`, results: blocking } };
   }
-  return { ok: true, design: draft, results: analysis.results, changed: [...changed], revision: draft.metadata.revision, hash: designHash(draft), previous_hash };
+  const results = ctx.notes.length ? sortResults([...analysis.results, ...ctx.notes]) : analysis.results;
+  return { ok: true, design: draft, results, changed: [...changed], revision: draft.metadata.revision, hash: designHash(draft), previous_hash, reports: ctx.reports };
 }
 
 export function parsePatch(raw: unknown): { ok: true; patch: Patch } | { ok: false; message: string } {

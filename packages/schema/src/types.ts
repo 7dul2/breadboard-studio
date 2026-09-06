@@ -244,6 +244,13 @@ export interface PinMeta {
   /** Maximum current the pin can source when it is a power output (mA). null = unknown. */
   max_source_ma?: number | null;
   aliases?: string[];
+  /**
+   * Hint for the auto-wire planner. `avoid`: use this host GPIO only when nothing
+   * else is free (strapping/USB/PSRAM pins). `skip`: never auto-wire this pin.
+   * `to_ground` / `to_power`: a peripheral configuration pin that should be tied
+   * to the host's GND / supply instead of a GPIO (e.g. an interface-select pin).
+   */
+  auto_wire?: 'default' | 'avoid' | 'skip' | 'to_ground' | 'to_power';
   notes?: string;
 }
 
@@ -262,12 +269,30 @@ export interface BodyDef {
   corner_radius_um?: number;
 }
 
+/** Optional top-view treatment for header pins; defaults to a gold square. */
+export interface PinRenderDef {
+  shape: 'rect' | 'circle';
+  /** False when the catalog drawing already contains physical silkscreen labels. */
+  show_labels?: boolean;
+  size_um?: number;
+  fill?: string;
+  stroke?: string;
+  stroke_width_um?: number;
+  hole_fill?: string;
+  hole_size_um?: number;
+}
+
+/** Optional part tag: primitives sharing a `g` are one movable part in the artwork editor. */
+export interface RenderPrimitiveBase {
+  g?: string;
+}
+
 export type RenderPrimitiveDef =
-  | { t: 'rect'; x: number; y: number; w: number; h: number; rx?: number; fill?: string; stroke?: string; sw?: number; opacity?: number }
-  | { t: 'circle'; cx: number; cy: number; r: number; fill?: string; stroke?: string; sw?: number }
-  | { t: 'text'; x: number; y: number; text: string; size: number; fill?: string; anchor?: 'start' | 'middle' | 'end'; rotate?: number; weight?: string }
-  | { t: 'path'; d: string; fill?: string; stroke?: string; sw?: number }
-  | { t: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; sw?: number };
+  | ({ t: 'rect'; x: number; y: number; w: number; h: number; rx?: number; fill?: string; stroke?: string; sw?: number; opacity?: number } & RenderPrimitiveBase)
+  | ({ t: 'circle'; cx: number; cy: number; r: number; fill?: string; stroke?: string; sw?: number } & RenderPrimitiveBase)
+  | ({ t: 'text'; x: number; y: number; text: string; size: number; fill?: string; anchor?: 'start' | 'middle' | 'end'; rotate?: number; weight?: string } & RenderPrimitiveBase)
+  | ({ t: 'path'; d: string; fill?: string; stroke?: string; sw?: number } & RenderPrimitiveBase)
+  | ({ t: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; sw?: number } & RenderPrimitiveBase);
 
 export interface FeatureDef {
   type: 'usb_c' | 'usb_micro' | 'antenna_area' | 'connector' | 'sensor_window' | 'button' | 'display' | 'fan' | 'cable';
@@ -308,6 +333,10 @@ export interface ElectricalDef {
     configurable?: boolean;
     sda_pin: string;
     scl_pin: string;
+    /** Hosts: number of independent I²C controllers (ESP32-S3: 2). Extra buses are declared in `config.i2c_buses`. */
+    controllers?: number;
+    /** Hosts: extra buses may use any GPIO-role pin (GPIO matrix). */
+    mappable?: boolean;
     notes?: string;
   } | null;
   notes?: string;
@@ -336,6 +365,7 @@ export interface ComponentDefinition {
   config_schema?: Record<string, JsonValue>;
   config_default?: Record<string, JsonValue>;
   body: BodyDef;
+  pin_render?: PinRenderDef;
   /** Explicit pins (may be empty when generated). */
   pins: PinDef[];
   pin_meta: Record<string, PinMeta>;

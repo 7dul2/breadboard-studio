@@ -203,7 +203,9 @@
       "aliases": [
         "TX",
         "GPIO43"
-      ]
+      ],
+      "auto_wire": "avoid",
+      "notes": "默认 UART（TX/RX）；自动布线时最后才使用"
     },
     "D7": {
       "role": "gpio",
@@ -213,7 +215,9 @@
       "aliases": [
         "RX",
         "GPIO44"
-      ]
+      ],
+      "auto_wire": "avoid",
+      "notes": "默认 UART（TX/RX）；自动布线时最后才使用"
     },
     "D8": {
       "role": "gpio",
@@ -274,7 +278,10 @@
     "i2c": {
       "sda_pin": "D4",
       "scl_pin": "D5",
-      "notes": "默认 Wire 总线为 D4/SDA、D5/SCL。"
+      "configurable": true,
+      "controllers": 2,
+      "mappable": true,
+      "notes": "默认 Wire 总线为 D4/SDA、D5/SCL；ESP32-S3 有 2 个 I²C 控制器，可映射到任意 GPIO（config.i2c_sda_pin/i2c_scl_pin、config.i2c_buses）。"
     },
     "notes": "Wi-Fi 发射与摄像头工作时峰值电流显著高于空闲值，具体数值需以官方资料为准。"
   },

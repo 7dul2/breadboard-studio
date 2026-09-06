@@ -14,7 +14,7 @@
 | `wires` | 是 | 导线数组。 |
 | `net_intents` | 是 | 期望连通的端点集合（只校验，不生成导线）。 |
 | `constraints` | 是 | 约束数组。 |
-| `embedded_catalog` | 否 | `{ boards?: [...], components?: [...] }`，内嵌的定义，优先于内置目录中同名同版本的定义。 |
+| `embedded_catalog` | 否 | `{ boards?: [...], components?: [...] }`，内嵌的定义，优先于内置目录中同名同版本的定义。外观编辑器保存的绘图也放在这里；其 `render` 图元带 `g` 部件标签。 |
 | `view` | 否 | 视图状态：`zoom`、`center_um`、`show_hole_labels`、`show_pin_labels`、`build_done`（已完成的线 id）。不参与校验与哈希。 |
 
 ## 面包板 `boards[]`
@@ -45,7 +45,7 @@
 - 板上放置：锚点引脚 `anchor_pin` 插在 `anchor_hole`，其余引脚落孔由几何派生。
 - 板外放置：`{ "kind": "off_board", "position_um": [x, y], "rotation_deg": 0 }`。
 - `params`：模板参数（针序 `pin_names`、外形 `body_size_um`、`mount_orientation`、双排针 `pins_per_side`/`row_spacing_um`/`left_pin_names`/`right_pin_names`、电阻 `span_pitches` 等），由定义的 `params_schema` 校验。
-- `config`：电气配置（`i2c_address`、`supply_voltage_v`、`supply_v`、`capacity_ma`、`i2c_sda_pin`/`i2c_scl_pin` 等），由 `config_schema` 校验。显式 `null` 表示“未知”，会进入待审核项。
+- `config`：电气配置（`i2c_address`、`supply_voltage_v`、`supply_v`、`capacity_ma`、`i2c_sda_pin`/`i2c_scl_pin` 等），由 `config_schema` 校验。显式 `null` 表示“未知”，会进入待审核项。主控的 `i2c_buses: [{ "sda": "GPIO12", "scl": "GPIO11" }]` 声明第 2 条起的 I²C 总线（目录 `electrical.i2c.controllers` 给出控制器数量、`mappable` 表示可映射到任意 GPIO）；规则引擎按每条总线分别检查地址冲突，自动排线遇到同地址器件时会自动填写。
 
 ## 导线 `wires[]`
 

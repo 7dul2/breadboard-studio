@@ -81,4 +81,19 @@ describe('two boards', () => {
     expect(pb.bounds.x).toBeGreaterThanOrEqual(pa.bounds.x + pa.bounds.w);
     expect(pb.bounds.x - (pa.bounds.x + pa.bounds.w)).toBeLessThan(2540);
   });
+
+  it('models the modular terminal block and +/- strip as independent physical boards', () => {
+    const terminal = resolveBoard(builtinCatalog().getBoard('breadboard_400_terminal@1')!);
+    const power = resolveBoard(builtinCatalog().getBoard('breadboard_power_strip_25@1')!);
+    expect(terminal.holes.size).toBe(300);
+    expect(terminal.holes.has('a1')).toBe(true);
+    expect(terminal.holes.has('j30')).toBe(true);
+    expect(terminal.holes.has('positive_1')).toBe(false);
+    expect(terminal.bounds.h).toBe(35560);
+    expect(power.holes.size).toBe(50);
+    expect(power.holes.has('negative_1')).toBe(true);
+    expect(power.holes.has('positive_25')).toBe(true);
+    expect(power.holes.has('a1')).toBe(false);
+    expect(power.bounds.h).toBe(12700);
+  });
 });

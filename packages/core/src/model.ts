@@ -318,20 +318,7 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
     return { kind: 'terminal', address: addr, component_id: pc.instance.id, pin: pin.name, global_um: pin.global_um };
   };
 
-  /** Cable terminals leave the body outward so auto-routed wires do not cross their own module. */
-  function routeEnd(ep: ResolvedEndpoint): RouteEnd {
-    if (ep.kind !== 'terminal') return { point: ep.global_um };
-    const pc = components.get(ep.component_id);
-    if (!pc) return { point: ep.global_um };
-    const cx = pc.bounds.x + pc.bounds.w / 2;
-    const cy = pc.bounds.y + pc.bounds.h / 2;
-    const dx = ep.global_um[0] - cx;
-    const dy = ep.global_um[1] - cy;
-    const stub = 5000;
-    const exit: PointUm = Math.abs(dx) * pc.bounds.h > Math.abs(dy) * pc.bounds.w ? [dx < 0 ? -stub : stub, 0] : [0, dy < 0 ? -stub : stub];
-    const lane = pc.pins.findIndex((p) => p.name === ep.pin);
-    return { point: ep.global_um, exit, bounds: pc.bounds, lane: lane < 0 ? 0 : lane };
-  }
+  const routeEnd = (ep: ResolvedEndpoint): RouteEnd => (ep.kind === 'terminal' ? terminalRouteEnd(components.get(ep.component_id), ep.pin, ep.global_um) : { point: ep.global_um });
 
   for (const w of design.wires) {
     const issuesBefore = issues.length;
@@ -343,7 +330,20 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
     let waypoints: PointUm[] = w.waypoints_um;
     let points: PointUm[] = [];
     if (from && to) {
-      if (w.path_mode === 'auto') waypoints = autoRoute(routeEnd(from), routeEnd(to));
+      if (w.path_mode === 'auto') {
+        if (w.route === 'elevated') {
+          // A Dupont wire may pass over components and is represented by the
+          // direct point-to-point span. Manual waypoints remain untouched.
+          waypoints = [];
+        } else {
+          const terminalOwners = new Set<string>();
+          for (const ep of [from, to]) {
+            if (ep.kind === 'terminal') terminalOwners.add(ep.component_id);
+          }
+          const priorFlat = [...wires.values()].filter((prior) => prior.instance.route === 'flat').map((prior) => prior.points);
+          waypoints = autoRoute(routeEnd(from), routeEnd(to), flatRouteObstacles(components.values(), priorFlat, terminalOwners));
+        }
+      }
       points = [from.global_um, ...waypoints, to.global_um];
     } else if (from) {
       points = [from.global_um, ...waypoints];
@@ -366,6 +366,39 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
   }
 
   return { design, catalog, boards, components, wires, holes, issues, bounds: rectUnion(allRects) };
+}
+
+/** Cable terminals leave the body outward so auto-routed wires do not cross their own module. */
+export function terminalRouteEnd(pc: PlacedComponent | undefined, pinName: string, global: PointUm): RouteEnd {
+  if (!pc) return { point: global };
+  const cx = pc.bounds.x + pc.bounds.w / 2;
+  const cy = pc.bounds.y + pc.bounds.h / 2;
+  const dx = global[0] - cx;
+  const dy = global[1] - cy;
+  const stub = 5000;
+  const exit: PointUm = Math.abs(dx) * pc.bounds.h > Math.abs(dy) * pc.bounds.w ? [dx < 0 ? -stub : stub, 0] : [0, dy < 0 ? -stub : stub];
+  const lane = pc.pins.findIndex((p) => p.name === pinName);
+  return { point: global, exit, bounds: pc.bounds, lane: lane < 0 ? 0 : lane };
+}
+
+/**
+ * Obstacles for a hard jumper on the board plane: every component footprint
+ * except the modules that own a cable terminal of this wire (the terminal sits
+ * on its own body and leaves through an outward stub), plus each segment of
+ * the hard jumpers routed before it, so later jumpers take separate lanes
+ * instead of sharing a segment. Dupont wires never block anything.
+ */
+export function flatRouteObstacles(components: Iterable<PlacedComponent>, priorFlatPaths: PointUm[][], terminalOwners: Set<string> = new Set()): Rect[] {
+  const obstacles: Rect[] = [];
+  for (const pc of components) if (!terminalOwners.has(pc.instance.id)) obstacles.push(pc.footprint);
+  for (const path of priorFlatPaths) {
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1]!;
+      const b = path[i]!;
+      obstacles.push({ x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) });
+    }
+  }
+  return obstacles;
 }
 
 function rectsIntersect(a: Rect, b: Rect): boolean {

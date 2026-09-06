@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { builtinCatalog, CATALOG_VERSION } from '@breadboard-studio/catalog';
 import { designSchema } from '@breadboard-studio/schema';
 import type { DesignDocument } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type RuleResult } from '@breadboard-studio/core';
+import { analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type AutoWireOptions, type AutoWirePlan, type RuleResult } from '@breadboard-studio/core';
 import { exportSvg } from '@breadboard-studio/render';
 
 export const EXIT = { OK: 0, PROBLEMS: 1, USAGE: 2, CONFLICT: 3 } as const;
@@ -47,6 +47,42 @@ function fmtResult(r: RuleResult): string {
   const eps = r.endpoints?.length ? `  @ ${r.endpoints.join(', ')}` : '';
   const sug = r.suggestion ? `\n      → ${r.suggestion}` : '';
   return `  [${tag}] ${r.code}${r.blocking ? ' (blocking)' : ''}: ${r.message}${eps}${sug}`;
+}
+
+function planJson(plan: AutoWirePlan) {
+  return { host: plan.host, components: plan.components, optimization: plan.optimization, i2c_buses: plan.i2c_buses, config_changes: plan.config_changes, connections: plan.connections, bridges: plan.bridges, skipped: plan.skipped, unresolved: plan.unresolved, ops: plan.ops.length };
+}
+
+function fmtI2c(plan: AutoWirePlan): string[] {
+  const lines: string[] = [];
+  for (const b of plan.i2c_buses) lines.push(`  I²C 总线 ${b.index + 1}（SDA=${b.sda}, SCL=${b.scl}）${b.added ? '【本次启用】' : ''}：${b.devices.join('、') || '无新器件'}`);
+  for (const c of plan.config_changes) lines.push(`  配置修改  ${c.id}.${c.path} = ${JSON.stringify(c.value)}：${c.reason}`);
+  return lines;
+}
+
+function fmtOptimization(o: AutoWirePlan['optimization']): string[] {
+  const mm = (um: number) => `${(um / 1000).toFixed(1)} mm`;
+  const lines: string[] = [];
+  if (o.global_objective_um === null) lines.push(`规划：贪心，目标值 ${mm(o.objective_um)}（走线长度 + 拐弯/杜邦线/线数惩罚）`);
+  else {
+    const gain = o.greedy_objective_um - o.global_objective_um;
+    lines.push(`规划：${o.strategy === 'global' ? '全局优化' : '贪心（全局搜索未更优）'}，目标值 ${mm(o.objective_um)}；贪心 ${mm(o.greedy_objective_um)}，全局 ${mm(o.global_objective_um)}${gain > 0 ? `，改善 ${((gain / Math.max(o.greedy_objective_um, 1)) * 100).toFixed(1)}%` : ''}；${o.exhaustive ? '拓扑与电源轨组合已穷举、顺序搜索已收敛' : '含启发式/时限截断'}；${o.elapsed_ms} ms`);
+    for (const n of o.notes) lines.push(`  · ${n}`);
+  }
+  return lines;
+}
+
+function fmtPlan(plan: AutoWirePlan): string[] {
+  const lines: string[] = [];
+  const mm = (um: number) => `${(um / 1000).toFixed(1)} mm`;
+  const kind = (route: string) => (route === 'elevated' ? '杜邦线' : '硬质跳线');
+  for (const b of plan.bridges) lines.push(`  ${b.wire_id.padEnd(5)} ${b.net.padEnd(9)} ${b.kind === 'feeder' ? '馈线' : '桥线'}  ${b.from} → ${b.to}  [${kind(b.route)} ${mm(b.length_um)}]`);
+  for (const c of plan.connections) lines.push(`  ${c.wire_id.padEnd(5)} ${c.net.padEnd(9)} ${c.component}.${c.pin} → ${plan.host}.${c.host_pin}  ${c.from} → ${c.to}  [${c.color}/${kind(c.route)} ${mm(c.length_um)}${c.via === 'rail' ? '，经电源轨' : c.via === 'terminal' ? '，接端子' : ''}]`);
+  for (const u of plan.unresolved) lines.push(`  未连接  ${u.component}${u.pin ? `.${u.pin}` : ''}: ${u.reason}${u.suggestion ? `\n      → ${u.suggestion}` : ''}`);
+  for (const k of plan.skipped) if (k.code !== 'already_connected') lines.push(`  跳过    ${k.component}${k.pin ? `.${k.pin}` : ''}: ${k.reason}`);
+  const already = plan.skipped.filter((k) => k.code === 'already_connected');
+  if (already.length) lines.push(`  已导通  ${already.map((k) => `${k.component}.${k.pin}`).join(', ')}`);
+  return lines;
 }
 
 function resultsJson(results: RuleResult[]) {
@@ -136,7 +172,8 @@ export function buildProgram(): Command {
         { op: 'set_metadata', fields: 'patch{name?, description?, author?, tags?, notes?}' },
         { op: 'replace_design', fields: 'design (完整设计文档)' },
         { op: 'add_definition', fields: 'definition (板/元件定义 JSON，内嵌到 embedded_catalog)' },
-        { op: 'remove_definition', fields: 'ref (id@version)' }
+        { op: 'remove_definition', fields: 'ref (id@version)' },
+        { op: 'auto_wire', fields: 'host, components[], options?{supply_voltage_v?, power_distribution?: auto|rail|direct, signal_pins?{"comp.pin": "hostPin"}, net_intents?, route?: auto|flat|elevated, optimize?: global|greedy, time_budget_ms?, i2c_conflicts?: bus_first|address_first|report, require_all?}' }
       ];
       out(!!opts.json, { ok: true, command: 'ops', ops }, () => ops.map((o) => `${o.op.padEnd(20)} ${o.fields}`).join('\n'));
     });
@@ -249,11 +286,84 @@ export function buildProgram(): Command {
       const target = opts.out ?? file;
       if (!opts.dryRun) writeAtomic(target, serializeDesign(r.design));
       const s = summarize(r.results);
-      out(!!opts.json, { ok: true, command: 'apply', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, changed: r.changed, summary: s, results: resultsJson(r.results) }, () => {
+      out(!!opts.json, { ok: true, command: 'apply', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, changed: r.changed, reports: r.reports.map((x) => ({ op: x.op, op_index: x.op_index, plan: planJson(x.plan) })), summary: s, results: resultsJson(r.results) }, () => {
         const lines = [`${opts.dryRun ? '[dry-run] ' : ''}已应用 ${patch.ops.length} 个操作：revision ${design.metadata.revision} → ${r.revision}${opts.dryRun ? '' : `，写入 ${target}`}`];
         lines.push(`变更对象：${r.changed.join(', ')}`);
+        for (const rep of r.reports) {
+          lines.push(`自动布线（第 ${rep.op_index + 1} 个操作，主板 ${rep.plan.host}）：${rep.plan.connections.length} 根连接线、${rep.plan.bridges.length} 根馈线/桥线、${rep.plan.unresolved.length} 个未连接`);
+          lines.push(...fmtPlan(rep.plan));
+        }
         lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
         for (const x of r.results.filter((x) => x.severity === 'error' || x.severity === 'warning')) lines.push(fmtResult(x));
+        return lines.join('\n');
+      });
+    });
+
+  program
+    .command('autowire <file>')
+    .description('自动布线：按引脚角色把外设接到主板（电源/地经电源轨，I²C 接总线引脚，信号接空闲 GPIO）；与 UI 的“自动布线”共用同一引擎')
+    .requiredOption('--host <id>', '主板元件 ID（主控或电源模块）')
+    .option('--components <ids>', '外设元件 ID，逗号分隔')
+    .option('--all', '除主板外的全部元件')
+    .option('--supply <volts>', '外设允许范围未知或有多种选择时优先使用的主板电压', (v) => Number(v))
+    .option('--power <mode>', 'auto|rail|direct：电源/地走电源轨或只在孔组间串接', 'auto')
+    .option('--signal <map...>', '指定信号引脚，如 touch.IO=GPIO4')
+    .option('--route <mode>', 'auto|flat|elevated', 'auto')
+    .option('--no-intents', '不生成/更新 net_intents')
+    .option('--optimize <mode>', 'global|greedy：全局搜索（默认，结果不劣于贪心）或只做逐引脚贪心', 'global')
+    .option('--i2c-conflicts <mode>', 'bus_first|address_first|report：同地址器件的处理——先开第二条总线 / 先改可配置地址 / 只报告', 'bus_first')
+    .option('--time-budget <ms>', '全局搜索时限（毫秒）', (v) => Number(v))
+    .option('--require-all', '有引脚无法连接时整体失败、不写文件')
+    .option('--out <out>', '输出文件（默认覆盖输入文件）')
+    .option('--dry-run', '只报告，不写入')
+    .option('--expect-revision <n>', '期望的 revision', (v) => Number(v))
+    .option('--expect-hash <hash>', '期望的内容 hash')
+    .option('--json', 'JSON 输出')
+    .action((file: string, opts: { host: string; components?: string; all?: boolean; supply?: number; power: string; signal?: string[]; route: string; intents: boolean; optimize: string; i2cConflicts: string; timeBudget?: number; requireAll?: boolean; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; json?: boolean }) => {
+      const design = readDesign(file);
+      let components: string[];
+      if (opts.all) components = design.components.map((c) => c.id).filter((id) => id !== opts.host);
+      else if (opts.components) components = opts.components.split(',').map((x) => x.trim()).filter(Boolean);
+      else throw new CliError('请用 --components a,b,c 或 --all 指定外设');
+      if (!['auto', 'rail', 'direct'].includes(opts.power)) throw new CliError(`--power 只能是 auto|rail|direct（收到 ${opts.power}）`);
+      if (!['auto', 'flat', 'elevated'].includes(opts.route)) throw new CliError(`--route 只能是 auto|flat|elevated（收到 ${opts.route}）`);
+      if (!['global', 'greedy'].includes(opts.optimize)) throw new CliError(`--optimize 只能是 global|greedy（收到 ${opts.optimize}）`);
+      if (!['bus_first', 'address_first', 'report'].includes(opts.i2cConflicts)) throw new CliError(`--i2c-conflicts 只能是 bus_first|address_first|report（收到 ${opts.i2cConflicts}）`);
+      const signal_pins: Record<string, string> = {};
+      for (const m of opts.signal ?? []) {
+        const [k, v] = m.split('=');
+        if (!k || !v) throw new CliError(`--signal 需要 comp.pin=hostPin 形式（收到 ${m}）`);
+        signal_pins[k.trim()] = v.trim();
+      }
+      const options: AutoWireOptions = {
+        power_distribution: opts.power as AutoWireOptions['power_distribution'],
+        route: opts.route as AutoWireOptions['route'],
+        net_intents: opts.intents,
+        optimize: opts.optimize as AutoWireOptions['optimize'],
+        i2c_conflicts: opts.i2cConflicts as AutoWireOptions['i2c_conflicts'],
+        ...(opts.timeBudget !== undefined ? { time_budget_ms: opts.timeBudget } : {}),
+        ...(opts.supply !== undefined ? { supply_voltage_v: opts.supply } : {}),
+        ...(Object.keys(signal_pins).length ? { signal_pins } : {}),
+        ...(opts.requireAll ? { require_all: true } : {})
+      };
+      const r = applyOps(design, [{ op: 'auto_wire', host: opts.host, components, options }], { expected_revision: opts.expectRevision, expected_hash: opts.expectHash });
+      if (!r.ok) {
+        const code = r.error.code === 'revision_conflict' ? EXIT.CONFLICT : EXIT.PROBLEMS;
+        throw new CliError(r.error.message, code, { error: { ...r.error, results: r.error.results ? resultsJson(r.error.results) : undefined } });
+      }
+      const plan = r.reports.find((x) => x.op === 'auto_wire')!.plan;
+      const target = opts.out ?? file;
+      if (!opts.dryRun) writeAtomic(target, serializeDesign(r.design));
+      const s = summarize(r.results);
+      out(!!opts.json, { ok: true, command: 'autowire', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, plan: planJson(plan), changed: r.changed, summary: s, results: resultsJson(r.results), note: '按目录引脚角色生成导线，不是电气仿真；请核对 needs_review 项。' }, () => {
+        const lines = [`${opts.dryRun ? '[dry-run] ' : ''}自动布线（主板 ${plan.host}，外设 ${plan.components.join(', ')}）：生成 ${plan.connections.length} 根连接线、${plan.bridges.length} 根馈线/桥线；${plan.unresolved.length} 个引脚未能连接`];
+        lines.push(...fmtPlan(plan));
+        lines.push(...fmtI2c(plan));
+        lines.push(...fmtOptimization(plan.optimization));
+        lines.push(`revision ${design.metadata.revision} → ${r.revision}${opts.dryRun ? '（未写入）' : `，写入 ${target}`}`);
+        lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
+        for (const x of r.results.filter((x) => x.severity === 'error' || x.severity === 'warning' || (x.severity === 'needs_review' && x.code.startsWith('auto_wire')))) lines.push(fmtResult(x));
+        lines.push('说明：按目录引脚角色生成导线，不是电气仿真；needs_review 项需人工核对。');
         return lines.join('\n');
       });
     });
@@ -292,7 +402,7 @@ export function buildProgram(): Command {
       const a = analyzeDesign(design);
       const steps = buildSteps(a.model, a.connectivity, design.view?.build_done ?? []);
       out(!!opts.json, { ok: true, command: 'steps', file, count: steps.length, note: '搭建步骤只是指导，不代表实物已经导通；长度不含插入深度与弯折余量。', steps }, () =>
-        steps.map((s) => `${String(s.index).padStart(3)}. [${s.color}${s.route === 'elevated' ? '/软线' : ''}] ${s.from_label}  →  ${s.to_label}${s.length_mm !== null ? `  (~${s.length_mm} mm)` : ''}${s.net ? `  net ${s.net}` : ''}${s.complete ? '  ✓' : ''}`).join('\n')
+        steps.map((s) => `${String(s.index).padStart(3)}. [${s.color}/${s.route === 'elevated' ? '杜邦线' : '硬质跳线'}] ${s.from_label}  →  ${s.to_label}${s.length_mm !== null ? `  (~${s.length_mm} mm)` : ''}${s.net ? `  net ${s.net}` : ''}${s.complete ? '  ✓' : ''}`).join('\n')
       );
     });
 

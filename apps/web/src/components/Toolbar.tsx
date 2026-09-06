@@ -94,8 +94,8 @@ export function Toolbar() {
           <label>
             走线
             <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
-              <option value="flat">贴板硬跳线</option>
-              <option value="elevated">抬高软线</option>
+              <option value="flat">硬质跳线（路径不重叠）</option>
+              <option value="elevated">杜邦线（允许重叠/跨越）</option>
             </select>
           </label>
         </div>

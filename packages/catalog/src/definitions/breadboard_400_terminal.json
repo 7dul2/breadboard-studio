@@ -1,0 +1,26 @@
+{
+  "kind": "board",
+  "id": "breadboard_400_terminal",
+  "version": 1,
+  "name": "400 孔拼装面包板（中间接线板）",
+  "manufacturer": "generic",
+  "model": "BB-400 detachable terminal block",
+  "variant": "可拆拼装式 · 300 孔中间接线板",
+  "description": "可拆拼装面包板的 30 列 × 10 行中间接线板，不含电源条。可与独立的 +/- 电源条上下贴合；两块中间接线板之间夹一条电源条时，25.4 mm 双排针可跨板落在上板 h 行和下板 b 行。",
+  "size_um": [82550, 35560],
+  "pitch_um": 2540,
+  "terminal_blocks": [
+    { "id": "ae", "rows": ["a", "b", "c", "d", "e"], "first_column": 1, "columns": 30, "origin_um": [4445, 2540] },
+    { "id": "fj", "rows": ["f", "g", "h", "i", "j"], "first_column": 1, "columns": 30, "origin_um": [4445, 22860] }
+  ],
+  "rails": [],
+  "ravines": [{ "x_um": 0, "y_um": 15240, "w_um": 82550, "h_um": 5080 }],
+  "render": { "body_color": "#f3f1e9", "edge_color": "#c9c5b6", "hole_color": "#3b3b3b", "label_color": "#6b6b6b", "corner_radius_um": 900 },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "按用户实物照片将可拆拼装型完整拆分。此定义只表示 300 孔中间接线板；外形高 35.56 mm，边缘到首末孔中心约 2.54 mm。与一条 12.70 mm 电源条及另一块中间接线板紧贴后，上板 h 与下板 b 行中心距为 25.40 mm。不同厂商卡扣外缘可能不同。",
+  "sources": [
+    { "title": "用户提供的可拆拼装 400 孔面包板实物照片", "accessed": "2026-09-06", "note": "实物显示中间接线板与 +/- 电源条为可完全分离的独立塑料件。" }
+  ],
+  "license": { "spdx": "MIT", "attribution": "Original drawing data by Breadboard Studio contributors" }
+}

@@ -36,6 +36,10 @@ export async function clickHole(page: Page, addr: string, opts: { modifiers?: ('
   await el.click({ force: true, modifiers: opts.modifiers });
 }
 
+export async function addFromLibrary(page: Page, modelId: string): Promise<void> {
+  await page.getByTestId(`lib-${modelId}`).click();
+}
+
 export async function loadExample(page: Page, key: string): Promise<void> {
   await page.getByTestId('menu-project').click();
   await page.getByTestId(`example-${key}`).click();

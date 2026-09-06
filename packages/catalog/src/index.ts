@@ -9,10 +9,14 @@ import type { BoardDefinition, ComponentDefinition, CatalogDefinition } from '@b
 import { validateBoardDefinition, validateComponentDefinition } from '@breadboard-studio/schema';
 
 import breadboard400 from './definitions/breadboard_400.json';
+import breadboard400Terminal from './definitions/breadboard_400_terminal.json';
+import breadboardPowerStrip25 from './definitions/breadboard_power_strip_25.json';
 import breadboard830 from './definitions/breadboard_830.json';
 import xiaoEsp32s3Sense from './definitions/xiao_esp32s3_sense.json';
 import esp32s3DevkitGeneric from './definitions/esp32s3_devkit_generic.json';
+import esp32s3N16r8DualUsb from './definitions/esp32s3_n16r8_dual_usb.json';
 import oled096 from './definitions/oled_0_96_i2c.json';
+import oled096Ssd1315 from './definitions/oled_0_96_ssd1315_i2c.json';
 import oled091 from './definitions/oled_0_91_i2c.json';
 import ttp223 from './definitions/ttp223_module.json';
 import sht41 from './definitions/sht41_breakout.json';
@@ -26,11 +30,13 @@ import led from './definitions/led_5mm.json';
 export const CATALOG_ID = 'builtin';
 export const CATALOG_VERSION = '0.1.0';
 
-const rawBoards: unknown[] = [breadboard400, breadboard830];
+const rawBoards: unknown[] = [breadboard400, breadboard830, breadboard400Terminal, breadboardPowerStrip25];
 const rawComponents: unknown[] = [
   xiaoEsp32s3Sense,
   esp32s3DevkitGeneric,
+  esp32s3N16r8DualUsb,
   oled096,
+  oled096Ssd1315,
   oled091,
   ttp223,
   sht41,

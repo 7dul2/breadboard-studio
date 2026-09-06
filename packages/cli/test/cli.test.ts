@@ -167,4 +167,56 @@ describe('bb CLI', () => {
     expect(d.ok).toBe(true);
     expect(d.design!.metadata.name).toBe('测试');
   });
+
+  it('autowire plans, reports and writes atomically; dry-run and require-all never touch the file', () => {
+    const src = loadDesign(readFileSync(join(examples, 'desk_device.breadboard.json'), 'utf8')).design!;
+    const bare = join(work, 'desk_bare.breadboard.json');
+    writeFileSync(bare, JSON.stringify({ ...src, wires: [], net_intents: [] }, null, 2));
+    const before = readFileSync(bare, 'utf8');
+
+    const dry = json(['autowire', bare, '--host', 'mcu', '--all', '--dry-run']);
+    expect(dry.code).toBe(0);
+    expect(dry.json.dry_run).toBe(true);
+    expect(readFileSync(bare, 'utf8')).toBe(before);
+    const plan = dry.json.plan as { connections: { component: string; pin: string; route: string; via: string; length_um: number }[]; bridges: { kind: string; length_um: number }[]; unresolved: unknown[] };
+    expect(plan.unresolved).toEqual([]);
+    expect(plan.connections.map((c) => `${c.component}.${c.pin}`).sort()).toEqual(['oled.GND', 'oled.SCL', 'oled.SDA', 'oled.VCC', 'touch.GND', 'touch.IO', 'touch.VCC']);
+    expect(plan.bridges.every((b) => b.length_um < 15_000)).toBe(true);
+
+    const out = join(work, 'desk_auto.breadboard.json');
+    const run = json(['autowire', bare, '--host', 'mcu', '--components', 'oled,touch', '--signal', 'touch.IO=GPIO5', '--out', out]);
+    expect(run.code).toBe(0);
+    const written = loadDesign(readFileSync(out, 'utf8'));
+    expect(written.ok).toBe(true);
+    expect(written.design!.wires.length).toBe(plan.connections.length + plan.bridges.length);
+    expect(written.design!.net_intents.find((n) => n.name === 'TOUCH_IO')!.endpoints).toContain('mcu.GPIO5');
+    expect(analyzeDesign(written.design!).summary.error).toBe(0);
+
+    const strict = json(['autowire', bare, '--host', 'mcu', '--components', 'touch', '--signal', 'touch.IO=nope', '--require-all', '--out', join(work, 'never.breadboard.json')]);
+    expect(strict.code).toBe(1);
+    expect(strict.json.ok).toBe(false);
+    expect((strict.json.error as { message: string }).message).toContain('nope');
+    expect(existsSync(join(work, 'never.breadboard.json'))).toBe(false);
+    expect(readFileSync(bare, 'utf8')).toBe(before);
+    const board = json(['autowire', out, '--host', 'bb', '--all', '--dry-run']);
+    expect(board.code).toBe(1);
+    expect((board.json.error as { message: string }).message).toContain('面包板');
+
+    // --optimize greedy vs the default global search: both valid, global never worse under the reported objective.
+    const envSrc = loadDesign(readFileSync(join(examples, 'environment_node.breadboard.json'), 'utf8')).design!;
+    const envBare = join(work, 'env_bare.breadboard.json');
+    writeFileSync(envBare, JSON.stringify({ ...envSrc, wires: [], net_intents: [], constraints: [] }, null, 2));
+    const greedy = json(['autowire', envBare, '--host', 'mcu', '--all', '--optimize', 'greedy', '--dry-run']);
+    const global = json(['autowire', envBare, '--host', 'mcu', '--all', '--dry-run']);
+    expect(greedy.code).toBe(0);
+    expect(global.code).toBe(0);
+    const og = (greedy.json.plan as { optimization: { strategy: string; objective_um: number } }).optimization;
+    const oo = (global.json.plan as { optimization: { strategy: string; objective_um: number; greedy_objective_um: number; exhaustive: boolean; notes: string[] } }).optimization;
+    expect(og.strategy).toBe('greedy');
+    expect(oo.greedy_objective_um).toBe(og.objective_um);
+    expect(oo.objective_um).toBeLessThanOrEqual(og.objective_um);
+    expect(oo.notes.length).toBeGreaterThan(0);
+    const badMode = json(['autowire', envBare, '--host', 'mcu', '--all', '--optimize', 'magic', '--dry-run']);
+    expect(badMode.code).toBe(2);
+  });
 });
