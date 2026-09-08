@@ -3,6 +3,7 @@ import { loadDesign, serializeDesign } from '@breadboard-studio/core';
 
 const CURRENT_KEY = 'breadboard-studio.v1.current';
 const PREVIOUS_KEY = 'breadboard-studio.v1.previous';
+const CLIPBOARD_KEY = 'breadboard-studio.v1.clipboard';
 
 export type StorageStatus = { state: 'saved'; at: string } | { state: 'error'; message: string } | { state: 'unavailable'; message: string } | { state: 'idle' };
 
@@ -61,4 +62,31 @@ export function loadPrevious(): DesignDocument | null {
 export function hasPrevious(): boolean {
   const s = storage();
   return !!s && !!s.getItem(PREVIOUS_KEY);
+}
+
+/**
+ * The copy buffer outlives the page, which is what makes 复制 → 打开另一个项目 → 粘贴
+ * work at all. It is deliberately *not* the system clipboard: reading that back needs
+ * a permission prompt, and the payload is our own JSON that no other app can use.
+ */
+export function saveClipboard(payload: unknown): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.setItem(CLIPBOARD_KEY, JSON.stringify(payload));
+  } catch {
+    // a full quota must never break the copy the user just made in memory
+  }
+}
+
+export function loadClipboard<T>(): T | null {
+  const s = storage();
+  if (!s) return null;
+  const text = s.getItem(CLIPBOARD_KEY);
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }

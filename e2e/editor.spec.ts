@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, state } from './helpers';
 
+/** The shipped drawing of the board the artwork test edits, read here so a redraw cannot break the test. */
+const BOARD_DEF = JSON.parse(
+  readFileSync(join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions', 'esp32s3_n16r8_dual_usb.json'), 'utf8')
+) as { render: { g?: string }[] };
+
 test.describe('editor core flows', () => {
   test('shows the curated library with integrated and modular breadboard groups', async ({ page }) => {
     await fresh(page);
@@ -361,9 +366,16 @@ test.describe('editor core flows', () => {
     const parts = page.locator('[data-testid="artwork-part"]');
     const count = await parts.count();
     expect(count).toBeGreaterThan(100);
-    // A framed capacitor is one part of four primitives; arrows nudge it by 0.1 mm / 1 mm.
-    await page.locator('[data-part="s1"]').click({ force: true });
-    await expect(page.getByTestId('artwork-selected')).toContainText('s1 · 4 个图元');
+    // Pick a multi-primitive part out of the definition itself rather than naming one:
+    // the drawing is meant to be redrawn (「写回元件库」), and pinning a part id here turned
+    // an ordinary redraw into a test failure. Arrows then nudge it by 0.1 mm / 1 mm.
+    const counts = new Map<string, number>();
+    for (const prim of BOARD_DEF.render) if (prim.g) counts.set(prim.g, (counts.get(prim.g) ?? 0) + 1);
+    const multi = [...counts].find(([, n]) => n >= 2);
+    expect(multi, '这块板的绘图里至少要有一个由多个图元组成的部件').toBeTruthy();
+    const [partId, partSize] = multi!;
+    await page.locator(`[data-part="${partId}"]`).click({ force: true });
+    await expect(page.getByTestId('artwork-selected')).toContainText(`${partId} · ${partSize} 个图元`);
     const x0 = Number(await page.getByTestId('artwork-x').inputValue());
     const y0 = Number(await page.getByTestId('artwork-y').inputValue());
     await page.keyboard.press('ArrowRight');

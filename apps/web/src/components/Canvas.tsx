@@ -4,7 +4,6 @@ import { builtinCatalog } from '@breadboard-studio/catalog';
 import {
   accessibleHolesForPin,
   applyOps,
-  attachBoardPosition,
   buildModel,
   catalogForDesign,
   conductiveSet,
@@ -21,6 +20,7 @@ import {
 } from '@breadboard-studio/core';
 import { buildScene, componentScene, boardScene, wireScene, mm, wireColor, type SceneNode } from '@breadboard-studio/render';
 import { analysisOf, useStore } from '../store';
+import { SNAP_UM, leadPin, snapBoardPosition, snapPlacement } from '../placement';
 import { useSimulatorStore } from '../simulator/simulatorStore';
 import { SimulatorOverlay } from '../simulator/ui/SimulatorOverlay';
 import { SceneNodes, renderNode } from './SceneView';
@@ -45,8 +45,6 @@ interface Preview {
   blocking: RuleResult[];
 }
 
-const SNAP_UM = 1600;
-const BOARD_SNAP_UM = 5000;
 
 export function Canvas() {
   const design = useStore((s) => s.design);
@@ -82,6 +80,8 @@ export function Canvas() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const previewReq = useRef<{ pending: [number, number] | null; raf: number | null }>({ pending: null, raf: null });
   const [cursorMm, setCursorMm] = useState<[number, number] | null>(null);
+  /** Same value as `cursorMm`, readable from the window bridge without re-running its effect. */
+  const cursorRef = useRef<[number, number] | null>(null);
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
   const spaceRef = useRef(false);
 
@@ -228,7 +228,12 @@ export function Canvas() {
         const k = z / v.z;
         setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
       },
-      zoomTo: (z: number) => setView((v) => ({ ...v, z }))
+      zoomTo: (z: number) => setView((v) => ({ ...v, z })),
+      // Paste needs to know where the pointer is; the store has no view transform.
+      cursorUm: (): PointUm | null => {
+        const c = cursorRef.current;
+        return c ? [Math.round(c[0] * 1000), Math.round(c[1] * 1000)] : null;
+      }
     };
   }, [fit]);
 
@@ -249,46 +254,14 @@ export function Canvas() {
   }
 
   // ---- placement computation -----------------------------------------------
-  function snapPlacementForComponent(id: string, deltaUm: PointUm, base: DesignDocument): Placement | null {
-    const pc = model.components.get(id);
-    if (!pc) return null;
-    const inst = base.components.find((c) => c.id === id)!;
-    const rotation = inst.placement.rotation_deg;
-    const anchorName = inst.placement.kind === 'board' ? inst.placement.anchor_pin : leadPin(pc.pins, rotation)?.name;
-    const anchorPin = pc.pins.find((p) => p.name === anchorName) ?? pc.pins.find((p) => p.kind === 'header');
-    if (anchorPin && anchorPin.kind === 'header') {
-      const target: PointUm = [anchorPin.global_um[0] + deltaUm[0], anchorPin.global_um[1] + deltaUm[1]];
-      for (const pb of model.boards.values()) {
-        const local = toLocal(target, pb.transform);
-        const h = holeAtLocal(pb.resolved, local, SNAP_UM);
-        if (h) return { kind: 'board', board_id: pb.instance.id, anchor_hole: h.name, anchor_pin: anchorPin.name, rotation_deg: rotation };
-      }
-    }
-    return { kind: 'off_board', position_um: [pc.transform.position[0] + deltaUm[0], pc.transform.position[1] + deltaUm[1]], rotation_deg: rotation };
-  }
-
-  function snapBoardPosition(id: string, deltaUm: PointUm): PointUm {
-    const pb = model.boards.get(id)!;
-    let pos: PointUm = [pb.transform.position[0] + deltaUm[0], pb.transform.position[1] + deltaUm[1]];
-    let best: { pos: PointUm; d: number } | null = null;
-    for (const other of model.boards.values()) {
-      if (other.instance.id === id) continue;
-      for (const side of ['left', 'right', 'top', 'bottom'] as const) {
-        const cand = attachBoardPosition(other, pb.def, pb.transform.rotation, side, 0, true);
-        const d = Math.hypot(cand[0] - pos[0], cand[1] - pos[1]);
-        if (d < BOARD_SNAP_UM && (!best || d < best.d)) best = { pos: cand, d };
-      }
-    }
-    if (best) pos = best.pos;
-    return [Math.round(pos[0]), Math.round(pos[1])];
-  }
+  const snapPlacementForComponent = (id: string, deltaUm: PointUm, base: DesignDocument): Placement | null => snapPlacement(model, base, id, deltaUm);
 
   function buildMoveOps(ids: string[], deltaUm: PointUm): Op[] {
     const ops: Op[] = [];
     for (const id of ids) {
       if (model.boards.has(id)) {
         if (design.boards.find((b) => b.id === id)?.locked) continue;
-        ops.push({ op: 'move_board', id, position_um: ids.length === 1 ? snapBoardPosition(id, deltaUm) : [model.boards.get(id)!.transform.position[0] + deltaUm[0], model.boards.get(id)!.transform.position[1] + deltaUm[1]] });
+        ops.push({ op: 'move_board', id, position_um: ids.length === 1 ? snapBoardPosition(model, id, deltaUm) : [model.boards.get(id)!.transform.position[0] + deltaUm[0], model.boards.get(id)!.transform.position[1] + deltaUm[1]] });
       } else if (model.components.has(id)) {
         if (design.components.find((c) => c.id === id)?.locked) continue;
         const pl = snapPlacementForComponent(id, deltaUm, design);
@@ -413,6 +386,7 @@ export function Canvas() {
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
     const p = toMm(e.clientX, e.clientY);
     setCursorMm(p);
+    cursorRef.current = p;
     const d = dragRef.current;
     switch (d.kind) {
       case 'pan':
@@ -716,7 +690,7 @@ export function Canvas() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerLeave={() => setCursorMm(null)}
+        onPointerLeave={() => { setCursorMm(null); cursorRef.current = null; }}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
@@ -759,15 +733,6 @@ export function Canvas() {
 }
 
 /** The visually top-left header pin after rotation: the pin the cursor holds while placing. */
-function leadPin(pins: { name: string; local_um: PointUm; kind: string }[], rotation: 0 | 90 | 180 | 270): { name: string; local_um: PointUm; x: number; y: number } | undefined {
-  let best: { name: string; local_um: PointUm; x: number; y: number } | undefined;
-  for (const p of pins) {
-    if (p.kind !== 'header') continue;
-    const [x, y] = rotateVec(p.local_um, rotation);
-    if (!best || y < best.y - 1 || (Math.abs(y - best.y) <= 1 && x < best.x)) best = { name: p.name, local_um: p.local_um, x, y };
-  }
-  return best;
-}
 
 function nextComponentId(design: DesignDocument, model: string): string {
   const prefix = model.split('@')[0]!.replace(/_breakout$|_module$|_generic$/, '');

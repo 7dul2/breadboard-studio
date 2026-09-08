@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { DesignDocument, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, catalogForDesign, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
+import type { BoardInstance, ComponentInstance, DesignDocument, PointUm, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
+import { analyzeDesign, applyOps, buildModel, catalogForDesign, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
-import { hasPrevious, loadCurrent, loadPrevious, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import { hasPrevious, loadClipboard, loadCurrent, loadPrevious, saveClipboard, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import { anchorPointUm, snapBoardPosition, snapPlacement } from './placement';
 import { droppedDefinitions } from './dropped-definitions';
 import deskExample from '../../../examples/desk_device.breadboard.json';
 import envExample from '../../../examples/environment_node.breadboard.json';
@@ -21,6 +22,29 @@ export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation';
  * session (stale snapshot) instead of pretending the run still matches the code.
  */
 export type AppMode = 'build' | 'sim';
+
+/**
+ * One copied object plus where it sat, in absolute µm. Positions travel with the
+ * payload so a multi-object paste keeps the group's relative layout instead of
+ * stacking everything on one hole.
+ */
+export interface ClipboardItem<T> {
+  instance: T;
+  posUm: PointUm;
+}
+
+export interface ClipboardPayload {
+  components: ClipboardItem<ComponentInstance>[];
+  boards: ClipboardItem<BoardInstance>[];
+  /**
+   * The point the paste puts under the cursor: the first component's anchor pin, so
+   * a single module drops into the hole you are pointing at, exactly like a drag.
+   */
+  refUm: PointUm;
+}
+
+/** Where a paste goes when the pointer is not over the canvas: down-right, clear of the original. */
+const PASTE_OFFSET_UM = 5080;
 
 export interface Toast {
   id: number;
@@ -83,6 +107,7 @@ interface State {
   showPinLabels: boolean;
   connectivityHighlight: boolean;
   mode: AppMode;
+  clipboard: ClipboardPayload | null;
   rightTab: RightTab;
   buildStep: number;
   dslText: string;
@@ -133,6 +158,10 @@ interface State {
   deleteSelection: () => void;
   rotateSelection: () => void;
   duplicateSelection: () => void;
+  copySelection: () => void;
+  cutSelection: () => void;
+  /** `atUm` is the pointer position; omit it to paste at a fixed offset instead. */
+  pasteClipboard: (atUm?: PointUm | null) => void;
   toggleLockSelection: () => void;
 }
 
@@ -184,6 +213,7 @@ export const useStore = create<State>((set, get) => {
     showPinLabels: true,
     connectivityHighlight: true,
     mode: 'build',
+    clipboard: loadClipboard<ClipboardPayload>(),
     rightTab: 'properties',
     buildStep: 0,
     dslText: serializeDesign(initial),
@@ -485,6 +515,111 @@ export const useStore = create<State>((set, get) => {
         set({ selectedIds: newIds });
         get().toast('info', '副本已创建（元件副本放在板外，拖到目标位置即可）。');
       }
+    },
+    copySelection() {
+      const { selectedIds, design } = get();
+      const model = analysisOf(design).model;
+      const components: ClipboardItem<ComponentInstance>[] = [];
+      const boards: ClipboardItem<BoardInstance>[] = [];
+      for (const id of selectedIds) {
+        const c = design.components.find((x) => x.id === id);
+        const pc = model.components.get(id);
+        if (c && pc) {
+          components.push({ instance: JSON.parse(JSON.stringify(c)) as ComponentInstance, posUm: [...pc.transform.position] });
+          continue;
+        }
+        const b = design.boards.find((x) => x.id === id);
+        const pb = model.boards.get(id);
+        if (b && pb) boards.push({ instance: JSON.parse(JSON.stringify(b)) as BoardInstance, posUm: [...pb.transform.position] });
+      }
+      if (!components.length && !boards.length) {
+        // Wires are the common case here: they are addresses into a layout, not parts.
+        get().toast('info', selectedIds.length ? '选中的对象不能复制（导线不能单独复制，请复制它两端的元件）。' : '先选中元件或面包板再复制。');
+        return;
+      }
+      const first = components[0];
+      const refUm: PointUm = first ? anchorPointUm(model, design, first.instance.id) ?? first.posUm : boards[0].posUm;
+      const payload: ClipboardPayload = { components, boards, refUm };
+      set({ clipboard: payload });
+      saveClipboard(payload);
+      const what = [components.length ? `${components.length} 个元件` : '', boards.length ? `${boards.length} 块面包板` : ''].filter(Boolean).join('、');
+      get().toast('info', `已复制 ${what}。按 ⌘V 粘贴到指针所在的孔位（导线不随复制）。`);
+    },
+    cutSelection() {
+      const before = get().clipboard;
+      get().copySelection();
+      // Only cut once something actually made it into the buffer, or the delete would
+      // destroy an object with no copy of it anywhere.
+      if (get().clipboard !== before) get().deleteSelection();
+    },
+    pasteClipboard(atUm) {
+      const clip = get().clipboard;
+      if (!clip) return;
+      const design = get().design;
+      const catalog = catalogForDesign(design, builtinCatalog());
+      const missing = [
+        ...new Set([...clip.components.map((c) => c.instance.model), ...clip.boards.map((b) => b.instance.model)])
+      ].filter((ref) => !catalog.getComponent(ref) && !catalog.getBoard(ref));
+      if (missing.length) {
+        // Pasting into another project whose catalog lacks the model: say so rather
+        // than dropping half the paste on the floor.
+        get().toast('error', `粘贴失败：本项目的元件库里没有 ${missing.join('、')}。`);
+        return;
+      }
+
+      const delta: PointUm = atUm ? [atUm[0] - clip.refUm[0], atUm[1] - clip.refUm[1]] : [PASTE_OFFSET_UM, PASTE_OFFSET_UM];
+      const addOps: Op[] = [];
+      const newComponentIds: string[] = [];
+      const newBoardIds: string[] = [];
+      let draft = design;
+      for (const b of clip.boards) {
+        const id = nextIdFor(draft, 'bb_');
+        const board: BoardInstance = { ...b.instance, id, position_um: [b.posUm[0] + delta[0], b.posUm[1] + delta[1]] };
+        delete (board as { attach_to?: unknown }).attach_to;
+        addOps.push({ op: 'add_board', board });
+        draft = { ...draft, boards: [...draft.boards, board] };
+        newBoardIds.push(id);
+      }
+      for (const c of clip.components) {
+        const id = nextIdFor(draft, `${c.instance.model.split('@')[0]}_`);
+        // Everything lands loose first, keeping the group's shape; the snap pass below
+        // decides which of them fall into holes.
+        const component: ComponentInstance = {
+          ...c.instance,
+          id,
+          placement: { kind: 'off_board', position_um: [c.posUm[0] + delta[0], c.posUm[1] + delta[1]], rotation_deg: c.instance.placement.rotation_deg }
+        };
+        addOps.push({ op: 'add_component', component });
+        draft = { ...draft, components: [...draft.components, component] };
+        newComponentIds.push(id);
+      }
+
+      const staged = applyOps(design, addOps, { catalog, allow_blocking: true });
+      if (!staged.ok) {
+        get().toast('error', `粘贴失败：${staged.error.message}`);
+        return;
+      }
+      // Snap against the staged document, then commit adds and moves as ONE transaction,
+      // so a paste is a single undo step rather than "appeared" plus "jumped".
+      const model = buildModel(staged.design, catalog);
+      const snapOps: Op[] = [];
+      for (const id of newComponentIds) {
+        const placement = snapPlacement(model, staged.design, id, [0, 0]);
+        if (placement) snapOps.push({ op: 'move_component', id, placement });
+      }
+      if (newBoardIds.length === 1 && !newComponentIds.length) {
+        snapOps.push({ op: 'move_board', id: newBoardIds[0], position_um: snapBoardPosition(model, newBoardIds[0], [0, 0]) });
+      }
+
+      const r = get().apply([...addOps, ...snapOps], '粘贴');
+      if (!r.ok) return;
+      const ids = [...newBoardIds, ...newComponentIds];
+      set({ selectedIds: ids });
+      const loose = newComponentIds.filter((id) => {
+        const placed = r.design?.components.find((c) => c.id === id);
+        return placed?.placement.kind !== 'board';
+      });
+      if (loose.length) get().toast('info', `已粘贴，其中 ${loose.length} 个元件没落到孔位上（板外），拖动即可插进去。`);
     },
     toggleLockSelection() {
       const { selectedIds, design } = get();

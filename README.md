@@ -110,7 +110,9 @@ pnpm dev
 | 接线 | `W`，依次点击两个孔或端子 |
 | 自动排线 | 多选主板与外设 → 右侧「自动排线」 |
 | 调整走线 | 选中导线，双击线段添加拐点，拖动拐点调整 |
-| 旋转 / 锁定 / 删除 / 复制 | `R` / `L` / `Delete` / `⌘D` |
+| 旋转 / 锁定 / 删除 | `R` / `L` / `Delete` |
+| 复制 / 剪切 / 粘贴 | `⌘C` / `⌘X` / `⌘V`：粘到指针所在的孔位，和拖放同一套吸附规则；缓冲区存在本地，可跨项目粘贴（不含导线） |
+| 就地复制一份 | `⌘D`（副本放在板外） |
 | 撤销 / 重做 | `⌘Z` / `⇧⌘Z` |
 | 平移 / 适应全部 | 空格拖动 / `F` |
 | 编辑设计文件 | 右侧「DSL」编辑草稿，校验后应用 |
@@ -198,7 +200,7 @@ MIT 许可证，见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES
 
 **Plan your breadboard circuit in the browser, route its wires, and follow the layout at your workbench.**
 
-Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in two: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other. Export your project as JSON, SVG, or PNG.
+Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, copy/paste that drops parts into the holes under your pointer, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in two: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other. Export your project as JSON, SVG, or PNG.
 
 Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an account. Load an example from the Project menu to explore a complete design. Projects are saved locally in your browser; JSON export lets you back them up or share them.
 

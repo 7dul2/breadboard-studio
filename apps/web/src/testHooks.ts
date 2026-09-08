@@ -86,7 +86,7 @@ export function installTestHooks(): void {
     importJson: (text) => useStore.getState().importJson(text),
     state: () => {
       const s = useStore.getState();
-      return { selectedIds: s.selectedIds, selectedHole: s.selectedHole, tool: s.tool, mode: s.mode, rightTab: s.rightTab, storage: s.storage, dslDirty: s.dslDirty, past: s.past.length, future: s.future.length };
+      return { selectedIds: s.selectedIds, selectedHole: s.selectedHole, tool: s.tool, mode: s.mode, rightTab: s.rightTab, hasClipboard: !!s.clipboard, storage: s.storage, dslDirty: s.dslDirty, past: s.past.length, future: s.future.length };
     },
     simulator: () => {
       const s = useSimulatorStore.getState();

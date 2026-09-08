@@ -10,6 +10,11 @@ import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
 import { useStore } from './store';
 
+/** Pointer position on the canvas in µm, so a paste lands where the user is looking. */
+function canvasCursorUm(): [number, number] | null {
+  return (window as unknown as { __bbsCanvas?: { cursorUm?: () => [number, number] | null } }).__bbsCanvas?.cursorUm?.() ?? null;
+}
+
 function Toasts() {
   const toasts = useStore((s) => s.toasts);
   const dismiss = useStore((s) => s.dismissToast);
@@ -58,6 +63,24 @@ export function App() {
       if (mod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         s.duplicateSelection();
+        return;
+      }
+      // Copying selected *text* is the browser's job — only take ⌘C/⌘X when the
+      // page has no text selection, so log and diagnostic text stays copyable.
+      const hasTextSelection = !!window.getSelection()?.toString();
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'c' && !hasTextSelection) {
+        e.preventDefault();
+        s.copySelection();
+        return;
+      }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'x' && !hasTextSelection) {
+        e.preventDefault();
+        s.cutSelection();
+        return;
+      }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        s.pasteClipboard(canvasCursorUm());
         return;
       }
       if (mod) return;

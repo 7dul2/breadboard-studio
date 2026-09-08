@@ -6,6 +6,7 @@ export interface BbsState {
   tool: string;
   mode: string;
   rightTab: string;
+  hasClipboard: boolean;
   storage: { state: string };
   dslDirty: boolean;
   past: number;

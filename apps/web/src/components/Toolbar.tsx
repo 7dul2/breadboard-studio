@@ -57,6 +57,8 @@ export function Toolbar() {
   const wireRoute = useStore((s) => s.wireRoute);
   const storage = useStore((s) => s.storage);
   const mode = useStore((s) => s.mode);
+  const selectedCount = useStore((s) => s.selectedIds.length);
+  const hasClipboard = useStore((s) => !!s.clipboard);
   const canRestore = useStore((s) => s.canRestorePrevious);
   const st = useStore.getState();
   const [menu, setMenu] = useState<null | 'project' | 'export'>(null);
@@ -143,6 +145,9 @@ export function Toolbar() {
         <span className="sep" />
         <button onClick={st.undo} disabled={!past} title="撤销 (⌘Z)" data-testid="undo">撤销</button>
         <button onClick={st.redo} disabled={!future} title="重做 (⇧⌘Z)" data-testid="redo">重做</button>
+        <span className="sep" />
+        <button onClick={st.copySelection} disabled={!selectedCount} title="复制选中的元件/面包板 (⌘C)" data-testid="copy">复制</button>
+        <button onClick={() => st.pasteClipboard(null)} disabled={!hasClipboard} title="粘贴 (⌘V 粘到指针所在的孔位；按钮粘到原位右下方)" data-testid="paste">粘贴</button>
         </>
       ) : (
         <SimulatorToolbar />

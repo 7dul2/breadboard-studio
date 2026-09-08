@@ -4,39 +4,69 @@ import type { RenderPrimitiveDef } from '@breadboard-studio/schema';
 import { duplicateGroup, groupPrimitives, movePrimitive, primitiveBounds, rotatePrimitive, tagGroups } from '../src/index.js';
 
 describe('artwork grouping', () => {
-  it('merges the primitives of one small part and keeps the board body and module can apart', () => {
-    const def = builtinCatalog().getComponent('esp32s3_n16r8_dual_usb@1')!;
-    const groups = groupPrimitives(def.render, def.body.size_um);
-    // Every primitive belongs to exactly one group.
-    const all = groups.flatMap((g) => g.indices).sort((a, b) => a - b);
-    expect(all).toEqual(def.render.map((_, i) => i));
-    // The PCB background is alone and large.
+  /**
+   * The geometric merging rules, on a fixture this test owns. They used to be pinned
+   * to the ESP32 artwork by colour and by index arithmetic (`bootLabel - 4`), which
+   * made a perfectly legitimate redraw of that board look like a code regression —
+   * and now that the drawing ships fully tagged, grouping there is by tag anyway, so
+   * those assertions no longer exercised the geometry at all.
+   */
+  it('merges overlapping small primitives into one part and leaves large ones alone', () => {
+    const body: [number, number] = [10000, 10000];
+    const framedCap: RenderPrimitiveDef[] = [
+      { t: 'rect', x: 1000, y: 1000, w: 900, h: 600, fill: 'none', stroke: '#e4e7e3' }, // frame
+      { t: 'rect', x: 1100, y: 1100, w: 700, h: 400 }, // body
+      { t: 'rect', x: 1000, y: 1200, w: 120, h: 200 }, // end cap
+      { t: 'rect', x: 1780, y: 1200, w: 120, h: 200 } // end cap
+    ];
+    const button = (x: number): RenderPrimitiveDef[] => [
+      { t: 'rect', x, y: 6000, w: 800, h: 800 },
+      { t: 'rect', x: x + 100, y: 6100, w: 600, h: 600 },
+      { t: 'circle', cx: x + 400, cy: 6400, r: 200 }
+    ];
+    const pcb: RenderPrimitiveDef = { t: 'rect', x: 0, y: 0, w: 10000, h: 10000, fill: '#1f2937' };
+    const render = [pcb, ...framedCap, ...button(1000), ...button(8000)];
+
+    const groups = groupPrimitives(render, body);
+    expect(groups.flatMap((g) => g.indices).sort((a, b) => a - b)).toEqual(render.map((_, i) => i));
+
     const background = groups.find((g) => g.indices.includes(0))!;
-    expect(background.indices).toEqual([0]);
+    expect(background.indices, 'the PCB is its own part').toEqual([0]);
     expect(background.large).toBe(true);
-    // A framed capacitor (frame + body + two end caps) is one part.
-    const frameIndex = def.render.findIndex((p) => p.t === 'rect' && p.fill === 'none' && p.stroke === '#e4e7e3');
-    expect(frameIndex).toBeGreaterThan(0);
-    const cap = groups.find((g) => g.indices.includes(frameIndex))!;
-    expect(cap.indices.length).toBe(4);
+
+    const cap = groups.find((g) => g.indices.includes(1))!;
+    expect(cap.indices, 'frame + body + two end caps are one part').toEqual([1, 2, 3, 4]);
     expect(cap.large).toBe(false);
-    // A button (outer + inner rect + two circles) is one part and the two buttons are different parts.
-    const bootLabel = def.render.findIndex((p) => p.t === 'text' && p.text === 'BOOT');
-    const rstLabel = def.render.findIndex((p) => p.t === 'text' && p.text === 'RST');
-    const boot = groups.find((g) => g.indices.includes(bootLabel - 4))!;
-    const rst = groups.find((g) => g.indices.includes(rstLabel - 4))!;
-    expect(boot).not.toBe(rst);
-    expect(boot.indices.length).toBeGreaterThanOrEqual(4);
-    // Tagged primitives group by tag regardless of geometry.
-    const tagged = tagGroups(def.render, groups);
-    const again = groupPrimitives(tagged, def.body.size_um);
-    expect(again.map((g) => g.indices)).toEqual(groups.map((g) => g.indices));
+
+    const left = groups.find((g) => g.indices.includes(5))!;
+    const right = groups.find((g) => g.indices.includes(8))!;
+    expect(left).not.toBe(right);
+    expect(left.indices).toEqual([5, 6, 7]);
+    expect(right.indices).toEqual([8, 9, 10]);
+
+    // An explicit tag groups primitives that geometry would never have merged.
     const far: RenderPrimitiveDef[] = [
       { t: 'rect', x: 0, y: 0, w: 100, h: 100, g: 'a' },
       { t: 'rect', x: 5000, y: 5000, w: 100, h: 100, g: 'a' },
       { t: 'rect', x: 0, y: 5000, w: 100, h: 100 }
     ];
-    expect(groupPrimitives(far, [10000, 10000]).map((g) => g.indices)).toEqual([[0, 1], [2]]);
+    expect(groupPrimitives(far, body).map((g) => g.indices)).toEqual([[0, 1], [2]]);
+  });
+
+  /** Invariants that must hold for the shipped drawing however it is redrawn. */
+  it('partitions a real definition and stays stable once tagged', () => {
+    const def = builtinCatalog().getComponent('esp32s3_n16r8_dual_usb@1')!;
+    const groups = groupPrimitives(def.render, def.body.size_um);
+    expect(groups.flatMap((g) => g.indices).sort((a, b) => a - b), 'every primitive is in exactly one part').toEqual(def.render.map((_, i) => i));
+
+    const background = groups.find((g) => g.indices.includes(0))!;
+    expect(background.indices).toEqual([0]);
+    expect(background.large).toBe(true);
+
+    // Tagging is what the artwork editor saves; re-reading it must produce the same parts.
+    const tagged = tagGroups(def.render, groups);
+    expect(tagged.every((p) => typeof p.g === 'string')).toBe(true);
+    expect(groupPrimitives(tagged, def.body.size_um).map((g) => g.indices)).toEqual(groups.map((g) => g.indices));
   });
 
   it('move, rotate and duplicate keep shapes consistent', () => {
