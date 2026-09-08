@@ -570,7 +570,25 @@ const FRAME = /at\s+(?:[^\s(]+\s+)?\(?([^\s():]+):(\d+):(\d+)\)?/;
 
 （侦察阶段给的版本有 bug，会把文件名解析成 `loop (program_main.ts`；上面这条对 `at loop (file:5:19)` 与 `at file:9:1` 两种帧都正确。）
 
-**中断的 source 是一项必做的前置探针**（规格书 §14 要求「显示源码位置」）：先确认 `InternalError: interrupted` 的错误句柄上是否带 `stack`。三种结局都要落实——(a) 有 stack → 按运行时错误同路解析，`execution_budget_exceeded` 带完整 `{programId, line, column}`；(b) 无 stack 但能在 `setInterruptHandler` 里读到当前位置 → 用它；(c) 两者都拿不到 → 只填 `{programId, line: 1, column: 1}` 并在 message 里说明「无法定位到具体行」。这个探针排在 M-S1 的第一天。
+**中断的 source（探针已完成，2026-09-08）**。结论落在计划原先设想的 (b)，而且比 (a) 更准：
+
+| 取法 | 死循环在第 4 行时得到 | 结论 |
+| --- | --- | --- |
+| `InternalError: interrupted` 自带的 `stack` | `at loop (program_main.ts:2:8)` | 指向**函数声明行**，不是正在执行的行 |
+| 在 `setInterruptHandler` 里 `evalCode('new Error().stack')` | `at loop (program_main.ts:4:24)` | 正是热点行 |
+
+所以实现取两者的组合：中断处理器在预算耗尽的那一刻先取样，拿不到时回退到错误自带的 stack，再拿不到才填 `{line:1,column:1}`。取样必须有可重入保护，否则取样自身会被同一个处理器打断：
+
+```ts
+rt.setInterruptHandler(() => {
+  if (this.capturing) return false;        // 绝不打断自己的取样
+  if (this.clock.nowMs() <= this.deadlineMs) return false;
+  if (!this.tripped) { this.tripped = true; this.captureStack(); }
+  return true;
+});
+```
+
+已在加固后的真实配置下验证（`eval`/`Function`/`Date` 均为 `undefined`、构造函数路径被 `TypeError` 拦下、正常代码不受影响）。
 
 ### 6.8 确定性的证明方式
 

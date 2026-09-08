@@ -15,8 +15,11 @@
     "@breadboard-studio/render": "workspace:*",
     "@breadboard-studio/schema": "workspace:*",
     "@breadboard-studio/sim": "workspace:*",
+    "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
+    "quickjs-emscripten-core": "0.32.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sucrase": "3.35.1",
     "zustand": "5.0.15"
   },
   "devDependencies": {

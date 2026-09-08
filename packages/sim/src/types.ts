@@ -4,7 +4,7 @@
  * Everything here is plain data: serialisable, versioned and independent of
  * React, the DOM or Zustand. Runtime state never enters the design document.
  */
-import type { ProgramAsset, SimulationConfig, SimulationControlAction, SimulationSpeed } from '@breadboard-studio/schema';
+import type { PinDirection, PinRole, ProgramAsset, SimulationConfig, SimulationControlAction, SimulationSpeed } from '@breadboard-studio/schema';
 
 /** Bumped whenever HostCommand / RuntimeMessage change shape. Messages with another version are ignored. */
 export const SIM_PROTOCOL_VERSION = 1 as const;
@@ -115,7 +115,53 @@ export interface SimNet {
   id: string;
   /** Hole and pin addresses in the net. */
   members: string[];
+  /** Just the pin addresses, so the kernel does not have to re-filter `members`. */
+  pins?: string[];
   name?: string;
+}
+
+/**
+ * Trimmed projection of a pin's electrical metadata. Deliberately not the whole
+ * `PinMeta`: the worker only needs these six keys, and the snapshot crosses a
+ * postMessage boundary on every session start.
+ */
+export interface SimPinMeta {
+  role: PinRole;
+  direction?: PinDirection;
+  drive?: 'push_pull' | 'open_drain' | 'unknown';
+  /** Nominal voltage for power pins. */
+  voltageV?: number | null;
+  ioVoltageV?: number | null;
+  maxSourceMa?: number | null;
+}
+
+export interface SimI2cBusBinding {
+  /** 0 = the default bus, ≥1 = `config.i2c_buses[index-1]`. */
+  index: number;
+  sdaPin: string;
+  sclPin: string;
+  /** Net ids, or `unconnected:<componentId>.<pin>` when the pin is not wired. */
+  sdaNet: string;
+  sclNet: string;
+}
+
+export interface SimI2cSpec {
+  role: 'controller' | 'device';
+  /** A device has exactly one entry; a controller has one per declared bus. */
+  buses: SimI2cBusBinding[];
+  /** Effective address; explicit null means unknown. */
+  address: number | null;
+}
+
+/** A pin that sources a fixed voltage while the session runs. */
+export interface SimPowerSource {
+  address: string;
+  componentId: string;
+  pin: string;
+  voltageV: number;
+  netId: string | null;
+  maxSourceMa: number | null;
+  enabled: boolean;
 }
 
 export interface SimDeviceSpec {
@@ -130,6 +176,12 @@ export interface SimDeviceSpec {
   pinChannels: Record<string, string | number>;
   /** Instance `config` merged over catalog `simulation.properties`. */
   properties: Record<string, unknown>;
+  /** Electrical metadata per pin. Optional so hand-built snapshots stay valid. */
+  pinMeta?: Record<string, SimPinMeta>;
+  /** Allowed supply range from `core.supplyRange()`; null means unknown. */
+  supply?: { min: number; max: number } | null;
+  /** Resolved I²C role, bus pins and address. Absent when the part has no I²C. */
+  i2c?: SimI2cSpec;
 }
 
 /** Read-only view of a design taken when a session starts (docs §6). */
@@ -142,6 +194,8 @@ export interface SimulationSnapshot {
   devices: SimDeviceSpec[];
   programs: ProgramAsset[];
   config: SimulationConfig;
+  /** Voltage sources and the system ground nets, derived from pin roles. */
+  power?: { sources: SimPowerSource[]; groundNets: string[] };
 }
 
 export interface NetDriverView {
