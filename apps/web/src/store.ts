@@ -3,6 +3,7 @@ import type { DesignDocument, WireEndpoint, WireRoute } from '@breadboard-studio
 import { analyzeDesign, applyOps, catalogForDesign, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
 import { hasPrevious, loadCurrent, loadPrevious, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import { droppedDefinitions } from './dropped-definitions';
 import deskExample from '../../../examples/desk_device.breadboard.json';
 import envExample from '../../../examples/environment_node.breadboard.json';
 import stressExample from '../../../examples/stress_test.breadboard.json';
@@ -343,10 +344,16 @@ export const useStore = create<State>((set, get) => {
         get().toast('error', 'DSL 草稿有格式错误，未应用；画布保持不变。');
         return;
       }
+      // A draft taken before an artwork save still parses and still applies — and
+      // takes the custom drawing with it. Say so; the change is one ⌘Z away.
+      const dropped = droppedDefinitions(get().design, r.design);
       const res = get().apply([{ op: 'replace_design', design: r.design }], '应用 DSL');
       if (res.ok) {
         set({ dslDirty: false, dslErrors: [], dslText: serializeDesign(res.design) });
         get().toast('success', `DSL 已应用（revision ${res.revision}）。`);
+        if (dropped.length) {
+          get().toast('error', `草稿里没有这些型号的自定义绘图，它们已退回元件库版本：${dropped.join('、')}。撤销（⌘Z）可以找回。`, ['自定义绘图只存在于项目文档里；要让它对所有项目生效，请在外观编辑器里用“写回元件库”。']);
+        }
       } else {
         set({ dslErrors: res.error.results?.map((x) => `${x.code}: ${x.message}`) ?? [res.error.message] });
       }

@@ -392,6 +392,36 @@ test.describe('editor core flows', () => {
     expect(((await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { embedded_catalog?: unknown } } }).__bbs.getDesign())).embedded_catalog)).toBeUndefined();
   });
 
+  test('the artwork editor offers a library write-back, and the endpoint only ever overwrites', async ({ page, request }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await fit(page);
+    await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
+    await clickHole(page, 'bb_1.a9');
+    await page.getByTestId('tool-select').click();
+    await page.locator('.component-hit').first().click({ force: true });
+    await page.getByTestId('prop-edit-artwork').click();
+    // dev only: the built site has no filesystem behind it (scripts/check-dist.mjs bans the URL)
+    await expect(page.getByTestId('artwork-write-library')).toBeVisible();
+
+    // Everything that is not an overwrite of an existing definition is refused before
+    // any write happens — which is what lets this run against the real catalog directory.
+    const base = { kind: 'component', version: 1, name: 'x' };
+    const cases: [unknown, number][] = [
+      [{ ...base, id: 'definitely_not_a_model' }, 403],
+      [{ ...base, id: '../../../../etc/passwd' }, 400],
+      [{ ...base, id: 'esp32s3_n16r8_dual_usb', version: '1' }, 400],
+      [{ ...base, id: 'esp32s3_n16r8_dual_usb', kind: 'gadget' }, 400],
+      [[1, 2, 3], 400]
+    ];
+    for (const [body, status] of cases) {
+      const res = await request.post('/__bbs/definition', { data: body });
+      expect(res.status(), JSON.stringify(body).slice(0, 48)).toBe(status);
+      expect((await res.json()).ok).toBe(false);
+    }
+    expect((await request.get('/__bbs/definition')).status()).toBe(405);
+  });
+
   test('deleting a component also prunes its network-intent references', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'desk_device');

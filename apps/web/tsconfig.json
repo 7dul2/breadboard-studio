@@ -4,7 +4,9 @@
     // WebWorker is needed by the simulator worker entry: without it `self` is
     // typed as Window and transferable postMessage overloads do not resolve.
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    // vite.config.ts imports devtools/*.ts by its real extension (the native config loader needs it).
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "devtools", "vite.config.ts"]
 }

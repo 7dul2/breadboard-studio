@@ -64,7 +64,9 @@ if (!entry) {
   const entryText = readFileSync(join(dist, 'assets', entry), 'utf8');
   const entrySize = statSync(join(dist, 'assets', entry)).size;
   const wasm = readdirSync(join(dist, 'assets')).filter((f) => f.endsWith('.wasm'));
-  const banned = ['quickjs', 'sucrase', 'emscripten'].filter((k) => entryText.includes(k));
+  // `__bbs/definition` is the dev-only catalog write-back: the deployed site has no
+  // filesystem behind it and must not offer a button that cannot work.
+  const banned = ['quickjs', 'sucrase', 'emscripten', '__bbs/definition'].filter((k) => entryText.includes(k));
   if (entrySize > 900_000) errors.push(`entry chunk ${entrySize} B > 900000 B`);
   if (banned.length) errors.push(`entry chunk mentions ${banned.join(', ')}`);
   if (checkSim && wasm.length !== 1) errors.push(`${wasm.length} .wasm assets, expected exactly 1`);

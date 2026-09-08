@@ -2,9 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentDefinition, RenderPrimitiveDef } from '@breadboard-studio/schema';
 import { catalogForDesign, resolveComponent } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
+import { validateComponentDefinition } from '@breadboard-studio/schema';
 import { duplicateGroup, groupPrimitives, movePrimitive, nextTag, primitiveToNode, rotatePrimitive, tagGroups, type ArtBounds } from '@breadboard-studio/render';
-import { useStore } from '../store';
+import { flushSave, useStore } from '../store';
 import { renderNode } from './SceneView';
+
+/**
+ * Write-back to the catalog source file, served by the dev plugin in
+ * `apps/web/vite.config.ts`. It only exists while `vite serve` runs — the built
+ * site has no filesystem behind it, so the button is not rendered there.
+ */
+const CAN_WRITE_LIBRARY = import.meta.env.DEV;
+const WRITEBACK_URL = `${import.meta.env.BASE_URL}__bbs/definition`;
 
 /**
  * Artwork editor: move / copy / delete / rotate the parts of a component's
@@ -342,6 +351,48 @@ export function ArtworkEditor({ modelRef, onClose }: { modelRef: string; onClose
     download(`${def.id}.json`, JSON.stringify({ ...def, render: tagGroups(render, groups) }, null, 2) + '\n');
   };
 
+  /**
+   * Overwrite the definition in `packages/catalog/src/definitions/`. This is the
+   * durable answer for a drawing that is simply wrong: it outlives every project,
+   * where 保存到本项目 dies with the document it was saved into.
+   *
+   * Writing the file makes Vite reload the page, so the design is flushed to local
+   * storage first — the reload must not cost the user the last few edits.
+   *
+   * The schema check happens here rather than in the dev plugin: this is the very
+   * validator `builtinCatalog()` runs at boot, and an invalid file would throw
+   * there with no way back through the UI. The plugin cannot call it — a Vite
+   * config is loaded as plain Node ESM and the workspace packages are source-only
+   * TypeScript — so it enforces the filesystem rules and this enforces the schema.
+   */
+  const writeLibrary = async () => {
+    if (!def) return;
+    const next: ComponentDefinition = { ...def, render: tagGroups(render, groups) };
+    const checked = validateComponentDefinition(next);
+    if (!checked.ok) {
+      st.toast('error', '这份绘图不符合定义 schema，没有写入元件库。', checked.issues.slice(0, 5).map((i) => `${i.path} ${i.message}`));
+      return;
+    }
+    flushSave();
+    try {
+      const res = await fetch(WRITEBACK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next) });
+      const payload = (await res.json().catch(() => ({}))) as { ok?: boolean; path?: string; error?: string };
+      if (!res.ok || !payload.ok) {
+        st.toast('error', `写回元件库失败：${payload.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+      const overridden = design.embedded_catalog?.components?.some((d) => `${d.id}@${d.version}` === modelRef);
+      st.toast(
+        'success',
+        `已写回 ${payload.path}。所有项目都会用这张新绘图；页面会自动重新加载。`,
+        overridden ? ['注意：本项目还内嵌着该型号的自定义绘图，画布会继续用项目里的那份——撤销那次“保存外观”即可改用元件库版本。'] : undefined
+      );
+      onClose();
+    } catch (e) {
+      st.toast('error', `写回元件库失败：${(e as Error).message}（只有本地 pnpm dev 才有这个接口）`);
+    }
+  };
+
   if (!def) {
     return (
       <div className="artwork-layer" data-testid="artwork-editor">
@@ -374,7 +425,12 @@ export function ArtworkEditor({ modelRef, onClose }: { modelRef: string; onClose
           </div>
           <div className="row">
             <button onClick={exportJson} data-testid="artwork-export">导出定义 JSON</button>
-            <button className="primary" onClick={save} data-testid="artwork-save">保存到本项目</button>
+            <button onClick={save} data-testid="artwork-save" title="只存进当前项目：换项目、导入或应用 DSL 草稿都会失去它">保存到本项目</button>
+            {CAN_WRITE_LIBRARY && (
+              <button className="primary" onClick={() => void writeLibrary()} data-testid="artwork-write-library" title="覆盖 packages/catalog/src/definitions/ 里的定义：改一次，所有项目都用新绘图">
+                写回元件库
+              </button>
+            )}
             <button onClick={onClose} data-testid="artwork-close">关闭</button>
           </div>
         </div>
