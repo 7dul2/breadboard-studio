@@ -239,6 +239,19 @@ export const componentDefinitionSchema = {
     },
     pin_meta: { type: 'object', additionalProperties: pinMeta },
     internal_nets: { type: 'array', items: { type: 'array', items: { type: 'string' }, minItems: 2 } },
+    conduction: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'pins'],
+        properties: {
+          kind: { type: 'string', enum: ['resistor'] },
+          pins: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 2 },
+          value_param: { type: 'string' }
+        }
+      }
+    },
     electrical: {
       type: 'object',
       additionalProperties: false,

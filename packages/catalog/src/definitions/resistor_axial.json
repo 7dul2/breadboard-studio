@@ -9,27 +9,75 @@
   "category": "passive",
   "mount": "breadboard",
   "origin": "top_left",
-  "generator": { "type": "axial_two_pin" },
+  "generator": {
+    "type": "axial_two_pin"
+  },
   "params_schema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "span_pitches": { "type": "integer", "minimum": 2, "maximum": 12, "description": "两脚之间的孔距数" },
-      "value": { "type": "string", "description": "阻值标注，如 4.7k" }
+      "span_pitches": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 12,
+        "description": "两脚之间的孔距数"
+      },
+      "value": {
+        "type": "string",
+        "description": "阻值标注，如 4.7k"
+      }
     }
   },
-  "params_default": { "span_pitches": 4, "value": "4.7k" },
-  "body": { "size_um": [12700, 2540], "height_um": 2500, "standoff_um": 500 },
+  "params_default": {
+    "span_pitches": 4,
+    "value": "4.7k"
+  },
+  "body": {
+    "size_um": [
+      12700,
+      2540
+    ],
+    "height_um": 2500,
+    "standoff_um": 500
+  },
   "pins": [],
   "pin_meta": {
-    "P1": { "role": "passive", "direction": "passive" },
-    "P2": { "role": "passive", "direction": "passive" }
+    "P1": {
+      "role": "passive",
+      "direction": "passive"
+    },
+    "P2": {
+      "role": "passive",
+      "direction": "passive"
+    }
   },
-  "electrical": { "supply_voltage_v": null, "supply_current_ma": null, "io_voltage_v": null, "i2c": null },
+  "conduction": [
+    {
+      "kind": "resistor",
+      "pins": [
+        "P1",
+        "P2"
+      ],
+      "value_param": "value"
+    }
+  ],
+  "electrical": {
+    "supply_voltage_v": null,
+    "supply_current_ma": null,
+    "io_voltage_v": null,
+    "i2c": null
+  },
   "render": [],
   "geometry_status": "approximate",
   "electrical_status": "verified",
   "status_notes": "标准 2.54 mm 栅格跨距；本体尺寸为示意。",
-  "sources": [{ "title": "Standard axial resistor footprint (2.54 mm grid)" }],
-  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+  "sources": [
+    {
+      "title": "Standard axial resistor footprint (2.54 mm grid)"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
 }

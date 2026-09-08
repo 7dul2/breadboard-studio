@@ -272,6 +272,15 @@ export type PinRole =
 
 export type PinDirection = 'in' | 'out' | 'bidir' | 'open_drain' | 'passive' | 'unknown';
 
+export interface ConductionPath {
+  /** v0.2 models linear resistors only; a diode is a driver, not a conduction path. */
+  kind: 'resistor';
+  /** Exactly the two terminals current flows between. */
+  pins: [string, string];
+  /** `params` key holding the value marking (e.g. `"4.7k"`). Absent means unknown. */
+  value_param?: string;
+}
+
 export interface PinMeta {
   role: PinRole;
   /** Nominal voltage for power pins (V). */
@@ -449,6 +458,16 @@ export interface ComponentDefinition {
   pin_meta: Record<string, PinMeta>;
   /** Pins that are tied together inside the component (e.g. multiple GND pins). */
   internal_nets?: string[][];
+  /**
+   * Two-terminal passives that let current *through* without being one node.
+   *
+   * The distinction from `internal_nets` is the whole point. Two GND pins tied
+   * inside a module are the same node: shorting them is not a fault and nothing
+   * drops across them. A resistor's legs are connected through an impedance, so
+   * a supply and a ground joined by one is a load, not a short — while the same
+   * two legs pushed into one breadboard column *is* still a mistake.
+   */
+  conduction?: ConductionPath[];
   electrical: ElectricalDef;
   features?: FeatureDef[];
   /** Simulator binding (driver, pin channels, controls, visuals). Absent = no behaviour model. */

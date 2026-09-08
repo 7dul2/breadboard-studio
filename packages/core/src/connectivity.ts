@@ -48,12 +48,36 @@ export interface Net {
 }
 
 export interface Connectivity {
-  /** Full conductivity: board groups + inserted pins + internal nets + wires. */
+  /** Where current can flow: board groups + inserted pins + internal nets + wires + passives. */
   full: UnionFind;
+  /**
+   * Node identity: everything in `full` *except* conduction through a passive.
+   *
+   * The two differ only where a resistor sits. `full` answers "can current get
+   * from here to there", which is what net intents and the simulator need;
+   * `direct` answers "is this the same electrical node", which is what a short
+   * circuit means. A supply and a ground on one `direct` root is a dead short;
+   * on one `full` root through a resistor it is a load, and the rules say so
+   * with an estimated current instead of an error.
+   */
+  direct: UnionFind;
   /** Board groups + inserted pins only (no wires, no internal nets). */
   boardOnly: UnionFind;
   nets: Net[];
   netByRoot: Map<string, Net>;
+  /** Conduction paths that actually joined two nodes, for rules that explain a `full` join. */
+  conducted: ConductedPath[];
+}
+
+/** One passive that current is flowing through, as placed. */
+export interface ConductedPath {
+  componentId: string;
+  kind: 'resistor';
+  pins: [string, string];
+  /** Ohms parsed from the marking, or null when it is missing or unreadable. */
+  ohms: number | null;
+  /** The raw marking, for diagnostics that quote it. */
+  marking: string | null;
 }
 
 export function pinKey(componentId: string, pin: string): string {
@@ -83,8 +107,35 @@ function roleName(pin: PlacedPin): string | null {
   }
 }
 
+/**
+ * Ohms from a resistor marking. Accepts plain numbers (`"220"`), an SI suffix
+ * (`"4.7k"`, `"1M"`) and the printed form that uses the multiplier as the decimal
+ * point (`"4k7"`), which is what is actually written on a lot of parts. Returns
+ * null for anything it cannot read, so the caller reports "unknown" rather than
+ * inventing a current.
+ */
+export function parseResistance(marking: unknown): number | null {
+  if (typeof marking === 'number') return Number.isFinite(marking) && marking >= 0 ? marking : null;
+  if (typeof marking !== 'string') return null;
+  const text = marking.trim().replace(/(ohms?|Ω|R$)/gi, '').trim();
+  if (!text) return null;
+  const MULT: Record<string, number> = { k: 1e3, K: 1e3, M: 1e6, m: 1e-3, R: 1, r: 1 };
+  // "4k7" — the suffix stands in for the decimal point
+  const embedded = /^(\d+)([kKMmRr])(\d+)$/.exec(text);
+  if (embedded) {
+    const scale = MULT[embedded[2]!]!;
+    return Number(`${embedded[1]}.${embedded[3]}`) * scale;
+  }
+  const suffixed = /^(\d+(?:\.\d+)?)\s*([kKMmRr]?)$/.exec(text);
+  if (!suffixed) return null;
+  const value = Number(suffixed[1]);
+  if (!Number.isFinite(value)) return null;
+  return value * (suffixed[2] ? (MULT[suffixed[2]] ?? 1) : 1);
+}
+
 export function buildConnectivity(model: DesignModel): Connectivity {
   const full = new UnionFind();
+  const direct = new UnionFind();
   const boardOnly = new UnionFind();
 
   for (const pb of model.boards.values()) {
@@ -92,10 +143,12 @@ export function buildConnectivity(model: DesignModel): Connectivity {
       const addrs = names.map((n) => holeAddress(pb.instance.id, n));
       for (const a of addrs) {
         full.add(a);
+        direct.add(a);
         boardOnly.add(a);
       }
       for (let i = 1; i < addrs.length; i++) {
         full.union(addrs[0]!, addrs[i]!);
+        direct.union(addrs[0]!, addrs[i]!);
         boardOnly.union(addrs[0]!, addrs[i]!);
       }
     }
@@ -105,22 +158,48 @@ export function buildConnectivity(model: DesignModel): Connectivity {
     for (const p of pc.pins) {
       const key = pinKey(pc.instance.id, p.name);
       full.add(key);
+      direct.add(key);
       boardOnly.add(key);
       if (p.hole) {
         const h = holeAddress(p.hole.board_id, p.hole.hole);
         full.union(key, h);
+        direct.union(key, h);
         boardOnly.union(key, h);
       }
     }
     for (const group of pc.def.internal_nets ?? []) {
       const existing = group.filter((n) => pc.pins.some((p) => p.name === n));
-      for (let i = 1; i < existing.length; i++) full.union(pinKey(pc.instance.id, existing[0]!), pinKey(pc.instance.id, existing[i]!));
+      for (let i = 1; i < existing.length; i++) {
+        full.union(pinKey(pc.instance.id, existing[0]!), pinKey(pc.instance.id, existing[i]!));
+        direct.union(pinKey(pc.instance.id, existing[0]!), pinKey(pc.instance.id, existing[i]!));
+      }
     }
   }
 
   for (const w of model.wires.values()) {
     if (!w.conducts || !w.from || !w.to) continue;
     full.union(w.from.address, w.to.address);
+    direct.union(w.from.address, w.to.address);
+  }
+
+  // Passives last, and only into `full`: a resistor lets current through without
+  // making its two legs one node. Wires are already in, so the path a resistor
+  // completes is the one the user actually built.
+  const conducted: ConductedPath[] = [];
+  for (const pc of model.components.values()) {
+    for (const path of pc.def.conduction ?? []) {
+      const [a, b] = path.pins;
+      if (!pc.pins.some((p) => p.name === a) || !pc.pins.some((p) => p.name === b)) continue;
+      const marking = path.value_param ? (pc.resolved.params?.[path.value_param] as string | number | undefined) : undefined;
+      full.union(pinKey(pc.instance.id, a), pinKey(pc.instance.id, b));
+      conducted.push({
+        componentId: pc.instance.id,
+        kind: path.kind,
+        pins: [a, b],
+        ohms: parseResistance(marking),
+        marking: marking === undefined || marking === null ? null : String(marking)
+      });
+    }
   }
 
   // ---- collect nets ----
@@ -192,7 +271,7 @@ export function buildConnectivity(model: DesignModel): Connectivity {
   }
   nets.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
-  return { full, boardOnly, nets, netByRoot };
+  return { full, direct, boardOnly, nets, netByRoot, conducted };
 }
 
 /** Resolve a `board.hole` or `component.pin` address to a connectivity key, or null if unknown. */

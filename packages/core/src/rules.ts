@@ -32,6 +32,50 @@ function pinsOfNet(model: DesignModel, net: Net): PinRef[] {
   return out;
 }
 
+/**
+ * A supply and a ground that reach each other only through passives. That is a
+ * load, not a short, and the useful thing to report is how much current it draws:
+ * a 220 Ω across 3V3 is 15 mA and fine, 10 Ω is 330 mA and is going to cook
+ * something. Anything the marking cannot tell us stays `needs_review` rather than
+ * being given an invented number.
+ */
+function loadThroughPassives(model: DesignModel, conn: Connectivity, net: Net, powers: PinRef[], grounds: PinRef[]): R[] {
+  const onNet = conn.conducted.filter((path) => model.components.has(path.componentId) && net.pins.includes(pinKey(path.componentId, path.pins[0])));
+  if (!onNet.length) return [];
+
+  const supply = powers.map((p) => p.pin.meta.voltage_v).filter((v): v is number => typeof v === 'number');
+  const volts = supply.length ? Math.max(...supply) : null;
+  const objects = [...new Set([...powers, ...grounds].map((p) => p.pc.instance.id)), ...onNet.map((p) => p.componentId)];
+  const endpoints = [...powers, ...grounds].map((p) => p.key);
+  const named = onNet.map((p) => p.componentId).join('、');
+
+  // In series the current is set by the total; in parallel by the smallest. A
+  // single passive is the common case and both agree there, so v0.2 reports the
+  // series sum and says so rather than pretending to solve the network.
+  const ohms = onNet.reduce<number | null>((sum, p) => (sum === null || p.ohms === null ? null : sum + p.ohms), 0);
+  if (volts === null || ohms === null) {
+    return [
+      res('needs_review', 'passive_load_unknown', 'evidence', `电源与地之间经 ${named} 相连，但${volts === null ? '电源电压' : '阻值'}未知，无法估算电流`, objects, {
+        endpoints,
+        suggestion: '在元件参数里填写阻值（如 220 或 4.7k），或核对供电电压。'
+      })
+    ];
+  }
+  if (ohms === 0) {
+    return [
+      res('error', 'power_ground_short', 'net', `电源与地经 ${named} 相连，但阻值为 0 Ω，等效直接短路`, objects, { endpoints, suggestion: '换一个有阻值的电阻。' })
+    ];
+  }
+  const mA = (volts / ohms) * 1000;
+  const detail = `电源与地之间经 ${named} 相连：${voltageName(volts)} / ${ohms} Ω ≈ ${mA.toFixed(mA < 10 ? 1 : 0)} mA`;
+  // 100 mA is not a datasheet limit, it is the point where a breadboard build is
+  // usually a mistake rather than a design; the message says so.
+  if (mA > 100) {
+    return [res('warning', 'passive_load_excessive', 'net', `${detail}，对面包板供电来说偏大，请确认这是有意为之`, objects, { endpoints, suggestion: '提高阻值，或确认电源与元件的额定电流。' })];
+  }
+  return [res('info', 'passive_load', 'net', detail, objects, { endpoints })];
+}
+
 function isPower(meta: PinMeta): boolean {
   return meta.role === 'power_in' || meta.role === 'power_out';
 }
@@ -264,21 +308,41 @@ export function checkModel(model: DesignModel): CheckOutput {
     const pins = pinsOfNet(model, net);
     const grounds = pins.filter((p) => p.pin.meta.role === 'ground');
     const powers = pins.filter((p) => isPower(p.pin.meta));
-    if (grounds.length && powers.length) {
+    // A short is a *node* fact, not a net fact: since a resistor joins two nodes
+    // into one net without making them one node, "power and ground on this net"
+    // is no longer enough to call it a short. Only power and ground on the same
+    // `direct` root are actually touching.
+    const sameNode = (a: PinRef, b: PinRef) => conn.direct.connected(a.key, b.key);
+    const shortedGrounds = grounds.filter((g) => powers.some((p) => sameNode(g, p)));
+    const shortingPowers = powers.filter((p) => grounds.some((g) => sameNode(g, p)));
+    if (shortedGrounds.length && shortingPowers.length) {
       results.push(
-        res('error', 'power_ground_short', 'net', `电源与地被直接短接：${powers.map((p) => p.key).join('、')} 与 ${grounds.map((p) => p.key).join('、')} 在同一网络`, [...new Set([...powers, ...grounds].map((p) => p.pc.instance.id))], {
-          endpoints: [...powers, ...grounds].map((p) => p.key),
+        res('error', 'power_ground_short', 'net', `电源与地被直接短接：${shortingPowers.map((p) => p.key).join('、')} 与 ${shortedGrounds.map((p) => p.key).join('、')} 在同一网络`, [...new Set([...shortingPowers, ...shortedGrounds].map((p) => p.pc.instance.id))], {
+          endpoints: [...shortingPowers, ...shortedGrounds].map((p) => p.key),
           suggestion: '检查导线端点和同列五孔占用。'
         })
       );
+    } else if (grounds.length && powers.length) {
+      // Joined, but through something. Say how much current that draws, because
+      // that is the number which decides whether it is a load or a mistake.
+      for (const result of loadThroughPassives(model, conn, net, powers, grounds)) results.push(result);
     }
     const voltages = new Map<number, string[]>();
     for (const p of powers) {
       const v = p.pin.meta.voltage_v;
       if (typeof v === 'number') voltages.set(v, [...(voltages.get(v) ?? []), p.key]);
     }
-    if (voltages.size > 1) {
-      const desc = [...voltages.entries()].map(([v, keys]) => `${voltageName(v)}（${keys.join(', ')}）`).join(' 与 ');
+    // Same reasoning as the short above: two supplies bridged by a resistor are
+    // not paralleled, so only voltages that share a node are a hard conflict.
+    const clashing = new Map<number, string[]>();
+    for (const p of powers) {
+      const v = p.pin.meta.voltage_v;
+      if (typeof v !== 'number') continue;
+      if (!powers.some((q) => q !== p && typeof q.pin.meta.voltage_v === 'number' && q.pin.meta.voltage_v !== v && sameNode(p, q))) continue;
+      clashing.set(v, [...(clashing.get(v) ?? []), p.key]);
+    }
+    if (clashing.size > 1) {
+      const desc = [...clashing.entries()].map(([v, keys]) => `${voltageName(v)}（${keys.join(', ')}）`).join(' 与 ');
       results.push(
         res('error', 'voltage_conflict', 'net', `不同电压的电源端在同一网络：${desc}`, [...new Set(powers.map((p) => p.pc.instance.id))], {
           endpoints: powers.map((p) => p.key),
