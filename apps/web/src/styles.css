@@ -238,6 +238,17 @@ table.sim-nets th { text-align: left; font-weight: 500; color: var(--muted); pad
 table.sim-nets td { padding: 2px 4px; border-top: 1px solid #eef0f4; }
 .sim-info { padding: 6px 8px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; font-size: 12px; color: #1e3a8a; line-height: 1.5; }
 
+/* ---- canvas simulator overlay (plan §9.2 / §9.3) ---- */
+/* Painted state never takes pointer events; only the control hit areas do, and
+   they must keep a painted fill (`fill: none` would drop out of hit-testing). */
+.sim-overlay, .sim-visual { pointer-events: none; }
+.sim-visual-led { stroke: rgba(15, 23, 42, 0.35); stroke-width: 0.12; }
+.sim-visual-pressed { fill: rgba(37, 99, 235, 0.28); stroke: #1d4ed8; stroke-width: 0.3; opacity: 0; }
+.sim-visual-pressed[data-active='true'] { opacity: 1; }
+.sim-control { pointer-events: all; cursor: pointer; touch-action: none; }
+.sim-control:hover { fill: rgba(37, 99, 235, 0.12); }
+.sim-control:active { fill: rgba(37, 99, 235, 0.24); }
+
 /* ---- code editor drawer ---- */
 /* Leave the validation panel its 34% and the canvas its 120px minimum, so the column never overflows. */
 .code-editor { flex: none; display: flex; flex-direction: column; min-height: 120px; max-height: calc(66% - 130px); background: var(--panel); border-top: 1px solid var(--border); }

@@ -107,6 +107,10 @@ export function buildSnapshot(design: DesignDocument, catalog: Catalog = builtin
       spec.supply = supplyRange(pc);
       const i2c = i2cSpecOf(pc, pinToNet);
       if (i2c) spec.i2c = i2c;
+      const controls = def?.simulation?.controls;
+      if (controls?.length) spec.controls = controls.map((c) => ({ id: c.id, featureLabel: c.feature_label, action: c.action, channel: c.channel }));
+      const visuals = def?.simulation?.visuals;
+      if (visuals?.length) spec.visuals = visuals.map((v) => ({ id: v.id, featureLabel: v.feature_label, kind: v.kind, channel: v.channel }));
     }
     devices.push(spec);
   }

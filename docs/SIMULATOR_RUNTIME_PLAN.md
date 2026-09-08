@@ -279,7 +279,9 @@ export class SimLoop {
 
 实测四种「不让出」形态各自被不同机制挡住：纯死循环 → `time_slice`（5.0 ms 跳出）；`while(true) await Promise.resolve()` → `time_slice`（6.1 ms）；`while(true) await sleep(0)` → `event_budget`（10,000 次推进、`nowUs` 仍为 0）；`await new Promise(()=>{})` → 队列空。
 
-**「队列为空」不等于「不会再有事件」**：`control` 事件是宿主异步注入的，不在堆里，而 `controller.sendControl` 在 running / paused / stepping 三种状态都放行。若不分两级，任何「等触摸再继续」的程序——正是阶段 2 想鼓励的写法——会在用户还没点之前就被判死锁，而且触发与否取决于真实时序，直接破坏 §18 的确定性重放。`hasInputSources` 由 `prepare` 时扫快照决定：任何设备声明了 `simulation.controls` 即为真。
+**「队列为空」不等于「不会再有事件」**：`control` 事件是宿主异步注入的，不在堆里，而 `controller.sendControl` 在 running / paused / stepping 三种状态都放行。若不分两级，任何「等触摸再继续」的程序——正是阶段 2 想鼓励的写法——会在用户还没点之前就被判死锁，而且触发与否取决于真实时序，直接破坏 §18 的确定性重放。`hasInputSources` 由 `prepare` 时扫快照决定。
+
+**M-S2 实施裁决**：判据不是「声明了 `simulation.controls`」，而是「存在能 **resolve 一个挂起的客体 promise** 的输入源」。v0.2 的客体 API（`gpio.digitalRead` 同步、`sleep`、`Wire.*`）没有任何等待引脚的原语，控件改变网络值唤不醒 `await new Promise(()=>{})`，所以按控件取真会把死锁误报成「等待输入」。落地为 `packages/sim/src/worker/session.ts` 的具名谓词 `hasWakeableInputSources(snapshot)`，v0.2 恒为 false；阶段 4 引入真正的等待原语时只改这一处。
 
 `execution_budget_exceeded` **不可恢复**：实测 QuickJS 中断后当前调用以 `InternalError: interrupted` 结束且不会续跑（第二次 `executePendingJobs()` 返回 0 个 job，客体的状态停在原地）。会话进入 `faulted`，用户只能复位。另外**客体可以用 `.catch()` 吞掉中断异常**，所以判定必须以宿主自己的 `tripped` 标志为准，不能只看返回值。
 

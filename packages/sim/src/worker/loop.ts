@@ -19,9 +19,10 @@
  *   is pending and the driven promise is still `pending`.
  *
  * "Nothing to do" has two flavours and they must stay distinct: with an input
- * source (any device declaring `simulation.controls`) an empty queue means the
- * program is waiting for the user, which is `idle`; without one nothing can
- * ever wake it, which is `deadlock`.
+ * source that can resolve a suspended guest, an empty queue means the program is
+ * waiting for the user, which is `idle`; without one nothing can ever wake it,
+ * which is `deadlock`. Merely declaring a control is not such a source — see
+ * `hasWakeableInputSources()` in `session.ts`.
  */
 import type { SimulationSpeed } from '@breadboard-studio/schema';
 import type { GuestBridge, Pacer, PumpOutcome, WallClock } from '../contracts.js';
@@ -37,7 +38,12 @@ export interface SimLoopOptions {
   scheduler: Scheduler;
   guest: GuestBridge;
   clock: WallClock;
-  /** True when any device declares `simulation.controls`; decides idle vs deadlock. */
+  /**
+   * True when something outside the queue can still resolve a suspended guest,
+   * which is what separates `idle` from `deadlock`. Computed by the session's
+   * `hasWakeableInputSources()`: declaring a control is *not* enough, because no
+   * v0.2 guest primitive awaits a pin.
+   */
   hasInputSources: boolean;
   sliceMs?: number;
   eventBudget?: number;

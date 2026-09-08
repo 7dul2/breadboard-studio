@@ -7,14 +7,16 @@
  * passive electrical endpoint, and the caller reports it once with
  * `unsupported_device` (info) instead of failing the whole session.
  *
- * M-S1 registers the MCU only; `input.ttp223@1` (M-S2) and `display.ssd1315@1`
- * (M-S3) drop into `BUILTIN_DRIVERS` unchanged when they land.
+ * M-S2 registers the MCU and the TTP223; `display.ssd1315@1` (M-S3) drops into
+ * `BUILTIN_DRIVERS` unchanged when it lands.
  */
 import type { DeviceContext, DeviceDriver, DeviceFactory, DriverRegistry } from '../contracts.js';
 import { ESP32S3_DRIVER_ID, createEsp32S3Driver } from './esp32s3.js';
+import { TTP223_DRIVER_ID, createTtp223Driver } from './ttp223.js';
 
 export const BUILTIN_DRIVERS: Readonly<Record<string, DeviceFactory>> = Object.freeze({
-  [ESP32S3_DRIVER_ID]: createEsp32S3Driver
+  [ESP32S3_DRIVER_ID]: createEsp32S3Driver,
+  [TTP223_DRIVER_ID]: createTtp223Driver
 });
 
 /**

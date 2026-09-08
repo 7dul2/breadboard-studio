@@ -21,6 +21,8 @@ import {
 } from '@breadboard-studio/core';
 import { buildScene, componentScene, boardScene, wireScene, mm, wireColor, type SceneNode } from '@breadboard-studio/render';
 import { analysisOf, useStore } from '../store';
+import { useSimulatorStore } from '../simulator/simulatorStore';
+import { SimulatorOverlay } from '../simulator/ui/SimulatorOverlay';
 import { SceneNodes, renderNode } from './SceneView';
 
 interface View {
@@ -368,7 +370,12 @@ export function Canvas() {
     if (e.button === 2) return;
     if (placing) return; // handled on click
     if (tool === 'wire') return; // handled on click
+    // A live simulation session freezes the topology (plan §9.8): pointer-down
+    // still selects, but it must not capture the pointer or start a drag, so the
+    // edit is refused *before* it happens instead of by a toast afterwards.
+    const canEdit = useSimulatorStore.getState().canEditTopology;
     if (h.waypoint !== undefined && h.wire) {
+      if (!canEdit) return;
       svg.setPointerCapture(e.pointerId);
       setDrag({ kind: 'waypoint', wireId: h.wire, index: h.waypoint, pointerId: e.pointerId });
       return;
@@ -387,7 +394,7 @@ export function Canvas() {
         select([objId]);
         ids = [objId];
       }
-      const draggable = ids.filter((id) => model.components.has(id) || model.boards.has(id));
+      const draggable = canEdit ? ids.filter((id) => model.components.has(id) || model.boards.has(id)) : [];
       if (draggable.length && !h.wire) {
         svg.setPointerCapture(e.pointerId);
         setDrag({ kind: 'objects', ids: draggable, startMm: p, moved: false, pointerId: e.pointerId });
@@ -723,6 +730,9 @@ export function Canvas() {
             <SceneNodes nodes={scene.nodes} />
           </g>
           {overlays}
+          {/* Last painter wins `elementFromPoint`, so the simulator hit areas go after
+              every other overlay; the component mounts only while a session executes. */}
+          <SimulatorOverlay model={model} />
         </g>
       </svg>
       <div className="canvas-hud">

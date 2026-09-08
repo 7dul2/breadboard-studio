@@ -51,6 +51,7 @@ declare global {
       importJson: (text: string) => unknown;
       state: () => unknown;
       simulator: () => SimulatorHookState;
+      simulatorControl: (componentId: string, controlId: string, value: boolean | number) => boolean;
     };
   }
 }
@@ -121,6 +122,13 @@ export function installTestHooks(): void {
         editorOpen: s.editorOpen,
         dirty: isDraftDirty(s.editorProgramId)
       };
-    }
+    },
+    /**
+     * Inject a control event without going through the canvas overlay: the same
+     * entry point the overlay uses (plan §9.9), so an e2e test can replay a
+     * press faster than a real pointer and can assert the negative cases
+     * (unknown control, no running session) where false comes back.
+     */
+    simulatorControl: (componentId, controlId, value) => useSimulatorStore.getState().sendControl(componentId, controlId, value)
   };
 }

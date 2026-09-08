@@ -50,7 +50,12 @@ export function wireColor(c: string): string {
   return WIRE_COLORS[c] ?? (c.startsWith('#') ? c : '#dc2626');
 }
 
-function transformAttr(t: Transform): string {
+/**
+ * Group transform for one placed object, in millimetres. Exported because the
+ * simulator overlay (apps/web §9.2) has to draw into the exact same local frame
+ * as `componentScene`, so definition-local feature rects land on the part.
+ */
+export function transformAttr(t: Transform): string {
   return `translate(${mm(t.position[0])} ${mm(t.position[1])}) rotate(${t.rotation})`;
 }
 

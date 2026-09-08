@@ -4,7 +4,7 @@
  * Everything here is plain data: serialisable, versioned and independent of
  * React, the DOM or Zustand. Runtime state never enters the design document.
  */
-import type { PinDirection, PinRole, ProgramAsset, SimulationConfig, SimulationControlAction, SimulationSpeed } from '@breadboard-studio/schema';
+import type { PinDirection, PinRole, ProgramAsset, SimulationConfig, SimulationControlAction, SimulationSpeed, SimulationVisualKind } from '@breadboard-studio/schema';
 
 /** Bumped whenever HostCommand / RuntimeMessage change shape. Messages with another version are ignored. */
 export const SIM_PROTOCOL_VERSION = 1 as const;
@@ -137,6 +137,24 @@ export interface SimPinMeta {
   maxSourceMa?: number | null;
 }
 
+/** A feature the user can operate while the session runs, from the catalog binding. */
+export interface SimControlBinding {
+  id: string;
+  /** Matches a `features[].label`; the feature rect is the hit area on the canvas. */
+  featureLabel: string;
+  action: SimulationControlAction;
+  /** Driver channel the control feeds. */
+  channel: string;
+}
+
+/** A feature whose appearance follows the running simulation. */
+export interface SimVisualBinding {
+  id: string;
+  featureLabel: string;
+  kind: SimulationVisualKind;
+  channel: string;
+}
+
 export interface SimI2cBusBinding {
   /** 0 = the default bus, ≥1 = `config.i2c_buses[index-1]`. */
   index: number;
@@ -184,6 +202,10 @@ export interface SimDeviceSpec {
   supply?: { min: number; max: number } | null;
   /** Resolved I²C role, bus pins and address. Absent when the part has no I²C. */
   i2c?: SimI2cSpec;
+  /** Catalog `simulation.controls`, so the session translates a control id without guessing. */
+  controls?: SimControlBinding[];
+  /** Catalog `simulation.visuals`. */
+  visuals?: SimVisualBinding[];
 }
 
 /** Read-only view of a design taken when a session starts (docs §6). */

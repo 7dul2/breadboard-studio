@@ -37,6 +37,7 @@ import {
   type DriveStrength,
   type HostCommand,
   type RuntimeMessage,
+  type SimControlBinding,
   type SimDeviceSpec,
   type SimDiagnostic,
   type SimDiagnosticCode,
@@ -83,12 +84,9 @@ export interface SessionRuntimeOptions {
   /** Outbox interval overrides, for tests that want every message. */
   intervalsMs?: Partial<Record<OutboxChannel, number>>;
   /**
-   * Whether an empty queue with a suspended guest means `idle` or `deadlock`
-   * (plan §4.3). Plan defines it as "any device declares `simulation.controls`",
-   * but `SimDeviceSpec` does not carry `controls` yet, and no v0.2 driver can
-   * resolve a pending guest promise — the guest polls pins, it never awaits an
-   * external event — so an empty queue really is a deadlock. Overridable so the
-   * idle path stays testable until the snapshot can answer the question.
+   * Overrides `hasWakeableInputSources()` for one session. Only tests should
+   * pass it: it is the seam that keeps the `idle` branch of the pump covered
+   * while no v0.2 input source can actually reach that branch in production.
    */
   hasInputSources?: boolean;
 }
@@ -97,11 +95,34 @@ export interface SessionRuntimeOptions {
 export const TICK_INTERVAL_MS = 16;
 
 /**
- * Catalog control ids that mean something other than themselves. The snapshot
- * does not carry `simulation.controls`, so a control id is its own channel
- * unless it is listed here (the ESP32 board's `rst` → `reset`).
+ * Whether this snapshot has an input source that could resolve a **pending
+ * guest promise** — the single question that turns an empty event queue from a
+ * deadlock into a wait (plan §4.3, `PumpOutcome` `idle` vs `deadlock`).
+ *
+ * Plan §4.3 words the test as "any device declares `simulation.controls`", but
+ * that is a proxy for the real question, and in v0.2 the proxy is wrong. The
+ * guest API has no primitive that waits on a pin: `gpio.digitalRead` is
+ * synchronous, `sleep` schedules its own wake-up event, and every `Wire.*` call
+ * completes from a scheduler event the guest itself queued. A control event
+ * changes a net value; it cannot settle a promise nobody scheduled. So a
+ * program suspended on `await new Promise(() => {})` stays suspended no matter
+ * how many buttons the catalog declares, and reporting `idle` there would sit
+ * the user in front of "waiting for input" forever — exactly the silent
+ * non-failure plan §1 bans.
+ *
+ * Hence: false for every v0.2 snapshot, controls or not. This function is the
+ * one place to change when M-S3 / phase 4 introduces a real awaiting primitive
+ * (a pin-wait, an interrupt queue): return true when the snapshot carries a
+ * control bound to a device whose driver can wake that primitive.
  */
-const CONTROL_CHANNELS: Readonly<Record<string, string>> = Object.freeze({ rst: 'reset', reset: 'reset', boot: 'boot' });
+export function hasWakeableInputSources(_snapshot: SimulationSnapshot): boolean {
+  return false;
+}
+
+/** Key of the `controlId` → catalog binding index. */
+function controlKey(componentId: string, controlId: string): string {
+  return `${componentId}|${controlId}`;
+}
 
 /** Pin roles that carry supply rather than signal; they get no digital endpoint. */
 const SUPPLY_ROLES: ReadonlySet<string> = new Set(['power_in', 'power_out', 'ground']);
@@ -169,6 +190,12 @@ export class SessionRuntime {
   private sandbox: StudioTsSandbox | null = null;
 
   private readonly devices = new Map<string, DeviceRuntime>();
+  /**
+   * Catalog control bindings of every device in the snapshot, driver or not,
+   * keyed by `controlKey()`. This is what translates a `ControlEvent.controlId`
+   * into a driver channel — the session never guesses from the id itself.
+   */
+  private readonly controlBindings = new Map<string, SimControlBinding>();
   private mcu: (DeviceDriver & McuHostApi) | null = null;
 
   private phase: ProgramPhase = 'none';
@@ -341,13 +368,20 @@ export class SessionRuntime {
     for (const diagnostic of this.power.diagnostics()) this.emitDiagnostic(diagnostic);
 
     this.mcu = null;
+    // Control bindings are indexed for the whole snapshot, before any driver
+    // exists: a control on a device with no driver must still translate, so the
+    // session can tell "not bound" from "bound but nothing listens".
+    this.controlBindings.clear();
+    for (const spec of snapshot.devices) {
+      for (const control of spec.controls ?? []) this.controlBindings.set(controlKey(spec.componentId, control.id), control);
+    }
     for (const spec of snapshot.devices) this.createDevice(spec, snapshot);
 
     this.loop = new SimLoop({
       scheduler: this.scheduler,
       guest: this.guest,
       clock: this.options.clock,
-      hasInputSources: this.options.hasInputSources ?? false,
+      hasInputSources: this.options.hasInputSources ?? hasWakeableInputSources(snapshot),
       sliceMs: this.sliceMs,
       eventBudget: this.eventBudget,
       speed: speedOf(snapshot.config.speed),
@@ -466,8 +500,12 @@ export class SessionRuntime {
       }
     };
 
-    // Endpoints before the driver: the constructor drives pins straight away,
-    // and an end attached implicitly would lose its open-drain flag.
+    // Endpoints before the driver, and for every device rather than only the
+    // ones that get a driver: the constructor drives pins straight away and an
+    // end attached implicitly would lose its open-drain flag, while a driverless
+    // part is still an electrical endpoint the net monitor must list (that is
+    // how `touch.IO`, a `signal_out`, shows up on TOUCH_IO). Only the three
+    // supply roles are skipped — they carry volts, not levels.
     for (const pin of [...known].sort()) {
       if (SUPPLY_ROLES.has(spec.pinMeta?.[pin]?.role ?? '')) continue;
       this.digitalNet?.attach({ componentId, pin }, { openDrain: spec.pinMeta?.[pin]?.drive === 'open_drain' });
@@ -625,8 +663,33 @@ export class SessionRuntime {
     this.prepare(snapshot, program);
   }
 
+  /**
+   * Route one control event (plan §7.1). The channel comes from the catalog
+   * binding in `spec.controls`, never from the id: `rst` reaches the driver
+   * contract as `reset` because the ESP32 definition says so, not because the
+   * session keeps a table of special ids.
+   *
+   * An id with no binding is a wiring mistake between the canvas overlay and
+   * the catalog, and it must not vanish: one `unsupported_device` (info) names
+   * it, then the event is dropped. `emitOnce` keeps a held-down button from
+   * flooding the panel.
+   */
   private control(event: ControlEvent): void {
-    const channel = CONTROL_CHANNELS[event.controlId] ?? event.controlId;
+    const binding = this.controlBindings.get(controlKey(event.componentId, event.controlId));
+    if (!binding) {
+      this.emitOnce(
+        `control:${event.componentId}:${event.controlId}`,
+        this.diagnostic('unsupported_device', `${event.componentId} 没有名为「${event.controlId}」的控件绑定，这次控件操作已被忽略。`, {
+          atUs: this.scheduler.nowUs,
+          componentIds: [event.componentId]
+        })
+      );
+      // Flushed, not ticked: a control can arrive while the session is paused,
+      // and nothing would drain the outbox afterwards.
+      this.outbox?.flush();
+      return;
+    }
+    const channel = binding.channel;
     if (channel === 'reset') {
       this.resetButton(event.componentId, event.value === true || (typeof event.value === 'number' && event.value !== 0));
       return;
@@ -887,6 +950,7 @@ export class SessionRuntime {
       device.driver?.dispose?.();
     }
     this.devices.clear();
+    this.controlBindings.clear();
     this.mcu = null;
     this.sandbox?.dispose();
     this.sandbox = null;

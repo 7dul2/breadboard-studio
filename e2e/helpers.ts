@@ -59,6 +59,23 @@ export function simulator(page: Page): Promise<SimulatorHookState> {
   return page.evaluate(() => (window as unknown as { __bbs: { simulator: () => SimulatorHookState } }).__bbs.simulator());
 }
 
+/**
+ * Inject one control event (`window.__bbs.simulatorControl`, plan §9.9). Returns
+ * false when no session is executing or the component has no such control, which
+ * is what the negative cases assert.
+ */
+export function simulatorControl(page: Page, componentId: string, controlId: string, value: boolean | number): Promise<boolean> {
+  return page.evaluate(
+    ([id, control, v]) =>
+      (window as unknown as { __bbs: { simulatorControl: (a: string, b: string, c: boolean | number) => boolean } }).__bbs.simulatorControl(
+        id as string,
+        control as string,
+        v as boolean | number
+      ),
+    [componentId, controlId, value] as const
+  );
+}
+
 export function design(page: Page): Promise<{ schema_version: string; metadata: { name: string; revision: number }; boards: { id: string; position_um: [number, number] }[]; components: { id: string; placement: Record<string, unknown> }[]; wires: { id: string; from: Record<string, string>; to?: Record<string, string> }[]; programs?: { id: string; name: string; target_component_id: string; language: string; source: string }[]; simulation?: { active_program_id?: string; speed?: number; random_seed?: number; usb_powered_components?: string[] } }> {
   return page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => never } }).__bbs.getDesign());
 }

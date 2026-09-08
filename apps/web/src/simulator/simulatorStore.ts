@@ -14,7 +14,7 @@
 import { create } from 'zustand';
 import type { SimulationSpeed } from '@breadboard-studio/schema';
 import { SimulatorController, type CommandResult, type SimulatorState } from '@breadboard-studio/sim';
-import { setTopologyGuard, useStore } from '../store';
+import { analysisOf, setTopologyGuard, useStore } from '../store';
 import { WorkerBackend } from './runtime/WorkerBackend';
 
 export const EDITOR_MIN_HEIGHT = 120;
@@ -34,6 +34,13 @@ export interface SimulatorUiState extends SimulatorState {
   reset: () => Promise<void>;
   stop: () => Promise<void>;
   setSpeed: (speed: SimulationSpeed) => void;
+  /**
+   * Push one user control event (a button press, a touch pad) into the running
+   * session. Returns false when nothing is executing or the component declares
+   * no such control — the canvas overlay and `window.__bbs.simulatorControl()`
+   * both go through here (plan §9.3, §9.9).
+   */
+  sendControl: (componentId: string, controlId: string, value: boolean | number) => boolean;
   /** Drop the diagnostics shown so far (pre-flight and last-session ones). */
   clearDiagnostics: () => void;
   openEditor: (programId: string) => void;
@@ -85,6 +92,15 @@ export const useSimulatorStore = create<SimulatorUiState>((set, get) => ({
   },
   setSpeed(speed) {
     controller.setSpeed(speed);
+  },
+  sendControl(componentId, controlId, value) {
+    // The action lives in the catalog definition, which the main thread can read
+    // directly; it does not have to travel through the simulation snapshot.
+    const model = analysisOf(useStore.getState().design).model;
+    const control = model.components.get(componentId)?.def.simulation?.controls?.find((c) => c.id === controlId);
+    if (!control) return false;
+    // `controller.sendControl` itself refuses anything outside running/paused/stepping.
+    return controller.sendControl({ componentId, controlId, action: control.action, value });
   },
   clearDiagnostics() {
     controller.clearDiagnostics();
