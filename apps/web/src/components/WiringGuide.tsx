@@ -2,7 +2,12 @@ import { buildSteps } from '@breadboard-studio/core';
 import { WIRE_COLORS } from '@breadboard-studio/render';
 import { analysisOf, useStore } from '../store';
 
-export function BuildMode() {
+/**
+ * The wire-by-wire assembly guide. It used to be a toolbar mode of its own, which
+ * collided with the 搭建/仿真 mode switch; it is now simply a 搭建 panel, and the
+ * canvas highlights the current wire exactly while this tab is open.
+ */
+export function WiringGuide() {
   const design = useStore((s) => s.design);
   const step = useStore((s) => s.buildStep);
   const st = useStore.getState();
@@ -13,7 +18,7 @@ export function BuildMode() {
   const doneCount = steps.filter((s) => s.complete).length;
   return (
     <div className="build" data-testid="build-panel">
-      <div className="panel-title">搭建模式 <span className="muted">{doneCount}/{steps.length} 已完成</span></div>
+      <div className="panel-title">接线向导 <span className="muted">{doneCount}/{steps.length} 已完成</span></div>
       <p className="muted small">按线号逐根接线。这只是指导：勾选“完成”不代表实物已经导通，请用万用表确认。长度不含插入深度与弯折余量。</p>
       {cur ? (
         <div className={`step-card ${cur.complete ? 'done' : ''}`} data-testid="build-current">
@@ -46,7 +51,6 @@ export function BuildMode() {
           </li>
         ))}
       </ol>
-      <button onClick={() => st.setBuildMode(false)}>退出搭建模式</button>
     </div>
   );
 }

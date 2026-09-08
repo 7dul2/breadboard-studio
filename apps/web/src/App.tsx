@@ -5,7 +5,7 @@ import { Canvas } from './components/Canvas';
 import { Properties } from './components/Properties';
 import { Validation } from './components/Validation';
 import { DslPanel } from './components/DslPanel';
-import { BuildMode } from './components/BuildMode';
+import { WiringGuide } from './components/WiringGuide';
 import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
 import { useStore } from './store';
@@ -27,7 +27,7 @@ function Toasts() {
 
 export function App() {
   const rightTab = useStore((s) => s.rightTab);
-  const buildMode = useStore((s) => s.buildMode);
+  const mode = useStore((s) => s.mode);
   const st = useStore.getState();
 
   useEffect(() => {
@@ -36,6 +36,14 @@ export function App() {
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
       const mod = e.metaKey || e.ctrlKey;
       const s = useStore.getState();
+      // 仿真 offers no editing affordance, so the editing shortcuts do not fire there
+      // either. Staying silent is the point: nothing was on screen to press, so a
+      // refusal toast would be reporting a rule the user never bumped into.
+      if (s.mode === 'sim') {
+        if (e.key === 'Escape') s.select([]);
+        else if (!mod && (e.key === 'f' || e.key === 'F')) (window as unknown as { __bbsCanvas?: { fit: () => void } }).__bbsCanvas?.fit();
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) s.redo();
@@ -98,26 +106,36 @@ export function App() {
     <div className="app">
       <Toolbar />
       <div className="main">
-        <aside className="left">
-          <Library />
-        </aside>
+        {/* Nothing can be placed while a design is frozen, so 仿真 gives the canvas the room instead. */}
+        {mode === 'build' && (
+          <aside className="left">
+            <Library />
+          </aside>
+        )}
         <section className="center">
           <Canvas />
           <CodeEditor />
           <Validation />
         </section>
         <aside className="right">
-          <div className="tabs">
-            <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
-            <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
-            <button className={rightTab === 'build' ? 'active' : ''} onClick={() => { st.setRightTab('build'); if (!buildMode) st.setBuildMode(true); }} data-testid="tab-build">搭建</button>
-            <button className={rightTab === 'simulation' ? 'active' : ''} onClick={() => st.setRightTab('simulation')} data-testid="tab-simulation">仿真</button>
-          </div>
+          {/* 属性 edits the document, so it is a 搭建 panel: 仿真 has one panel and needs no tabs. */}
+          {mode === 'build' && (
+            <div className="tabs">
+              <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
+              <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
+              <button className={rightTab === 'wiring' ? 'active' : ''} onClick={() => st.setRightTab('wiring')} data-testid="tab-wiring">接线向导</button>
+            </div>
+          )}
           <div className="tab-body">
-            {rightTab === 'properties' && <Properties />}
-            {rightTab === 'dsl' && <DslPanel />}
-            {rightTab === 'build' && <BuildMode />}
-            {rightTab === 'simulation' && <SimulatorPanel />}
+            {mode === 'sim' ? (
+              <SimulatorPanel />
+            ) : (
+              <>
+                {rightTab === 'properties' && <Properties />}
+                {rightTab === 'dsl' && <DslPanel />}
+                {rightTab === 'wiring' && <WiringGuide />}
+              </>
+            )}
           </div>
         </aside>
       </div>

@@ -1,10 +1,45 @@
 import { useRef, useState } from 'react';
-import { EXAMPLES, useStore } from '../store';
+import { EXAMPLES, useStore, type AppMode } from '../store';
+import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { WIRE_COLORS } from '@breadboard-studio/render';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
 
 const COLOR_NAMES: Record<string, string> = { red: '红', black: '黑', blue: '蓝', yellow: '黄', green: '绿', white: '白', orange: '橙', purple: '紫', brown: '棕', gray: '灰' };
+
+/**
+ * The one control that says which half of the app you are in. Switching back to
+ * 搭建 ends a live session (the simulator store watches `mode`), so the label is
+ * a promise: in 搭建 the design is always editable, in 仿真 it is always frozen.
+ */
+function ModeSwitch({ mode }: { mode: AppMode }) {
+  // Only 仿真 can hold a session, so the switch never has to show one running on the
+  // 搭建 side; `live` is here to tell the user that leaving will end it.
+  const live = useSimulatorStore((s) => s.status) !== 'idle';
+  const set = (m: AppMode) => useStore.getState().setMode(m);
+  return (
+    <div className="mode-switch" role="group" aria-label="模式" data-testid="mode-switch">
+      <button
+        className={mode === 'build' ? 'active' : ''}
+        aria-pressed={mode === 'build'}
+        onClick={() => set('build')}
+        title={live ? '搭建：结束当前仿真会话，解冻设计' : '搭建：放置元件、接线、修改设计'}
+        data-testid="mode-build"
+      >
+        搭建
+      </button>
+      <button
+        className={mode === 'sim' ? 'active' : ''}
+        aria-pressed={mode === 'sim'}
+        onClick={() => set('sim')}
+        title="仿真：运行程序、按控件、观察串口与引脚（设计冻结）"
+        data-testid="mode-sim"
+      >
+        仿真
+      </button>
+    </div>
+  );
+}
 
 function canvasApi() {
   return (window as unknown as { __bbsCanvas?: { fit: () => void; zoomBy: (f: number) => void; zoomTo: (z: number) => void } }).__bbsCanvas;
@@ -21,7 +56,7 @@ export function Toolbar() {
   const wireColor = useStore((s) => s.wireColor);
   const wireRoute = useStore((s) => s.wireRoute);
   const storage = useStore((s) => s.storage);
-  const buildMode = useStore((s) => s.buildMode);
+  const mode = useStore((s) => s.mode);
   const canRestore = useStore((s) => s.canRestorePrevious);
   const st = useStore.getState();
   const [menu, setMenu] = useState<null | 'project' | 'export'>(null);
@@ -76,34 +111,42 @@ export function Toolbar() {
         )}
       </div>
       <span className="sep" />
-      <div className="tool-group" role="group" aria-label="工具">
-        <button className={tool === 'select' ? 'active' : ''} onClick={() => st.setTool('select')} title="选择/移动 (V)" data-testid="tool-select">选择</button>
-        <button className={tool === 'wire' ? 'active' : ''} onClick={() => st.setTool('wire')} title="接线 (W)" data-testid="tool-wire">接线</button>
-        <button className={tool === 'pan' ? 'active' : ''} onClick={() => st.setTool('pan')} title="平移 (H / 空格拖动)" data-testid="tool-pan">平移</button>
-      </div>
-      {tool === 'wire' && (
-        <div className="tool-group wire-opts">
-          <label>
-            颜色
-            <select value={wireColor} onChange={(e) => st.setWireColor(e.target.value)} data-testid="wire-color">
-              {Object.keys(WIRE_COLORS).filter((c) => c !== 'grey' && c !== 'cyan' && c !== 'pink').map((c) => (
-                <option key={c} value={c}>{COLOR_NAMES[c] ?? c}（{c}）</option>
-              ))}
-            </select>
-          </label>
-          <span className="swatch" style={{ background: WIRE_COLORS[wireColor] }} />
-          <label>
-            走线
-            <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
-              <option value="flat">硬质跳线（路径不重叠）</option>
-              <option value="elevated">杜邦线（允许重叠/跨越）</option>
-            </select>
-          </label>
+      {/* Mode decides what the toolbar offers: 搭建 edits the document, 仿真 drives a session.
+          Nothing that writes the design is rendered in 仿真, so nothing has to be refused later. */}
+      {mode === 'build' ? (
+        <>
+        <div className="tool-group" role="group" aria-label="工具">
+          <button className={tool === 'select' ? 'active' : ''} onClick={() => st.setTool('select')} title="选择/移动 (V)" data-testid="tool-select">选择</button>
+          <button className={tool === 'wire' ? 'active' : ''} onClick={() => st.setTool('wire')} title="接线 (W)" data-testid="tool-wire">接线</button>
+          <button className={tool === 'pan' ? 'active' : ''} onClick={() => st.setTool('pan')} title="平移 (H / 空格拖动)" data-testid="tool-pan">平移</button>
         </div>
+        {tool === 'wire' && (
+          <div className="tool-group wire-opts">
+            <label>
+              颜色
+              <select value={wireColor} onChange={(e) => st.setWireColor(e.target.value)} data-testid="wire-color">
+                {Object.keys(WIRE_COLORS).filter((c) => c !== 'grey' && c !== 'cyan' && c !== 'pink').map((c) => (
+                  <option key={c} value={c}>{COLOR_NAMES[c] ?? c}（{c}）</option>
+                ))}
+              </select>
+            </label>
+            <span className="swatch" style={{ background: WIRE_COLORS[wireColor] }} />
+            <label>
+              走线
+              <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
+                <option value="flat">硬质跳线（路径不重叠）</option>
+                <option value="elevated">杜邦线（允许重叠/跨越）</option>
+              </select>
+            </label>
+          </div>
+        )}
+        <span className="sep" />
+        <button onClick={st.undo} disabled={!past} title="撤销 (⌘Z)" data-testid="undo">撤销</button>
+        <button onClick={st.redo} disabled={!future} title="重做 (⇧⌘Z)" data-testid="redo">重做</button>
+        </>
+      ) : (
+        <SimulatorToolbar />
       )}
-      <span className="sep" />
-      <button onClick={st.undo} disabled={!past} title="撤销 (⌘Z)" data-testid="undo">撤销</button>
-      <button onClick={st.redo} disabled={!future} title="重做 (⇧⌘Z)" data-testid="redo">重做</button>
       <span className="sep" />
       <button onClick={() => canvasApi()?.zoomBy(1.25)} title="放大">＋</button>
       <button onClick={() => canvasApi()?.zoomBy(0.8)} title="缩小">－</button>
@@ -112,11 +155,8 @@ export function Toolbar() {
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
       <label className="toggle"><input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} />针脚名</label>
       <label className="toggle"><input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮</label>
-      <span className="sep" />
-      <SimulatorToolbar />
-      <span className="sep" />
-      <button className={buildMode ? 'active' : ''} onClick={() => st.setBuildMode(!buildMode)} data-testid="build-mode">搭建模式</button>
       <span className="spacer" />
+      <ModeSwitch mode={mode} />
       <span className={`storage ${storage.state}`} data-testid="storage-status">{storageText}</span>
     </div>
   );

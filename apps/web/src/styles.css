@@ -46,6 +46,13 @@ a { color: var(--accent); }
 .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0003; display: inline-block; }
 .toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .storage { font-size: 12px; color: var(--muted); }
+/* The mode switch. It sits at the far right because everything to its left is
+   whatever the current mode offers; the two halves are exclusive, so it is drawn
+   as one segmented control rather than two independent buttons. */
+.mode-switch { display: inline-flex; gap: 2px; padding: 2px; margin-right: 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); }
+.mode-switch button { padding: 3px 15px; border: none; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; }
+.mode-switch button:hover:not(.active) { background: var(--accent-bg); color: var(--accent); }
+.mode-switch button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .storage.error, .storage.unavailable { color: var(--error); font-weight: 600; }
 .menu-wrap { position: relative; }
 .menu { position: absolute; top: 100%; left: 0; min-width: 260px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px #0002; padding: 6px; display: flex; flex-direction: column; gap: 2px; z-index: 20; }

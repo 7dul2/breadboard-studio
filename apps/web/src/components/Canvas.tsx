@@ -61,7 +61,9 @@ export function Canvas() {
   const connectivityHighlight = useStore((s) => s.connectivityHighlight);
   const highlightEndpoints = useStore((s) => s.highlightEndpoints);
   const fitRequest = useStore((s) => s.fitRequest);
-  const buildMode = useStore((s) => s.buildMode);
+  const mode = useStore((s) => s.mode);
+  // The wiring guide highlights its current wire exactly while its panel is open.
+  const wiringGuide = useStore((s) => s.mode === 'build' && s.rightTab === 'wiring');
   const buildStep = useStore((s) => s.buildStep);
   const wireColorName = useStore((s) => s.wireColor);
   const wireRoute = useStore((s) => s.wireRoute);
@@ -114,7 +116,7 @@ export function Canvas() {
       if (parsed && model.boards.has(parsed.owner)) holes.add(ep);
       else pins.add(ep);
     }
-    if (buildMode) {
+    if (wiringGuide) {
       const steps = [...model.wires.values()].sort((a, b) => a.instance.id.localeCompare(b.instance.id, undefined, { numeric: true }));
       const cur = steps[buildStep];
       if (cur) {
@@ -127,7 +129,7 @@ export function Canvas() {
       }
     }
     return { holes, pins, wires, comps };
-  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, buildMode, buildStep]);
+  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep]);
 
   const scene = useMemo(
     () =>
@@ -370,10 +372,11 @@ export function Canvas() {
     if (e.button === 2) return;
     if (placing) return; // handled on click
     if (tool === 'wire') return; // handled on click
-    // A live simulation session freezes the topology (plan §9.8): pointer-down
-    // still selects, but it must not capture the pointer or start a drag, so the
-    // edit is refused *before* it happens instead of by a toast afterwards.
-    const canEdit = useSimulatorStore.getState().canEditTopology;
+    // Two independent reasons the canvas may not be edited: 仿真 mode offers no
+    // editing tool at all, and a live session freezes the topology (plan §9.8).
+    // Either way pointer-down still selects — it just never captures the pointer or
+    // starts a drag, so the edit is refused *before* it happens, not by a later toast.
+    const canEdit = useStore.getState().mode === 'build' && useSimulatorStore.getState().canEditTopology;
     if (h.waypoint !== undefined && h.wire) {
       if (!canEdit) return;
       svg.setPointerCapture(e.pointerId);
@@ -747,7 +750,8 @@ export function Canvas() {
       {!design.boards.length && !placing && (
         <div className="canvas-empty">
           <p>画布是空的。</p>
-          <p>从左侧元件库添加一块面包板，或从“项目”菜单载入示例。</p>
+          {/* The library only exists in 搭建, so 仿真 must not point at a panel that is not there. */}
+          <p>{mode === 'build' ? '从左侧元件库添加一块面包板，或从“项目”菜单载入示例。' : '先切到“搭建”放置元件并接线，再回来运行。'}</p>
         </div>
       )}
     </div>

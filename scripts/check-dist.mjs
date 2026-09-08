@@ -43,6 +43,8 @@ let simNowUs = null;
 if (checkSim) {
   await page.getByTestId('menu-project').click();
   await page.getByTestId('example-touch_display').click();
+  // The transport only exists in 仿真, so the mode switch is part of the path to a run.
+  await page.getByTestId('mode-sim').click();
   await page.getByTestId('sim-run').click();
   await page.waitForFunction(() => (window.__bbs.simulator().nowUs ?? 0) > 0, null, { timeout: 20000 }).catch(() => {});
   simNowUs = await page.evaluate(() => window.__bbs.simulator().nowUs ?? null);

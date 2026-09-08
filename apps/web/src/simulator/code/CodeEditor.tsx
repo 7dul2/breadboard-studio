@@ -51,7 +51,12 @@ export function CodeEditor() {
     return r.ok;
   };
   const saveAndRun = () => {
-    if (save()) void useSimulatorStore.getState().run();
+    // Running is a 仿真 activity, so the drawer takes the app there with it: the
+    // transport, the canvas overlay and the frozen design all arrive together
+    // instead of a session starting behind the 搭建 toolbar.
+    if (!save()) return;
+    useStore.getState().setMode('sim');
+    void useSimulatorStore.getState().run();
   };
   const close = () => sim.closeEditor();
 

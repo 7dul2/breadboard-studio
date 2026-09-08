@@ -282,10 +282,10 @@ test.describe('editor core flows', () => {
     expect(a.nets.find((n) => n.name === 'SDA')!.pins).not.toContain('sht41.SDA');
   });
 
-  test('build mode lists every wire and remembers completion across reload', async ({ page }) => {
+  test('the wiring guide lists every wire and remembers completion across reload', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'desk_device');
-    await page.getByTestId('build-mode').click();
+    await page.getByTestId('tab-wiring').click();
     await expect(page.getByTestId('build-panel')).toContainText('0/11 已完成');
     await expect(page.getByTestId('build-current')).toContainText('bb.b24');
     await page.getByTestId('build-done').click();
@@ -293,7 +293,7 @@ test.describe('editor core flows', () => {
     await expect(page.getByTestId('build-current')).toContainText('bb.b3');
     await expect(page.getByTestId('storage-status')).toContainText('已本地保存');
     await page.reload();
-    await page.getByTestId('build-mode').click();
+    await page.getByTestId('tab-wiring').click();
     await expect(page.getByTestId('build-panel')).toContainText('1/11 已完成');
   });
 

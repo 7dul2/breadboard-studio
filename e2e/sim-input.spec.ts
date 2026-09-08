@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { analysis, design, fit, fresh, loadExample, simulator, state } from './helpers';
+import { analysis, design, enterBuild, enterSim, fit, fresh, loadExample, simulator, state } from './helpers';
 
 /**
  * M-S2 acceptance (plan §11.2): input has to reach the program through the real
@@ -52,7 +52,7 @@ async function touchNetValue(page: Page): Promise<string | undefined> {
 
 async function runFixture(page: Page, source: string): Promise<void> {
   await setProgram(page, source);
-  await page.getByTestId('tab-simulation').click();
+  await enterSim(page);
   await page.getByTestId('sim-run').click();
   await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');
   await expect.poll(async () => serialText(page), FIRST_RUN).toContain('ready');
@@ -167,6 +167,10 @@ test.describe('M-S2 · physical input reaches the program through the net', () =
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
     await expect(page.locator('.sim-control')).toHaveCount(0);
 
+    // 搭建 hands the canvas back: the tools return and the design unfreezes
+    await enterBuild(page);
+    expect((await state(page)).mode).toBe('build');
+
     // the same point now belongs to the board again, not to an overlay
     const owner = await page.evaluate(
       (p) => {
@@ -178,7 +182,7 @@ test.describe('M-S2 · physical input reaches the program through the net', () =
     expect(owner.cls).not.toContain('sim-control');
     expect(owner.testid).not.toContain('sim-control');
 
-    // and editing still works: the module selects, and dragging it moves it
+    // and editing really works again: the module selects, and dragging it moves it
     await page.locator('[data-component="touch"].component-body').first().click({ force: true });
     expect((await state(page)).selectedIds).toEqual(['touch']);
 
@@ -198,7 +202,7 @@ test.describe('M-S2 · physical input reaches the program through the net', () =
     await fresh(page);
     await loadExample(page, 'touch_display');
     await setProgram(page, 'function deep(n) { return n <= 0 ? 0 : deep(n - 1) + 1; }\nexport async function loop() {\n  deep(1000000);\n}\n');
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
     await page.getByTestId('sim-run').click();
 
     // it must end in a reported fault, not in a silent hang
@@ -207,9 +211,8 @@ test.describe('M-S2 · physical input reaches the program through the net', () =
     expect(codes.length, 'the failure was reported').toBeGreaterThan(0);
 
     // the page is still alive and a fresh session can be started
-    await page.getByTestId('tab-properties').click();
-    await expect(page.getByTestId('tab-properties')).toHaveClass(/active/);
-    await page.getByTestId('tab-simulation').click();
+    await page.getByTestId('toggle-hole-labels').check();
+    await expect(page.getByTestId('toggle-hole-labels')).toBeChecked();
     await setProgram(page, WATCH_TOUCH);
     await page.getByTestId('sim-run').click();
     await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');

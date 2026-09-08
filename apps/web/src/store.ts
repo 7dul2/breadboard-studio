@@ -9,7 +9,17 @@ import stressExample from '../../../examples/stress_test.breadboard.json';
 import touchExample from '../../../examples/touch_display.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
-export type RightTab = 'properties' | 'dsl' | 'build' | 'simulation';
+export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation';
+/**
+ * The two things this app does, and the line between them: `build` changes the
+ * document (place, wire, edit, undo), `sim` only observes and drives a session.
+ * Everything that would write the design is withdrawn in `sim` rather than
+ * offered and then refused, so the toolbar always shows what is actually
+ * possible. The one deliberate exception is the program editor, which stays
+ * reachable in both because the write-run loop needs it; saving source ends the
+ * session (stale snapshot) instead of pretending the run still matches the code.
+ */
+export type AppMode = 'build' | 'sim';
 
 export interface Toast {
   id: number;
@@ -71,8 +81,8 @@ interface State {
   showHoleLabels: boolean;
   showPinLabels: boolean;
   connectivityHighlight: boolean;
+  mode: AppMode;
   rightTab: RightTab;
-  buildMode: boolean;
   buildStep: number;
   dslText: string;
   dslDirty: boolean;
@@ -104,7 +114,7 @@ interface State {
   togglePinLabels: () => void;
   toggleConnectivityHighlight: () => void;
   setRightTab: (t: RightTab) => void;
-  setBuildMode: (on: boolean) => void;
+  setMode: (m: AppMode) => void;
   setBuildStep: (i: number) => void;
   toggleBuildDone: (wireId: string) => void;
   setDslText: (t: string) => void;
@@ -172,8 +182,8 @@ export const useStore = create<State>((set, get) => {
     showHoleLabels: false,
     showPinLabels: true,
     connectivityHighlight: true,
+    mode: 'build',
     rightTab: 'properties',
-    buildMode: false,
     buildStep: 0,
     dslText: serializeDesign(initial),
     dslDirty: false,
@@ -285,10 +295,18 @@ export const useStore = create<State>((set, get) => {
       set({ connectivityHighlight: !get().connectivityHighlight });
     },
     setRightTab(t) {
-      set({ rightTab: t });
+      set({ rightTab: t, ...(t === 'wiring' ? { buildStep: 0 } : {}) });
     },
-    setBuildMode(on) {
-      set({ buildMode: on, rightTab: on ? 'build' : get().rightTab, buildStep: 0 });
+    setMode(m) {
+      if (get().mode === m) return;
+      // A half-drawn wire or a component on the cursor must not survive into 仿真,
+      // where no tool exists to finish it. The live session is stopped by the
+      // simulator store, which subscribes to this field: the dependency only ever
+      // points that way, so this module still knows nothing about the runtime.
+      get().cancelInteraction();
+      const tab = get().rightTab;
+      const rightTab: RightTab = m === 'sim' ? 'simulation' : tab === 'simulation' ? 'properties' : tab;
+      set({ mode: m, rightTab, ...(m === 'sim' ? { tool: 'select' as Tool } : {}) });
     },
     setBuildStep(i) {
       set({ buildStep: i });

@@ -897,6 +897,14 @@ onClick={(e) => e.stopPropagation()}   // capture 后浏览器仍会补派发 cl
 
 `store.ts:195-199` 已经拦截，但那是**事后**报错。要补事前表现：`canEditTopology === false` 时元件库条目与接线/放置工具按钮 `disabled`；`Canvas.tsx:359` 的 `onPointerDown` 在进入拖动分支前读 `canEditTopology`，为 false 就只做选择、不 `setPointerCapture`；`.canvas` 加 `sim-locked` class 淡化拖手柄；工具栏「停止」按钮补 §11.1 的「停止并编辑」文案。
 
+**实施裁决（2026-09-08）：改成模式切换，禁用降级为「不存在」。** 本节原设想是把编辑控件 `disabled`。落地时改成顶栏一个 `搭建 / 仿真` 开关（`AppMode`，`store.ts`）：搭建挂元件库、工具、撤销/重做、DSL 与接线向导；仿真挂运行控件与观察面板，会改电路的入口一个都不渲染。理由有三：
+
+1. 灰掉的按钮仍要解释「为什么灰」，撤走的按钮不用；
+2. `undo()` 直接 `set({design})`，**绕过** `topologyGuard`——只要它在仿真里可见就是一个真实的缺口，隐藏它才真正堵上；
+3. 会话只可能存在于仿真侧，于是「搭建 = 可编辑」成为一句无例外的承诺：切回搭建时由仿真侧（`simulatorStore` 订阅 `mode`）调用 `stop()`，依赖方向不变。
+
+画布因此有**两个**独立的门控：`mode === 'build'` 与 `canEditTopology`，两者都为真才允许拖动——否则仿真里停掉会话后又能拖动元件了。仿真里仍可写的，恰好是引擎允许在会话中写的那些（`NON_TOPOLOGY_OPS`：程序源码与仿真配置）；改源码照旧让会话因快照过期停止。原「搭建模式」（逐根接线清单）与新模式名冲突，改名为右栏「接线向导」标签，画布高亮随标签开合，`setBuildMode` 随之删除。
+
 ### 9.9 e2e 钩子
 
 ```ts

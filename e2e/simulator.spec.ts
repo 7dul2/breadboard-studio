@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, simulator } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, enterBuild, enterSim, fit, fresh, loadExample, simulator } from './helpers';
 
 test.describe('simulator shell', () => {
   test('example program is listed and active; the editor saves through ops and follows undo/redo', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'touch_display');
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
     await expect(page.getByTestId('sim-panel')).toBeVisible();
     await expect(page.getByTestId('sim-target')).toHaveValue('mcu');
     await expect(page.getByTestId('sim-program-program_main')).toBeVisible();
@@ -46,6 +46,9 @@ test.describe('simulator shell', () => {
     expect(d.programs![0]!.source).toContain('// e2e 修改');
     expect((await simulator(page)).dirty).toBe(false);
 
+    // 撤销/重做 write the document, so they belong to 搭建. The code drawer stays
+    // open across the switch, which is why the same assertions still hold here.
+    await enterBuild(page);
     await page.getByTestId('undo').click();
     d = await design(page);
     expect(d.programs![0]!.source).toBe(original);
@@ -61,6 +64,7 @@ test.describe('simulator shell', () => {
     expect((await simulator(page)).editorOpen).toBe(false);
 
     // a draft survives close/reopen
+    await enterSim(page);
     await page.getByTestId('sim-open-editor-program_main').click();
     await page.getByTestId('code-text').fill(`${edited}// 草稿\n`);
     await page.getByTestId('code-close').click();
@@ -85,10 +89,13 @@ test.describe('simulator shell', () => {
     await fresh(page);
     await addFromLibrary(page, 'breadboard_400');
     await fit(page);
-    await page.getByTestId('tab-simulation').click();
-    await expect(page.getByTestId('sim-no-mcu')).toContainText('先从元件库添加主控');
+    await enterSim(page);
+    await expect(page.getByTestId('sim-no-mcu')).toContainText('从元件库添加主控');
     await expect(page.getByTestId('sim-new-program')).toBeDisabled();
 
+    // adding the MCU is 搭建 work: the library is not even mounted in 仿真
+    await expect(page.getByTestId('lib-esp32s3_n16r8_dual_usb')).toHaveCount(0);
+    await enterBuild(page);
     await addFromLibrary(page, 'esp32s3_n16r8_dual_usb');
     await clickHole(page, 'bb_1.a9');
     let d = await design(page);
@@ -96,6 +103,7 @@ test.describe('simulator shell', () => {
     const mcuId = d.components[0]!.id;
     expect((await analysis(page)).summary.blocking).toBe(0);
 
+    await enterSim(page);
     await expect(page.getByTestId('sim-target')).toHaveValue(mcuId);
     await page.getByTestId('sim-new-program').click();
     await expect(page.getByTestId('sim-program-program_1')).toBeVisible();
@@ -163,8 +171,10 @@ test.describe('simulator shell', () => {
     await page.getByTestId('sim-delete-program-program_1').click();
     expect((await design(page)).programs ?? []).toHaveLength(0);
     await expect(page.getByTestId('code-editor')).toHaveCount(0);
+    await enterBuild(page);
     await page.getByTestId('undo').click();
     expect((await design(page)).programs).toHaveLength(1);
+    await enterSim(page);
     await expect(page.getByTestId('sim-program-program_1')).toBeVisible();
   });
 
@@ -197,8 +207,10 @@ test.describe('simulator shell', () => {
     d = await design(page);
     expect(d.programs).toHaveLength(1);
     expect((await simulator(page)).status).toBe('idle');
+    // a reload comes back in 搭建, where there is no transport to read a status from
+    await expect(page.getByTestId('sim-status')).toHaveCount(0);
+    await enterSim(page);
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
-    await page.getByTestId('tab-simulation').click();
     await expect(page.getByTestId('sim-program-program_main')).toBeVisible();
 
     // a 1.0 file is migrated on import
@@ -216,9 +228,10 @@ test.describe('simulator shell', () => {
     await loadExample(page, 'desk_device');
     expect((await design(page)).programs ?? []).toHaveLength(0);
     await expect(page.getByTestId('tab-properties')).toHaveClass(/active/);
-    await page.getByTestId('sim-run').click();
-    // the toolbar switches to the 仿真 tab so the outcome is visible
+    await enterSim(page);
+    // 仿真 opens on its own panel, so the outcome of the run is already visible
     await expect(page.getByTestId('sim-panel')).toBeVisible();
+    await page.getByTestId('sim-run').click();
     await expect(page.getByTestId('toast-error')).toContainText('没有可运行的程序');
     await expect(page.getByTestId('sim-diagnostic-program_missing')).toBeVisible();
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
@@ -232,7 +245,7 @@ test.describe('simulator shell · session and draft boundaries', () => {
   test('playback speed is a live control; an unsaved draft never follows the user into another project', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'touch_display');
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
 
     // 倍速 is part of `simulation`, so it changes the design hash — but it must not
     // be treated as a topology edit that invalidates a running session.
@@ -254,10 +267,12 @@ test.describe('simulator shell · session and draft boundaries', () => {
     expect(edited.ok).toBe(true);
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
     expect((await simulator(page)).diagnostics.map((d) => d.code)).toContain('stale_simulation_snapshot');
+    await enterBuild(page);
     await page.getByTestId('undo').click();
     expect((await design(page)).programs![0]!.source).toContain('Touched');
 
     // An unsaved draft belongs to the document it was typed in.
+    await enterSim(page);
     await page.getByTestId('sim-open-editor-program_main').click();
     await page.getByTestId('code-text').fill('// 旧项目的草稿\n');
     await expect(page.getByTestId('code-dirty')).toHaveText('未保存');
@@ -266,7 +281,6 @@ test.describe('simulator shell · session and draft boundaries', () => {
     await page.getByTestId('example-touch_display').click();
     await expect(page.getByTestId('code-editor')).toHaveCount(0);
     expect((await simulator(page)).dirty).toBe(false);
-    await page.getByTestId('tab-simulation').click();
     await page.getByTestId('sim-open-editor-program_main').click();
     await expect(page.getByTestId('code-text')).toHaveValue(/Touched/);
     await expect(page.getByTestId('code-text')).not.toHaveValue(/旧项目的草稿/);

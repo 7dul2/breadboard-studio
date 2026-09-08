@@ -182,6 +182,17 @@ controller.subscribe((state) => {
 // Topology edits are refused by the design store while a session is prepared or executing.
 setTopologyGuard(() => controller.getState().canEditTopology);
 
+/**
+ * Leaving 仿真 ends the session. The mode switch promises that 搭建 is editable, and
+ * a prepared or running session freezes the design, so the promise is kept here
+ * instead of by refusing the user's first edit afterwards. It lives on this side of
+ * the boundary because the design store must not know the runtime exists.
+ */
+useStore.subscribe((state, previous) => {
+  if (state.mode === previous.mode || state.mode !== 'build') return;
+  if (controller.getState().status !== 'idle') void useSimulatorStore.getState().stop();
+});
+
 // Any design change invalidates a live session (stale snapshot) and reconciles editor drafts.
 useStore.subscribe((state, previous) => {
   if (state.design === previous.design) return;

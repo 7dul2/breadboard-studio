@@ -42,7 +42,9 @@ export function SimulatorToolbar() {
 
   const onRun = () => {
     const st = useStore.getState();
-    if (st.rightTab !== 'simulation') st.setRightTab('simulation');
+    // Running is a 仿真 activity: if anything ever triggers it from elsewhere, the
+    // mode follows, so the frozen design and the transport arrive together.
+    st.setMode('sim');
     // The store forwards this straight to `SimulatorController.run(design, opts)`.
     const run = useSimulatorStore.getState().run as (opts?: { forceStart?: boolean }) => Promise<void>;
     void run({ forceStart: force });

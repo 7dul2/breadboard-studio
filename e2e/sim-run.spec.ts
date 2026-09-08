@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { design, fresh, loadExample, simulator } from './helpers';
+import { design, enterSim, fresh, loadExample, simulator } from './helpers';
 
 /**
  * M-S1 acceptance (plan §11.1). Every timing assertion polls virtual time
@@ -51,7 +51,7 @@ test.describe('M-S1 · the program actually runs', () => {
     await fresh(page);
     await loadExample(page, 'touch_display');
     await setProgram(page, BLINK);
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
 
     await page.getByTestId('sim-run').click();
     await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');
@@ -103,7 +103,7 @@ test.describe('M-S1 · the program actually runs', () => {
     await fresh(page);
     await loadExample(page, 'touch_display');
     await setProgram(page, 'export async function loop() {\n  while (true) {}\n}\n');
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
     await page.getByTestId('sim-run').click();
 
     await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('faulted');
@@ -115,9 +115,8 @@ test.describe('M-S1 · the program actually runs', () => {
     expect(budget!.source?.line).toBeGreaterThan(0);
 
     // the main thread never blocked: the UI still reacts
-    await page.getByTestId('tab-properties').click();
-    await expect(page.getByTestId('tab-properties')).toHaveClass(/active/);
-    await page.getByTestId('tab-simulation').click();
+    await page.getByTestId('toggle-hole-labels').check();
+    await expect(page.getByTestId('toggle-hole-labels')).toBeChecked();
     await expect(page.getByTestId('sim-panel')).toBeVisible();
   });
 
@@ -125,7 +124,7 @@ test.describe('M-S1 · the program actually runs', () => {
     await fresh(page);
     await loadExample(page, 'touch_display');
     await setProgram(page, 'export async function loop() {\n  await new Promise(() => {});\n}\n');
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
     await page.getByTestId('sim-run').click();
 
     await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('faulted');
@@ -139,7 +138,7 @@ test.describe('M-S1 · the program actually runs', () => {
     await loadExample(page, 'touch_display');
     // sleep(1) keeps the queue busy so the pacer, not the guest, sets the rate
     await setProgram(page, "import { sleep } from '@bbs/runtime';\nexport async function loop() {\n  await sleep(1);\n}\n");
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
 
     const advanceOver = async (ms: number): Promise<number> => {
       const from = (await simulator(page)).nowUs;
@@ -177,7 +176,7 @@ test.describe('M-S1 · the program actually runs', () => {
     const codes = (await page.evaluate(() => (window as unknown as { __bbs: { getAnalysis: () => { results: { code: string }[] } } }).__bbs.getAnalysis())).results.map((r) => r.code);
     expect(codes, 'the fixture really is shorted now').toContain('power_ground_short');
 
-    await page.getByTestId('tab-simulation').click();
+    await enterSim(page);
     await page.getByTestId('sim-run').click();
     await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('idle');
     const blocked = (await simulator(page)).diagnostics.find((d) => d.code === 'simulation_blocked_by_design');

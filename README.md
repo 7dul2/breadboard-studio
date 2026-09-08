@@ -68,9 +68,21 @@ N16R8 板载 RGB 灯支持输入 RGB 值，OLED 支持白色或蓝色显示外�
 
 ### 从屏幕走到实物
 
-导通高亮帮助你检查连接关系；校验面板区分错误、警告和待审核事项。搭建模式按线号列出两端孔位与颜色，并保存完成进度。
+导通高亮帮助你检查连接关系；校验面板区分错误、警告和待审核事项。右侧「接线向导」按线号列出两端孔位与颜色，并保存完成进度。
 
-![搭建模式：逐根查看导线两端并勾选完成](docs/screenshots/build-mode.png)
+![接线向导：逐根查看导线两端并勾选完成](docs/screenshots/build-mode.png)
+
+### 搭建与仿真
+
+顶栏右侧的开关把界面分成两半，两边的职责不重叠：
+
+| | 搭建 | 仿真 |
+| --- | --- | --- |
+| 做什么 | 改电路：放元件、接线、移动、撤销 | 跑程序：运行、暂停、单步、按控件、看串口与引脚 |
+| 有什么 | 元件库、工具、撤销/重做、DSL、接线向导 | 运行控件、诊断、串口、网络监视、画布上的按键 |
+| 电路 | 可编辑 | 冻结 |
+
+从「仿真」切回「搭建」会结束当前会话——这正是开关的承诺：在搭建里设计总是可改的，在仿真里总是冻结的。会话进行中仍可改的，只有引擎本来就允许的那些：程序源码与仿真参数（改源码会让会话因快照过期而停止）。
 
 ## 快速开始
 
@@ -102,6 +114,7 @@ pnpm dev
 | 撤销 / 重做 | `⌘Z` / `⇧⌘Z` |
 | 平移 / 适应全部 | 空格拖动 / `F` |
 | 编辑设计文件 | 右侧「DSL」编辑草稿，校验后应用 |
+| 切换搭建 / 仿真 | 顶栏右上角的开关；编辑类快捷键只在「搭建」下生效 |
 
 </details>
 
@@ -185,7 +198,7 @@ MIT 许可证，见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES
 
 **Plan your breadboard circuit in the browser, route its wires, and follow the layout at your workbench.**
 
-Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. Export your project as JSON, SVG, or PNG.
+Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in two: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other. Export your project as JSON, SVG, or PNG.
 
 Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an account. Load an example from the Project menu to explore a complete design. Projects are saved locally in your browser; JSON export lets you back them up or share them.
 

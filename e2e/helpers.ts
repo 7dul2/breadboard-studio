@@ -4,9 +4,10 @@ export interface BbsState {
   selectedIds: string[];
   selectedHole: string | null;
   tool: string;
+  mode: string;
+  rightTab: string;
   storage: { state: string };
   dslDirty: boolean;
-  buildMode: boolean;
   past: number;
   future: number;
 }
@@ -102,4 +103,19 @@ export async function loadExample(page: Page, key: string): Promise<void> {
 
 export async function fit(page: Page): Promise<void> {
   await page.getByTestId('fit').click();
+}
+
+/**
+ * Switch to 仿真: the transport and the 仿真 panel appear, the editing tools go
+ * away. Waiting on `sim-run` is what makes the click synchronous for the caller.
+ */
+export async function enterSim(page: Page): Promise<void> {
+  await page.getByTestId('mode-sim').click();
+  await expect(page.getByTestId('sim-run')).toBeVisible();
+}
+
+/** Back to 搭建: any live session is stopped and the design is editable again. */
+export async function enterBuild(page: Page): Promise<void> {
+  await page.getByTestId('mode-build').click();
+  await expect(page.getByTestId('tool-select')).toBeVisible();
 }

@@ -107,7 +107,7 @@ export function SimulatorPanel() {
       <section className="sim-section">
         <div className="sim-section-title">目标主控</div>
         {targets.length === 0 ? (
-          <p className="muted small" data-testid="sim-no-mcu">先从元件库添加主控（ESP32-S3）</p>
+          <p className="muted small" data-testid="sim-no-mcu">先回到「搭建」，从元件库添加主控（ESP32-S3）</p>
         ) : (
           <select value={target ?? ''} onChange={(e) => setChosen(e.target.value)} data-testid="sim-target">
             {targets.map((c) => (
