@@ -22,12 +22,35 @@ export function state(page: Page): Promise<BbsState> {
   return page.evaluate(() => (window as unknown as { __bbs: { state: () => BbsState } }).__bbs.state());
 }
 
+/** Mirror of `SimVisualHook` in apps/web/src/testHooks.ts; display frames expose no pixels. */
+export type SimVisualHook =
+  | { kind: 'led'; feature: string; rgb: [number, number, number]; intensity: number }
+  | { kind: 'display'; feature: string; width: number; height: number; enabled: boolean; onPixels: number; sha: string }
+  | { kind: 'pressed'; feature: string; active: boolean };
+
+/** Mirror of `SimulatorHookState` in apps/web/src/testHooks.ts. */
 export interface SimulatorHookState {
   status: string;
   sessionId: string | null;
   programId: string | null;
+  nowUs: number;
+  speed: number;
+  canEditTopology: boolean;
   allowed: string[];
-  diagnostics: { code: string; severity: string; message: string }[];
+  droppedMessages: number;
+  diagnostics: {
+    code: string;
+    severity: string;
+    message: string;
+    atUs?: number;
+    componentIds?: string[];
+    netIds?: string[];
+    pinAddresses?: string[];
+    source?: { programId: string; line: number; column: number };
+  }[];
+  serial: { componentId: string; stream: string; text: string; atUs: number }[];
+  nets: { netId: string; name?: string; value: string | number; drivers: { componentId: string; pin: string; value: string | number; strength: string }[] }[];
+  visuals: Record<string, SimVisualHook[]>;
   editorOpen: boolean;
   dirty: boolean;
 }

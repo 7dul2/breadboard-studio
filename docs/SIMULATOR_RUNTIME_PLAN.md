@@ -919,13 +919,14 @@ simulatorControl(componentId: string, controlId: string, value: boolean | number
 
 ## 10. 诊断码总表（唯一真相）
 
-`SIM_DIAGNOSTIC_CODES` 从 16 项增到 **21 项**，全部在 M0.5 一次性登记；本期之后不再新增，任何新码必须回到这里集中登记。
+`SIM_DIAGNOSTIC_CODES` 从 16 项增到 **22 项**。前 5 项在 M0.5 一次性登记，第 6 项 `simulation_forced_start` 在 M-S1 实施时补登（理由见下）。任何新码必须回到这里集中登记。
 
 **severity 的硬约束**：`controller.ts:300-302` 会让任何 `severity === 'error'` 的运行期诊断立刻 `faulted` 并 dispose 后端。因此凡是「会话必须继续」的问题一律 warning。
 
 | code | severity | 由谁发出 | 携带字段 | 新增 |
 | --- | --- | --- | --- | --- |
 | `simulation_blocked_by_design` | error | 控制器 preflight | `componentIds`、`pinAddresses` | |
+| `simulation_forced_start` | warning | 控制器（强制启动） | `componentIds`、`pinAddresses` | ✅ M-S1 |
 | `program_missing` / `program_target_missing` | error | 控制器 | `componentIds` | |
 | `runtime_unavailable` | error | 后端工厂 / prepare 超时 | `componentIds`、`source` | |
 | `program_compile_error` | error | `compile.ts` | `source` | |
@@ -946,7 +947,9 @@ simulatorControl(componentId: string, controlId: string, value: boolean | number
 | `i2c_bus_unavailable` | warning | I²C `begin`/参数校验 | 同上 | ✅ |
 | `i2c_unknown_command` | warning | SSD1315 驱动 | `componentIds`、`atUs` | |
 
-补一条单测：遍历所有驱动与内核发出的诊断，断言 `code` 全部落在 `SIM_DIAGNOSTIC_CODES` 里、severity 与本表一致。
+补一条单测：遍历所有驱动与内核发出的诊断，断言 `code` 全部落在 `SIM_DIAGNOSTIC_CODES` 里、severity 与本表一致。已实现为 `packages/sim/test/diagnostics.test.ts` 的源码扫描。
+
+**为什么强制启动要用独立的码**（M-S1 实施裁决）：原计划让 `simulation_blocked_by_design` 在强制启动时「降级为 warning 常驻项」，实现后被上面那条单测拦下。同一个码带两种 severity 会让本表失去意义——severity 在这里是**控制流**（控制器对任何 error 级运行期诊断立刻 faulted），不是显示样式。所以强制启动发的是另一件事实「你在明知有电气错误的情况下开了会话」，用 `simulation_forced_start`(warning)，原码保持 error 不变。
 
 ---
 
@@ -960,7 +963,7 @@ simulatorControl(componentId: string, controlId: string, value: boolean | number
 2. **`scripts/check-dist.mjs` 的 MIME 表补 `'.wasm': 'application/wasm'`。** 实测缺这一项会让 `WebAssembly.instantiateStreaming` 失败并产生两条 `console.error`（脚本把它们收进 `errors` 后 `exit(1)`），且 wasm 被下载两次。
 3. **CI 的 build 步骤补 `VITE_BASE`，然后才加 `pnpm check:dist`。** 实测 `.github/workflows/ci.yml:21` 是裸 `pnpm build`，产物引用 `/assets/…`；而 `check-dist.mjs:8` 只服务 `/breadboard-studio/` 前缀，一律 404 → 页面加载失败 → `exit(1)`。所以要么给 build 步骤加 `env: VITE_BASE: /breadboard-studio/`（与 `pages.yml` 对齐），要么另加一步 `VITE_BASE=/breadboard-studio/ pnpm build && pnpm check:dist`，插在 `playwright install` 之后。另注意 `check-dist.mjs:15` 的 index.html 兜底会把任何 404 变成 200 + HTML，调试 Worker 路径问题时要记住。
 4. **`apps/web/tsconfig.json` 显式覆盖 `"lib": ["ES2022","DOM","DOM.Iterable","WebWorker"]`。** `tsconfig.base.json` 没有 WebWorker，Worker 里写 `self.postMessage(msg, [buf])` 会报 TS2769（`self` 被当成 `Window`）。实测加上后该文件通过，且用同一 lib 集合对现有整个 `apps/web/src` 跑 `tsc --noEmit` 仍是零错误。
-5. **`SIM_DIAGNOSTIC_CODES` 追加 5 个码**（§10），并按 §13 改写规格书。
+5. **`SIM_DIAGNOSTIC_CODES` 追加 5 个码**（§10），并按 §13 改写规格书。（M-S1 实施时又补了第 6 个 `simulation_forced_start`，理由见 §10。）
 
 这些是一个 PR，不含任何执行逻辑。**注意**体积守门的三条断言不在 M0.5（此时 `dist` 里还没有 wasm，`wasm.length !== 1` 会失败），它们与后端一起在 M-S1 合入。
 

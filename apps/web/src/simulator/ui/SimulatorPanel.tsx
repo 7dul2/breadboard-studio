@@ -216,10 +216,6 @@ export function SimulatorPanel() {
         <div className="sim-section-title">网络监视</div>
         <IoInspector />
       </section>
-
-      <div className="sim-info" data-testid="sim-info">
-        阶段 0：程序随项目保存、可撤销、可导出；代码执行后端将在下一阶段加入，运行现在会以“故障 · runtime_unavailable”结束。
-      </div>
     </div>
   );
 }

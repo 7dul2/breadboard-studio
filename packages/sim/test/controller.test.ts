@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { ProgramAsset } from '@breadboard-studio/schema';
-import { applyOps, createEmptyDesign, type Op, type SimulationConfigPatch } from '@breadboard-studio/core';
-import { SIM_PROTOCOL_VERSION, SimulatorController, SimBackendError, UnavailableBackend, buildSnapshot, createProgramAsset, netIdFor, type RuntimeMessage, type SimulationBackend, type SimulationSnapshot } from '../src/index.js';
+import { analyzeDesign, applyOps, createEmptyDesign, type Op, type RuleResult, type SimulationConfigPatch } from '@breadboard-studio/core';
+import { builtinCatalog } from '@breadboard-studio/catalog';
+import { SIM_PREFLIGHT_BLOCKING_CODES, SIM_PROTOCOL_VERSION, SimulatorController, SimBackendError, UnavailableBackend, buildSnapshot, createProgramAsset, netIdFor, simulationBlockers, type RuntimeMessage, type SimulationBackend, type SimulationSnapshot } from '../src/index.js';
 
 function build(ops: Op[]) {
   const r = applyOps(createEmptyDesign('sim'), ops);
@@ -285,5 +286,199 @@ describe('simulator controller · session lifetime edge cases', () => {
     expect(s.status).toBe('faulted');
     expect(s.diagnostics.map((x) => x.code)).toEqual(['program_runtime_error']);
     expect(s.diagnostics[0]!.message).toContain('start failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pre-flight, forced start and backend-initiated pause (plan §9.5 / §4.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * A generic DevKit anchored at c3 leaves free holes on its 3V3/5V columns, which
+ * the dual-USB module at b30 does not — that is the only reason these fixtures
+ * use another board than `wired`.
+ */
+const preflightBase: Op[] = [
+  { op: 'add_board', board: { id: 'bb', model: 'breadboard_830@1', position_um: [0, 0], rotation_deg: 0 } },
+  { op: 'add_component', component: { id: 'mcu', model: 'esp32s3_devkit_generic@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c3', anchor_pin: 'GND_1', rotation_deg: 90 } } },
+  { op: 'add_program', program: createProgramAsset({ id: 'program_main', target_component_id: 'mcu', name: '主程序' }) },
+  { op: 'set_simulation_config', patch: { active_program_id: 'program_main', usb_powered_components: ['mcu'] } }
+];
+
+const sht = (config: Record<string, unknown>): Op => ({ op: 'add_component', component: { id: 'sht', model: 'sht41_breakout@1', config: config as never, placement: { kind: 'board', board_id: 'bb', anchor_hole: 'j40', anchor_pin: 'VCC', rotation_deg: 0 } } });
+
+/** Ground and a 3.3 V rail on one net → `power_ground_short` (error, but `blocking: false`). */
+const shortedDesign = () => build([...preflightBase, sht({ i2c_address: 68 }), { op: 'add_wire', wire: { id: 'w_short', from: { pin: 'sht.GND' }, to: { pin: 'mcu.3V3_1' }, color: 'red' } }]);
+/** 5 V and 3.3 V outputs on one net → `voltage_conflict`. */
+const conflictingDesign = () => build([...preflightBase, { op: 'add_wire', wire: { id: 'w_conflict', from: { pin: 'mcu.3V3_1' }, to: { pin: 'mcu.5V' }, color: 'red' } }]);
+/** A 4.5–5.5 V sink fed from 3.3 V → `supply_out_of_range` only. */
+const outOfRangeDesign = () => build([...preflightBase, sht({ i2c_address: 68, supply_voltage_v: { min: 4.5, max: 5.5 } }), { op: 'add_wire', wire: { id: 'w_supply', from: { pin: 'sht.VCC' }, to: { pin: 'mcu.3V3_1' }, color: 'red' } }]);
+
+describe('simulator controller · pre-flight and forced start', () => {
+  it('picks the two electrical codes as simulation blockers, and nothing else', () => {
+    expect([...SIM_PREFLIGHT_BLOCKING_CODES]).toEqual(['power_ground_short', 'voltage_conflict']);
+    // These all carry `blocking: false`, so `analysis.hasBlocking` cannot be the filter.
+    const results: RuleResult[] = [
+      { severity: 'error', code: 'power_ground_short', category: 'net', message: 's', objects: ['mcu'], blocking: false },
+      { severity: 'error', code: 'voltage_conflict', category: 'net', message: 'v', objects: ['mcu'], blocking: false },
+      { severity: 'error', code: 'supply_out_of_range', category: 'net', message: 'r', objects: ['sht'], blocking: false },
+      { severity: 'warning', code: 'power_budget_exceeded', category: 'net', message: 'b', objects: ['mcu'], blocking: false },
+      { severity: 'needs_review', code: 'power_capacity_unknown', category: 'evidence', message: 'c', objects: ['mcu'], blocking: false }
+    ];
+    expect(simulationBlockers(results).map((r) => r.code)).toEqual(['power_ground_short', 'voltage_conflict']);
+    expect(simulationBlockers([])).toEqual([]);
+  });
+
+  it('refuses to start a shorted or voltage-conflicting design and stays idle', async () => {
+    for (const design of [shortedDesign(), conflictingDesign()]) {
+      const analysis = analyzeDesign(design, builtinCatalog());
+      // the pre-condition the whole feature exists for: severity error, blocking false
+      expect(analysis.hasBlocking).toBe(false);
+      expect(simulationBlockers(analysis.results).length).toBeGreaterThan(0);
+
+      let backend: FakeBackend | null = null;
+      const ctl = new SimulatorController({ backend: () => (backend = new FakeBackend()) });
+      const r = await ctl.run(design);
+      expect(r.ok).toBe(false);
+      const s = ctl.getState();
+      expect(s.status).toBe('idle');
+      expect(s.sessionId).toBeNull();
+      expect(s.forceStarted).toBe(false);
+      expect(backend).toBeNull(); // no backend is ever created
+      expect(s.diagnostics.map((d) => d.code)).toEqual(['simulation_blocked_by_design']);
+      expect(s.diagnostics[0]!.severity).toBe('error');
+      expect(s.diagnostics[0]!.componentIds).toContain('mcu');
+      expect(s.diagnostics[0]!.pinAddresses?.length).toBeGreaterThan(0);
+    }
+    const short = await new SimulatorController({ backend: () => new FakeBackend() }).run(shortedDesign());
+    expect(short.ok).toBe(false);
+    expect('diagnostic' in short && short.diagnostic?.message).toContain('power_ground_short');
+  });
+
+  it('forceStart runs the same design and keeps a permanent warning for the whole session', async () => {
+    let backend: FakeBackend | null = null;
+    const ctl = new SimulatorController({ backend: () => (backend = new FakeBackend()) });
+    const design = shortedDesign();
+    const r = await ctl.run(design, { forceStart: true });
+    expect(r.ok).toBe(true);
+    let s = ctl.getState();
+    expect(s.status).toBe('running');
+    expect(s.forceStarted).toBe(true);
+    expect(backend!.calls).toEqual(['prepare', 'start']);
+    const forced = s.diagnostics[0]!;
+    expect(s.diagnostics.length).toBe(1);
+    // A distinct code, not a downgraded `simulation_blocked_by_design`: severity is
+    // fixed per code because it decides control flow, so one code cannot be both.
+    expect(forced.code).toBe('simulation_forced_start');
+    expect(forced.severity).toBe('warning');
+    expect(forced.message).toContain('已强制启动');
+    expect(forced.message).toContain('power_ground_short');
+
+    // it survives a session-level diagnostic, an explicit clear, and a reset
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: s.sessionId!, type: 'diagnostic', diagnostic: { code: 'floating_input', severity: 'warning', message: 'w', atUs: 4 } });
+    expect(ctl.getState().status).toBe('running');
+    expect(ctl.getState().diagnostics.map((d) => d.code)).toEqual(['simulation_forced_start', 'floating_input']);
+    ctl.clearDiagnostics();
+    expect(ctl.getState().diagnostics).toEqual([forced]);
+    expect((await ctl.reset()).ok).toBe(true);
+    s = ctl.getState();
+    expect(s.status).toBe('running');
+    expect(s.forceStarted).toBe(true);
+    expect(s.diagnostics).toEqual([forced]);
+
+    // stopping ends the session; the next plain run is refused again
+    expect((await ctl.stop()).ok).toBe(true);
+    expect(ctl.getState().forceStarted).toBe(false);
+    expect((await ctl.run(design)).ok).toBe(false);
+    expect(ctl.getState().status).toBe('idle');
+  });
+
+  it('a force-started session that faults is reset without asking for the flag again', async () => {
+    class BadStart extends FakeBackend {
+      override start(): Promise<void> {
+        this.calls.push('start');
+        return Promise.reject(new Error('start failed'));
+      }
+    }
+    const ctl = new SimulatorController({ backend: () => new BadStart() });
+    await ctl.run(shortedDesign(), { forceStart: true });
+    expect(ctl.getState().status).toBe('faulted');
+    expect((await ctl.reset()).ok).toBe(true);
+    expect(ctl.getState().status).toBe('faulted'); // fails again, but it did relaunch instead of refusing
+    expect(ctl.getState().forceStarted).toBe(true);
+    expect(ctl.getState().sessionId).toBe('sim-2');
+  });
+
+  it('forceStart does not bypass structurally blocking results', async () => {
+    const ctl = new SimulatorController({ backend: () => new FakeBackend() });
+    const broken = build(wired);
+    broken.programs![0]!.target_component_id = 'ghost';
+    const r = await ctl.run(broken, { forceStart: true });
+    expect(r.ok).toBe(false);
+    expect(ctl.getState().status).toBe('idle');
+    expect(ctl.getState().diagnostics[0]?.message).toContain('program_target_missing');
+  });
+
+  it('supply_out_of_range and the power budget rules never block a run', async () => {
+    const design = outOfRangeDesign();
+    const codes = analyzeDesign(design, builtinCatalog()).results.map((r) => r.code);
+    expect(codes).toContain('supply_out_of_range');
+    expect(simulationBlockers(analyzeDesign(design, builtinCatalog()).results)).toEqual([]);
+    const ctl = new SimulatorController({ backend: () => new FakeBackend() });
+    const r = await ctl.run(design);
+    expect(r.ok).toBe(true);
+    const s = ctl.getState();
+    expect(s.status).toBe('running');
+    expect(s.forceStarted).toBe(false);
+    expect(s.diagnostics).toEqual([]);
+  });
+
+  it('a warning diagnostic never changes the status', async () => {
+    let backend: FakeBackend | null = null;
+    const ctl = new SimulatorController({ backend: () => (backend = new FakeBackend()) });
+    await ctl.run(build(wired));
+    const session = ctl.getState().sessionId!;
+    for (const code of ['device_unpowered', 'digital_contention', 'i2c_nack', 'simulation_forced_start']) {
+      backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: session, type: 'diagnostic', diagnostic: { code, severity: 'warning', message: code, atUs: 7 } });
+      expect(ctl.getState().status, code).toBe('running');
+    }
+    expect(ctl.getState().diagnostics.length).toBe(4);
+    expect(backend!.calls).not.toContain('dispose');
+  });
+});
+
+describe('simulator controller · backend-initiated status', () => {
+  it('a paused status message moves the state machine, not just the clock', async () => {
+    let backend: FakeBackend | null = null;
+    const ctl = new SimulatorController({ backend: () => (backend = new FakeBackend()) });
+    await ctl.run(build(wired));
+    const session = ctl.getState().sessionId!;
+    expect(ctl.getState().status).toBe('running');
+
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: session, type: 'status', status: 'paused', nowUs: 4200 });
+    let s = ctl.getState();
+    expect(s.status).toBe('paused');
+    expect(s.nowUs).toBe(4200);
+    expect(s.allowed).toEqual(['run', 'step', 'reset', 'stop']);
+
+    // repeats are harmless, and other statuses stay pure notifications (prepare() resolves on them)
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: session, type: 'status', status: 'paused', nowUs: 4300 });
+    expect(ctl.getState().status).toBe('paused');
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: session, type: 'status', status: 'prepared', nowUs: 4400 });
+    s = ctl.getState();
+    expect(s.status).toBe('paused');
+    expect(s.nowUs).toBe(4400);
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: session, type: 'status', status: 'running', nowUs: 4500 });
+    expect(ctl.getState().status).toBe('paused');
+
+    // the session is genuinely paused: run resumes it through the backend
+    expect((await ctl.run(build(wired))).ok).toBe(true);
+    expect(ctl.getState().status).toBe('running');
+    expect(backend!.calls).toEqual(['prepare', 'start', 'start']);
+
+    // a foreign session id is still dropped before any dispatch
+    backend!.emit({ protocol: SIM_PROTOCOL_VERSION, sessionId: 'sim-99', type: 'status', status: 'paused', nowUs: 9000 });
+    expect(ctl.getState().status).toBe('running');
+    expect(ctl.getState().droppedMessages).toBe(1);
   });
 });

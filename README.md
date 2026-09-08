@@ -23,7 +23,7 @@ Breadboard Studio 是一个开源的面包板布局工具：你可以直接操�
 
 设计会自动保存在当前浏览器中，也可以导出 `.breadboard.json` 备份、分享或在另一台设备上继续编辑。
 
-> 当前版本提供布局、布线和静态校验，也可以为主控编写程序并随项目一起保存（schema 1.1，右侧「仿真」标签）。运行程序以及按钮驱动屏幕响应的交互式仿真尚未实现，见[仿真器设计方案](docs/SIMULATOR_DESIGN.md)。
+> 当前版本提供布局、布线和静态校验，也可以为主控编写程序并**运行**：代码在隔离沙箱里真实执行，能驱动板载 RGB、打印串口、按虚拟时间暂停与单步。按钮触摸与 OLED 显示还在做，见[仿真器方案](docs/SIMULATOR_DESIGN.md)与[实施计划](docs/SIMULATOR_RUNTIME_PLAN.md)。
 
 ## 可以怎么玩
 
@@ -162,7 +162,7 @@ pnpm bb export design.breadboard.json --format svg --out layout.svg
 - 自动排线依赖型号数据，复杂布局可能需要手动整理；大网络的优化包含启发式搜索。
 - 设计数据保存在浏览器本地，暂无云同步和多人协作；建议定期导出 JSON。
 
-后续重点是补充并实测元件、改进布线体验，以及实现可编程交互仿真。仿真器已完成[阶段 0](docs/SIMULATOR_DESIGN.md)：程序可以编写、校验并随项目保存，但还不能执行；下一步从 ESP32-S3、按钮、OLED 与 RGB 的行为级交互开始。
+后续重点是补充并实测元件、改进布线体验，以及把交互式仿真做完整。仿真器已完成[阶段 1](docs/SIMULATOR_RUNTIME_PLAN.md)：用户代码在 QuickJS 沙箱里真实执行，可驱动 ESP32-S3 的 GPIO 与板载 RGB，支持暂停、单步、复位与倍速；接下来是按钮与触摸（阶段 2）、I²C 与 OLED 显示（阶段 3）。
 
 ## 一起完善它
 
@@ -191,4 +191,4 @@ Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an acc
 
 The CLI and browser share the same geometry, connectivity graph, and transaction engine. Agents can inspect and edit `.breadboard.json` files directly. See the [Agent guide](docs/AGENT_GUIDE.md) for commands and patch examples.
 
-Programs can now be authored and saved with a project (schema 1.1), but they do not run yet: programmable simulation is **not implemented yet**. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.
+Programs now run: user code executes in an isolated QuickJS sandbox on a deterministic virtual clock, driving the board's on-board RGB and the serial console, with pause, single-step, reset and playback speed. Buttons, touch input and the OLED display are still in progress. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.

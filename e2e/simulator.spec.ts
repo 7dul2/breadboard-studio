@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, simulator } from './helpers';
 
-test.describe('simulator shell (phase 0)', () => {
+test.describe('simulator shell', () => {
   test('example program is listed and active; the editor saves through ops and follows undo/redo', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'touch_display');
@@ -69,16 +69,19 @@ test.describe('simulator shell (phase 0)', () => {
     await expect(page.getByTestId('code-text')).toHaveValue(`${edited}// 草稿\n`);
     await expect(page.getByTestId('code-dirty')).toHaveText('未保存');
 
-    // 保存并运行 saves the draft through update_program first, then starts (and honestly faults) a session
+    // 保存并运行 saves the draft through update_program first, then really starts a session
     await page.getByTestId('code-run').click();
     await expect(page.getByTestId('code-dirty')).toHaveText('已保存');
     expect((await design(page)).programs![0]!.source).toBe(`${edited}// 草稿\n`);
-    await expect(page.getByTestId('sim-status')).toHaveText('故障');
-    await expect(page.getByTestId('sim-diagnostic-runtime_unavailable')).toBeVisible();
+    await expect.poll(async () => (await simulator(page)).status, { timeout: 20000 }).toBe('running');
     expect((await simulator(page)).programId).toBe('program_main');
+    // the program really executes: its setup() prints before the first loop
+    await expect.poll(async () => (await simulator(page)).serial.map((l) => l.text).join('\n'), { timeout: 20000 }).toContain('ready');
+    await page.getByTestId('sim-stop').click();
+    await expect(page.getByTestId('sim-status')).toHaveText('停止');
   });
 
-  test('new program, honest faulted run without a backend, stale snapshot on topology change', async ({ page }) => {
+  test('new program runs for real; topology edits are refused while the session is live', async ({ page }) => {
     await fresh(page);
     await addFromLibrary(page, 'breadboard_400');
     await fit(page);
@@ -106,38 +109,52 @@ test.describe('simulator shell (phase 0)', () => {
     await expect(page.getByTestId('code-text')).toHaveValue(d.programs![0]!.source);
     await expect(page.getByTestId('code-text')).toHaveValue(/export async function setup\(\)/);
 
-    // run: no execution backend in this phase → faulted with runtime_unavailable
+    // run: the default program really executes on the QuickJS backend
     await expect(page.getByTestId('sim-stop')).toBeDisabled();
     await page.getByTestId('sim-run').click();
-    await expect(page.getByTestId('sim-status')).toHaveText('故障');
-    await expect(page.getByTestId('sim-panel-status')).toHaveText('故障');
-    await expect(page.getByTestId('sim-diagnostic-runtime_unavailable')).toBeVisible();
+    await expect.poll(async () => (await simulator(page)).status, { timeout: 20000 }).toBe('running');
+    await expect(page.getByTestId('sim-status')).toHaveText('运行');
+    await expect(page.getByTestId('sim-panel-status')).toHaveText('运行');
     let sim = await simulator(page);
-    expect(sim.status).toBe('faulted');
     expect(sim.programId).toBe('program_1');
-    expect(sim.allowed).toEqual(['reset', 'stop']);
+    expect(sim.allowed).toEqual(['pause', 'reset', 'stop']);
     await expect(page.getByTestId('sim-run')).toBeDisabled();
     await expect(page.getByTestId('sim-stop')).toBeEnabled();
+    // virtual time advances, and the starter program's setup() reaches the console
+    await expect.poll(async () => (await simulator(page)).nowUs, { timeout: 20000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await simulator(page)).serial.map((l) => l.text).join('\n'), { timeout: 20000 }).toContain('ready');
 
-    // a topology change invalidates the session: back to idle with a stale-snapshot diagnostic
-    const r = await page.evaluate(() =>
-      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
-        { op: 'add_board', board: { id: 'bb_x', model: 'breadboard_400@1', attach_to: { board_id: 'bb_1', side: 'right' } } }
-      ])
-    );
-    expect(r.ok).toBe(true);
+    // while a session runs, topology edits are refused up front (plan §9.8) rather
+    // than silently invalidating the session under the user
+    const addBoard = () =>
+      page.evaluate(() =>
+        (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+          { op: 'add_board', board: { id: 'bb_x', model: 'breadboard_400@1', attach_to: { board_id: 'bb_1', side: 'right' } } }
+        ])
+      );
+    const revisionBefore = (await design(page)).metadata.revision;
+    expect((await addBoard()).ok).toBe(false);
+    await expect(page.getByTestId('toast-error')).toContainText('先点“停止”再修改设计');
+    expect((await design(page)).metadata.revision).toBe(revisionBefore);
+    expect((await simulator(page)).status).toBe('running');
+    expect((await simulator(page)).canEditTopology).toBe(false);
+
+    // stopping releases the guard and the very same edit lands
+    await page.getByTestId('sim-stop').click();
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
-    await expect(page.getByTestId('sim-diagnostic-stale_simulation_snapshot')).toBeVisible();
-    await expect(page.getByTestId('toast-info')).toContainText('快照过期');
     sim = await simulator(page);
     expect(sim.status).toBe('idle');
     expect(sim.sessionId).toBeNull();
+    expect(sim.canEditTopology).toBe(true);
+    expect((await addBoard()).ok).toBe(true);
+    expect((await design(page)).boards).toHaveLength(2);
     await expect(page.getByTestId('sim-stop')).toBeDisabled();
     await expect(page.getByTestId('sim-run')).toBeEnabled();
 
     // 清除 hides the finished session's diagnostics while idle
+    await expect(page.getByTestId('sim-clear-diagnostics')).toBeVisible();
     await page.getByTestId('sim-clear-diagnostics').click();
-    await expect(page.getByTestId('sim-diagnostic-stale_simulation_snapshot')).toHaveCount(0);
+    expect((await simulator(page)).diagnostics).toEqual([]);
 
     // rename and delete are ops: undo brings the program back
     await page.getByTestId('sim-program-name-program_1').fill('闪烁');
@@ -217,21 +234,28 @@ test.describe('simulator shell · session and draft boundaries', () => {
     await loadExample(page, 'touch_display');
     await page.getByTestId('tab-simulation').click();
 
-    // Running without a backend faults; changing 倍速 must not turn that into a stale-snapshot stop.
+    // 倍速 is part of `simulation`, so it changes the design hash — but it must not
+    // be treated as a topology edit that invalidates a running session.
     await page.getByTestId('sim-run').click();
-    await expect(page.getByTestId('sim-status')).toHaveText('故障');
+    await expect.poll(async () => (await simulator(page)).status, { timeout: 20000 }).toBe('running');
     await page.getByTestId('sim-speed').selectOption('2');
     await expect(page.getByTestId('sim-speed')).toHaveValue('2');
     expect((await design(page)).simulation?.speed).toBe(2);
-    await expect(page.getByTestId('sim-status')).toHaveText('故障');
+    expect((await simulator(page)).status).toBe('running');
     expect((await simulator(page)).diagnostics.map((d) => d.code)).not.toContain('stale_simulation_snapshot');
 
-    // Editing the wiring is a real change: the session stops with a stale-snapshot notice.
-    await page.evaluate(() =>
-      (window as unknown as { __bbs: { apply: (ops: unknown[]) => unknown } }).__bbs.apply([{ op: 'remove_wire', id: 'w11' }])
+    // Editing the program is allowed while running (it is not a topology op), and it
+    // is a real change: the session stops with a stale-snapshot notice.
+    const edited = await page.evaluate(() =>
+      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+        { op: 'update_program', id: 'program_main', patch: { source: '// 改过的源码\n' } }
+      ])
     );
+    expect(edited.ok).toBe(true);
     await expect(page.getByTestId('sim-status')).toHaveText('停止');
     expect((await simulator(page)).diagnostics.map((d) => d.code)).toContain('stale_simulation_snapshot');
+    await page.getByTestId('undo').click();
+    expect((await design(page)).programs![0]!.source).toContain('Touched');
 
     // An unsaved draft belongs to the document it was typed in.
     await page.getByTestId('sim-open-editor-program_main').click();

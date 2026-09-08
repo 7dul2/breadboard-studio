@@ -1,13 +1,21 @@
 /**
  * Zustand wrapper around one SimulatorController (docs §11–§12). The store
  * mirrors the controller state and adds the UI-only bits: the code editor
- * drawer and unsaved drafts. No backend exists in this phase, so `run`
- * honestly ends in `faulted · runtime_unavailable`.
+ * drawer and unsaved drafts.
+ *
+ * The mirror is frame-merged (plan §9.4): the controller emits once per
+ * runtime message, and copying all of that into zustand re-rendered the whole
+ * panel on every `status`. Anything that changes what the toolbar may do —
+ * status, session, allowed commands, a new diagnostic — is flushed
+ * immediately; the high-rate fields (`nowUs`, serial, nets, visuals) are
+ * coalesced into one `setState` per animation frame. The cost is that
+ * `window.__bbs.simulator()` can lag by one frame, so e2e must poll.
  */
 import { create } from 'zustand';
 import type { SimulationSpeed } from '@breadboard-studio/schema';
 import { SimulatorController, type CommandResult, type SimulatorState } from '@breadboard-studio/sim';
 import { setTopologyGuard, useStore } from '../store';
+import { WorkerBackend } from './runtime/WorkerBackend';
 
 export const EDITOR_MIN_HEIGHT = 120;
 export const EDITOR_DEFAULT_HEIGHT = 280;
@@ -19,7 +27,8 @@ export interface SimulatorUiState extends SimulatorState {
   drafts: Record<string, string>;
   editorHeight: number;
 
-  run: () => Promise<void>;
+  /** `forceStart` launches despite a pre-flight electrical blocker (debug only, plan §9.5). */
+  run: (opts?: { forceStart?: boolean }) => Promise<void>;
   pause: () => Promise<void>;
   step: () => Promise<void>;
   reset: () => Promise<void>;
@@ -34,7 +43,15 @@ export interface SimulatorUiState extends SimulatorState {
   setEditorHeight: (height: number) => void;
 }
 
-const controller = new SimulatorController();
+/**
+ * The backend factory reads the session id out of the controller instead of
+ * taking it as an argument: `launch` emits the new id *before* it calls the
+ * factory, so the closure sees the right one and neither the protocol nor the
+ * controller needs a new parameter (plan §9.1).
+ */
+const controller: SimulatorController = new SimulatorController({
+  backend: () => new WorkerBackend(controller.getState().sessionId as string)
+});
 
 function report(result: CommandResult, label: string): void {
   if (result.ok) return;
@@ -49,10 +66,10 @@ export const useSimulatorStore = create<SimulatorUiState>((set, get) => ({
   drafts: {},
   editorHeight: EDITOR_DEFAULT_HEIGHT,
 
-  async run() {
+  async run(opts) {
     // A faulted session cannot be resumed; start a fresh one from the current design.
     if (controller.getState().status === 'faulted') await controller.stop();
-    report(await controller.run(useStore.getState().design), '运行');
+    report(await controller.run(useStore.getState().design, opts), '运行');
   },
   async pause() {
     report(await controller.pause(), '暂停');
@@ -106,8 +123,44 @@ export function isDraftDirty(programId: string | null): boolean {
   return !program || program.source !== draft;
 }
 
+/** Fields whose change must reach the UI in the same task, never a frame later. */
+function isImmediate(next: SimulatorState, previous: SimulatorState): boolean {
+  return (
+    next.status !== previous.status ||
+    next.sessionId !== previous.sessionId ||
+    next.diagnostics.length !== previous.diagnostics.length ||
+    next.allowed.length !== previous.allowed.length ||
+    next.allowed.some((command, index) => command !== previous.allowed[index])
+  );
+}
+
+let mirrored: SimulatorState = controller.getState();
+let pendingState: SimulatorState | null = null;
+let frame = 0;
+
+const nextFrame: (run: () => void) => number =
+  typeof requestAnimationFrame === 'function' ? (run) => requestAnimationFrame(run) : (run) => setTimeout(run, 16) as unknown as number;
+const cancelFrame: (handle: number) => void =
+  typeof cancelAnimationFrame === 'function' ? (handle) => cancelAnimationFrame(handle) : (handle) => clearTimeout(handle);
+
+function flushMirror(): void {
+  frame = 0;
+  const state = pendingState;
+  pendingState = null;
+  if (state) useSimulatorStore.setState({ ...state });
+}
+
 controller.subscribe((state) => {
-  useSimulatorStore.setState({ ...state });
+  const immediate = isImmediate(state, mirrored);
+  mirrored = state;
+  if (immediate) {
+    if (frame !== 0) cancelFrame(frame);
+    pendingState = state;
+    flushMirror();
+    return;
+  }
+  pendingState = state;
+  if (frame === 0) frame = nextFrame(flushMirror);
 });
 
 // Topology edits are refused by the design store while a session is prepared or executing.

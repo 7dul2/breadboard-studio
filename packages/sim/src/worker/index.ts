@@ -12,3 +12,4 @@ export * from '../runtime/prelude.js';
 export * from '../runtime/guest-modules.js';
 export * from '../runtime/diagnostics.js';
 export * from '../runtime/studio-ts.js';
+export * from './session.js';

@@ -5,7 +5,7 @@
  */
 import type { DesignDocument, ProgramAsset, SimulationSpeed } from '@breadboard-studio/schema';
 import { Catalog, builtinCatalog } from '@breadboard-studio/catalog';
-import { activeProgram, analyzeDesign, designHash } from '@breadboard-studio/core';
+import { activeProgram, analyzeDesign, designHash, type RuleResult } from '@breadboard-studio/core';
 import { SimBackendError, type BackendFactory, type SimulationBackend } from './runtime/backend.js';
 import { buildSnapshot } from './snapshot.js';
 import { SimulatorStateMachine, allowedCommands, canEditTopology, type SimCommand, type SimEvent, type Transition } from './state-machine.js';
@@ -28,6 +28,8 @@ export interface SimulatorState {
   canEditTopology: boolean;
   /** Messages dropped because they carried another session id or protocol version. */
   droppedMessages: number;
+  /** True while a session is running that only started because `forceStart` overrode the pre-flight. */
+  forceStarted: boolean;
 }
 
 export interface SimulatorControllerOptions {
@@ -39,6 +41,36 @@ export interface SimulatorControllerOptions {
 }
 
 export type CommandResult = Transition | { ok: false; from: SimStatus; event: SimEvent; reason: string; diagnostic?: SimDiagnostic };
+
+export interface SimulatorRunOptions {
+  /**
+   * Debug-only escape hatch (docs/SIMULATOR_RUNTIME_PLAN.md §9.5): start even
+   * though the pre-flight found an electrical blocker. Never persisted into the
+   * design document — the UI keeps this flag in localStorage only.
+   */
+  forceStart?: boolean;
+}
+
+/**
+ * Analysis codes that stop the simulator from starting (plan §9.5).
+ *
+ * These are `severity: 'error'` but `blocking: false` in `analyzeDesign`
+ * (`rules.ts` never blocks electrical problems, so the document still commits),
+ * which is why `analysis.hasBlocking` cannot be used here. Connectivity is not
+ * recomputed: the codes are read straight off `analysis.results`.
+ */
+export const SIM_PREFLIGHT_BLOCKING_CODES = ['power_ground_short', 'voltage_conflict'] as const;
+
+/**
+ * Electrical results that block a simulation run. `supply_out_of_range` is
+ * deliberately absent: it has to show up at runtime as `device_unpowered`, so
+ * the user sees "wrong voltage → screen stays dark". `power_budget_*` and
+ * `power_capacity_unknown` are datasheet comparisons and never block.
+ */
+export function simulationBlockers(results: readonly RuleResult[]): RuleResult[] {
+  const codes: readonly string[] = SIM_PREFLIGHT_BLOCKING_CODES;
+  return results.filter((r) => codes.includes(r.code));
+}
 
 const INITIAL: SimulatorState = {
   status: 'idle',
@@ -53,7 +85,8 @@ const INITIAL: SimulatorState = {
   nets: [],
   allowed: allowedCommands('idle'),
   canEditTopology: true,
-  droppedMessages: 0
+  droppedMessages: 0,
+  forceStarted: false
 };
 
 /**
@@ -88,6 +121,10 @@ export class SimulatorController {
   /** Stale-detection key of the design the session was prepared from (see staleKeyOf). */
   private staleKey: string | null = null;
   private sessions = 0;
+  /** Options the current session was launched with; reused when a faulted session is reset. */
+  private launchOptions: SimulatorRunOptions = {};
+  /** Permanent warning of a force-started session: survives reset and clearDiagnostics. */
+  private forcedDiagnostic: SimDiagnostic | null = null;
   private state: SimulatorState = INITIAL;
 
   constructor(options: SimulatorControllerOptions = {}) {
@@ -105,8 +142,11 @@ export class SimulatorController {
 
   // ------------------------------------------------------------------ commands
 
-  /** Start a new session from `design` (idle/faulted) or resume a paused/prepared one. */
-  async run(design: DesignDocument): Promise<CommandResult> {
+  /**
+   * Start a new session from `design` (idle/faulted) or resume a paused/prepared one.
+   * `opts.forceStart` only affects a fresh launch; resuming never re-runs the pre-flight.
+   */
+  async run(design: DesignDocument, opts: SimulatorRunOptions = {}): Promise<CommandResult> {
     const status = this.machine.status;
     if (status === 'paused' || status === 'prepared') {
       const t = this.dispatch('run');
@@ -114,7 +154,7 @@ export class SimulatorController {
       return t;
     }
     if (status !== 'idle') return this.reject('run');
-    return this.launch(design, 'run');
+    return this.launch(design, 'run', opts);
   }
 
   async pause(): Promise<CommandResult> {
@@ -146,9 +186,11 @@ export class SimulatorController {
       const t = this.dispatch('stop');
       if (!t.ok) return t;
       const design = this.design;
+      const opts = this.launchOptions;
       this.endSession();
       await this.disposeBackend();
-      return this.launch(design, 'run');
+      // Reset must not turn into a refusal: a force-started session stays force-started.
+      return this.launch(design, 'run', opts);
     }
     const resume: 'run' | 'pause' = status === 'paused' ? 'pause' : 'run';
     const t = this.dispatch('reset');
@@ -181,9 +223,13 @@ export class SimulatorController {
     this.backend?.setSpeed?.(speed);
   }
 
-  /** Drop the diagnostics shown so far (pre-flight and session ones); the session itself is untouched. */
+  /**
+   * Drop the diagnostics shown so far (pre-flight and session ones); the session
+   * itself is untouched. The force-start warning is permanent for the session
+   * (plan §9.5) and cannot be dismissed this way.
+   */
   clearDiagnostics(): void {
-    this.emit({ diagnostics: [] });
+    this.emit({ diagnostics: this.forcedDiagnostic ? [this.forcedDiagnostic] : [] });
   }
 
   sendControl(event: ControlEvent): boolean {
@@ -214,7 +260,7 @@ export class SimulatorController {
 
   // ------------------------------------------------------------------ internals
 
-  private async launch(design: DesignDocument, resume: 'run' | 'pause'): Promise<CommandResult> {
+  private async launch(design: DesignDocument, resume: 'run' | 'pause', opts: SimulatorRunOptions = {}): Promise<CommandResult> {
     const program = activeProgram(design);
     if (!program) {
       const diagnostic: SimDiagnostic = { code: 'program_missing', severity: 'error', message: '没有可运行的程序：先在“仿真”标签中为主控新建程序。' };
@@ -228,13 +274,31 @@ export class SimulatorController {
       this.emit({ diagnostics: [diagnostic] });
       return { ok: false, from: this.machine.status, event: 'run', reason: diagnostic.message, diagnostic };
     }
+    // Electrical pre-flight (plan §9.5): `blocking` is false for these codes, so they are picked by code.
+    const blockers = simulationBlockers(analysis.results);
+    let forced: SimDiagnostic | null = null;
+    if (blockers.length) {
+      const codes = [...new Set(blockers.map((r) => r.code))].join('、');
+      const componentIds = [...new Set(blockers.flatMap((r) => r.objects))];
+      const pinAddresses = [...new Set(blockers.flatMap((r) => r.endpoints ?? []))];
+      if (!opts.forceStart) {
+        const diagnostic: SimDiagnostic = { code: 'simulation_blocked_by_design', severity: 'error', message: `设计存在电气错误（${codes}），默认不允许启动仿真。请先修好接线；确认要带着这个问题调试时，可在工具栏勾选“仅调试：强制启动”。`, componentIds, pinAddresses };
+        this.emit({ diagnostics: [diagnostic] });
+        return { ok: false, from: this.machine.status, event: 'run', reason: diagnostic.message, diagnostic };
+      }
+      // Severity is downgraded to `warning` on purpose: SIM_DIAGNOSTIC_SEVERITY maps this code to
+      // `error`, and any error diagnostic faults the session — a force-started session must keep running.
+      forced = { code: 'simulation_forced_start', severity: 'warning', message: `已强制启动（仅调试）：设计存在电气错误（${codes}），真实电路可能损坏，仿真结果不可信。`, componentIds, pinAddresses };
+    }
     const t = this.dispatch('run');
     if (!t.ok) return t;
     const sessionId = `sim-${++this.sessions}`;
     this.design = design;
     this.program = program;
+    this.launchOptions = opts;
+    this.forcedDiagnostic = forced;
     this.staleKey = staleKeyOf(design);
-    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: [], serial: [], visuals: {}, nets: [], droppedMessages: 0 });
+    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: forced ? [forced] : [], serial: [], visuals: {}, nets: [], droppedMessages: 0, forceStarted: forced !== null });
 
     const backend = this.options.backend();
     if (!backend) {
@@ -260,7 +324,9 @@ export class SimulatorController {
   /** Forget the session identity. Called synchronously on stop/invalidate, before any await. */
   private endSession(patch: Partial<SimulatorState> = {}): void {
     this.staleKey = null;
-    this.emit({ sessionId: null, designHash: null, programId: null, nowUs: 0, visuals: {}, nets: [], ...patch });
+    this.launchOptions = {};
+    this.forcedDiagnostic = null;
+    this.emit({ sessionId: null, designHash: null, programId: null, nowUs: 0, visuals: {}, nets: [], forceStarted: false, ...patch });
   }
 
   /** Await a backend call; a rejection faults this session instead of escaping to the caller. */
@@ -290,6 +356,11 @@ export class SimulatorController {
     switch (message.type) {
       case 'status':
         this.emit({ nowUs: message.nowUs });
+        // The backend pauses itself when the queue drains with input sources present (§4.4);
+        // without this dispatch the toolbar would keep claiming the session is running.
+        // Other statuses (notably `prepared`) stay pure notifications: the backend's own
+        // `prepare()` resolves on them, and the controller must not swallow or re-interpret them.
+        if (message.status === 'paused' && this.machine.status === 'running') this.dispatch('pause');
         return;
       case 'serial': {
         const line: SerialLine = { componentId: message.componentId, stream: message.stream, text: message.text, atUs: message.atUs };

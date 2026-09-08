@@ -47,6 +47,7 @@ export interface SimDiagnostic {
  */
 export const SIM_DIAGNOSTIC_CODES = [
   'simulation_blocked_by_design',
+  'simulation_forced_start',
   'program_missing',
   'program_target_missing',
   'runtime_unavailable',
@@ -77,6 +78,7 @@ export type SimDiagnosticCode = (typeof SIM_DIAGNOSTIC_CODES)[number];
  */
 export const SIM_DIAGNOSTIC_SEVERITY: Readonly<Record<SimDiagnosticCode, SimSeverity>> = {
   simulation_blocked_by_design: 'error',
+  simulation_forced_start: 'warning',
   program_missing: 'error',
   program_target_missing: 'error',
   runtime_unavailable: 'error',
