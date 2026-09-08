@@ -109,13 +109,14 @@ describe('reading an SHT4x over I²C', () => {
     harness.send({ type: 'dispose' });
   });
 
-  it('leaves the other three sensors on the bus alone', () => {
-    // BMP390 / LTR390 / SEN66 have no driver yet: they are reported once each and
-    // never answer, which is what an unimplemented part must look like.
+  it('reports the parts that still have no driver, once each', () => {
+    // BMP390 has no driver (Bosch compensation needs the datasheet's coefficient
+    // pipeline); the PSU has none because it is not a behavioural part. Both are
+    // reported once and never answer, which is what an unmodelled part looks like.
     const harness = run(READ_SENSOR);
     harness.run(400, () => lastTemperature(harness) !== null);
     const unsupported = harness.diagnostics().filter((d) => d.code === 'unsupported_device');
-    expect(unsupported.map((d) => d.componentIds?.[0]).sort()).toEqual(['bmp390', 'ltr390', 'psu', 'sen66']);
+    expect(unsupported.map((d) => d.componentIds?.[0]).sort()).toEqual(['bmp390', 'psu']);
     for (const d of unsupported) expect(d.severity).toBe('info');
     expect(lastTemperature(harness), 'and the one that does have a driver still answers').toBeCloseTo(25, 1);
     harness.send({ type: 'dispose' });

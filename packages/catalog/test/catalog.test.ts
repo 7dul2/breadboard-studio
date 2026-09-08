@@ -35,7 +35,7 @@ describe('simulation bindings', () => {
   it('bind controls and visuals to existing feature labels and declare versioned drivers', () => {
     const c = builtinCatalog();
     const withSim = c.listComponents().filter((d) => d.simulation);
-    expect(withSim.map((d) => d.id).sort()).toEqual(['esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'led_5mm', 'oled_0_91_i2c', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'sht41_breakout', 'ttp223_module', 'xiao_esp32s3_sense']);
+    expect(withSim.map((d) => d.id).sort()).toEqual(['esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'led_5mm', 'ltr390_breakout', 'oled_0_91_i2c', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'sen66', 'sht41_breakout', 'ttp223_module', 'xiao_esp32s3_sense']);
     for (const d of withSim) {
       const sim = d.simulation!;
       expect(sim.driver, d.id).toMatch(/^[a-z0-9_.-]+@[0-9]+$/);

@@ -9,51 +9,369 @@
   "category": "sensor",
   "mount": "off_board",
   "origin": "top_left",
-  "body": { "size_um": [41900, 41900], "height_um": 12400, "standoff_um": 0, "corner_radius_um": 1500 },
+  "body": {
+    "size_um": [
+      41900,
+      41900
+    ],
+    "height_um": 12400,
+    "standoff_um": 0,
+    "corner_radius_um": 1500
+  },
   "pins": [
-    { "name": "VDD", "local_um": [14000, 40600], "kind": "terminal" },
-    { "name": "GND", "local_um": [16500, 40600], "kind": "terminal" },
-    { "name": "SDA", "local_um": [19000, 40600], "kind": "terminal" },
-    { "name": "SCL", "local_um": [21500, 40600], "kind": "terminal" },
-    { "name": "SEL", "local_um": [24000, 40600], "kind": "terminal" },
-    { "name": "NC", "local_um": [26500, 40600], "kind": "terminal" }
+    {
+      "name": "VDD",
+      "local_um": [
+        14000,
+        40600
+      ],
+      "kind": "terminal"
+    },
+    {
+      "name": "GND",
+      "local_um": [
+        16500,
+        40600
+      ],
+      "kind": "terminal"
+    },
+    {
+      "name": "SDA",
+      "local_um": [
+        19000,
+        40600
+      ],
+      "kind": "terminal"
+    },
+    {
+      "name": "SCL",
+      "local_um": [
+        21500,
+        40600
+      ],
+      "kind": "terminal"
+    },
+    {
+      "name": "SEL",
+      "local_um": [
+        24000,
+        40600
+      ],
+      "kind": "terminal"
+    },
+    {
+      "name": "NC",
+      "local_um": [
+        26500,
+        40600
+      ],
+      "kind": "terminal"
+    }
   ],
   "pin_meta": {
-    "VDD": { "role": "power_in", "voltage_v": 3.3, "notes": "3.3 V 供电；风扇与激光模块启动时电流高于平均值" },
-    "GND": { "role": "ground" },
-    "SDA": { "role": "i2c_sda", "io_voltage_v": 3.3, "direction": "bidir", "drive": "open_drain" },
-    "SCL": { "role": "i2c_scl", "io_voltage_v": 3.3, "direction": "in", "drive": "open_drain" },
-    "SEL": { "role": "signal_in", "io_voltage_v": 3.3, "direction": "in", "auto_wire": "to_ground", "notes": "接地选择 I²C 接口；自动布线时接主板 GND" },
-    "NC": { "role": "nc" }
+    "VDD": {
+      "role": "power_in",
+      "voltage_v": 3.3,
+      "notes": "3.3 V 供电；风扇与激光模块启动时电流高于平均值"
+    },
+    "GND": {
+      "role": "ground"
+    },
+    "SDA": {
+      "role": "i2c_sda",
+      "io_voltage_v": 3.3,
+      "direction": "bidir",
+      "drive": "open_drain"
+    },
+    "SCL": {
+      "role": "i2c_scl",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "open_drain"
+    },
+    "SEL": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "auto_wire": "to_ground",
+      "notes": "接地选择 I²C 接口；自动布线时接主板 GND"
+    },
+    "NC": {
+      "role": "nc"
+    }
+  },
+  "simulation": {
+    "driver": "sensor.sen6x@1",
+    "pins": {
+      "SDA": "sda",
+      "SCL": "scl",
+      "VDD": "vcc",
+      "GND": "gnd"
+    },
+    "controls": [
+      {
+        "id": "pm1",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "pm1_ugm3",
+        "range": {
+          "min": 0,
+          "max": 1000,
+          "step": 1,
+          "default": 8,
+          "unit": "µg/m³"
+        }
+      },
+      {
+        "id": "pm25",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "pm25_ugm3",
+        "range": {
+          "min": 0,
+          "max": 1000,
+          "step": 1,
+          "default": 12,
+          "unit": "µg/m³"
+        }
+      },
+      {
+        "id": "pm4",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "pm4_ugm3",
+        "range": {
+          "min": 0,
+          "max": 1000,
+          "step": 1,
+          "default": 14,
+          "unit": "µg/m³"
+        }
+      },
+      {
+        "id": "pm10",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "pm10_ugm3",
+        "range": {
+          "min": 0,
+          "max": 1000,
+          "step": 1,
+          "default": 16,
+          "unit": "µg/m³"
+        }
+      },
+      {
+        "id": "humidity",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "humidity_rh",
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 45,
+          "unit": "%RH"
+        }
+      },
+      {
+        "id": "temperature",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "temperature_c",
+        "range": {
+          "min": -10,
+          "max": 50,
+          "step": 0.1,
+          "default": 22,
+          "unit": "°C"
+        }
+      },
+      {
+        "id": "voc",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "voc_index",
+        "range": {
+          "min": 0,
+          "max": 500,
+          "step": 1,
+          "default": 100,
+          "unit": "VOC"
+        }
+      },
+      {
+        "id": "nox",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "nox_index",
+        "range": {
+          "min": 0,
+          "max": 500,
+          "step": 1,
+          "default": 1,
+          "unit": "NOx"
+        }
+      },
+      {
+        "id": "co2",
+        "feature_label": "风扇进风口",
+        "action": "slider",
+        "channel": "co2_ppm",
+        "range": {
+          "min": 400,
+          "max": 5000,
+          "step": 10,
+          "default": 650,
+          "unit": "ppm"
+        }
+      }
+    ]
   },
   "electrical": {
-    "supply_voltage_v": { "min": 3.15, "max": 3.45 },
-    "supply_current_ma": { "typical": 90, "peak": null },
+    "supply_voltage_v": {
+      "min": 3.15,
+      "max": 3.45
+    },
+    "supply_current_ma": {
+      "typical": 90,
+      "peak": null
+    },
     "io_voltage_v": 3.3,
-    "i2c": { "address_default": 107, "address_options": [107], "configurable": false, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "SEN66 默认 I²C 地址 0x6B (107)。" },
+    "i2c": {
+      "address_default": 107,
+      "address_options": [
+        107
+      ],
+      "configurable": false,
+      "sda_pin": "SDA",
+      "scl_pin": "SCL",
+      "notes": "SEN66 默认 I²C 地址 0x6B (107)。"
+    },
     "notes": "平均电流约 90 mA 只是近似值，启动/风扇峰值电流未在此录入（peak=null），请按 SEN6x 数据手册核对并为供电留出余量。不要仅凭平均值判定供电足够。"
   },
   "features": [
-    { "type": "fan", "label": "风扇进风口", "rect_um": { "x": 3000, "y": 3000, "w": 14000, "h": 14000 } },
-    { "type": "connector", "label": "JST-GH 6 针", "side": "bottom", "rect_um": { "x": 12500, "y": 38500, "w": 15500, "h": 3400 } },
-    { "type": "cable", "label": "线缆连接", "notes": "需自备 JST-GH 1.25 mm 转杜邦线缆" }
+    {
+      "type": "fan",
+      "label": "风扇进风口",
+      "rect_um": {
+        "x": 3000,
+        "y": 3000,
+        "w": 14000,
+        "h": 14000
+      }
+    },
+    {
+      "type": "connector",
+      "label": "JST-GH 6 针",
+      "side": "bottom",
+      "rect_um": {
+        "x": 12500,
+        "y": 38500,
+        "w": 15500,
+        "h": 3400
+      }
+    },
+    {
+      "type": "cable",
+      "label": "线缆连接",
+      "notes": "需自备 JST-GH 1.25 mm 转杜邦线缆"
+    }
   ],
   "render": [
-    { "t": "rect", "x": 0, "y": 0, "w": 41900, "h": 41900, "rx": 1500, "fill": "#e5e7eb", "stroke": "#6b7280", "sw": 250 },
-    { "t": "circle", "cx": 10000, "cy": 10000, "r": 6500, "fill": "#9ca3af", "stroke": "#4b5563", "sw": 150 },
-    { "t": "circle", "cx": 10000, "cy": 10000, "r": 2200, "fill": "#4b5563" },
-    { "t": "rect", "x": 22000, "y": 4000, "w": 15000, "h": 12000, "rx": 500, "fill": "#d1d5db", "stroke": "#6b7280", "sw": 120 },
-    { "t": "text", "x": 29500, "y": 10800, "text": "PM/VOC/NOx", "size": 1300, "fill": "#374151", "anchor": "middle" },
-    { "t": "rect", "x": 12500, "y": 38500, "w": 15500, "h": 3400, "rx": 300, "fill": "#f3f4f6", "stroke": "#374151", "sw": 150 },
-    { "t": "text", "x": 20950, "y": 28000, "text": "SEN66", "size": 2600, "fill": "#111827", "anchor": "middle", "weight": "bold" },
-    { "t": "text", "x": 20950, "y": 33500, "text": "线缆连接 · 不插面包板", "size": 1300, "fill": "#374151", "anchor": "middle" }
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 41900,
+      "h": 41900,
+      "rx": 1500,
+      "fill": "#e5e7eb",
+      "stroke": "#6b7280",
+      "sw": 250
+    },
+    {
+      "t": "circle",
+      "cx": 10000,
+      "cy": 10000,
+      "r": 6500,
+      "fill": "#9ca3af",
+      "stroke": "#4b5563",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 10000,
+      "cy": 10000,
+      "r": 2200,
+      "fill": "#4b5563"
+    },
+    {
+      "t": "rect",
+      "x": 22000,
+      "y": 4000,
+      "w": 15000,
+      "h": 12000,
+      "rx": 500,
+      "fill": "#d1d5db",
+      "stroke": "#6b7280",
+      "sw": 120
+    },
+    {
+      "t": "text",
+      "x": 29500,
+      "y": 10800,
+      "text": "PM/VOC/NOx",
+      "size": 1300,
+      "fill": "#374151",
+      "anchor": "middle"
+    },
+    {
+      "t": "rect",
+      "x": 12500,
+      "y": 38500,
+      "w": 15500,
+      "h": 3400,
+      "rx": 300,
+      "fill": "#f3f4f6",
+      "stroke": "#374151",
+      "sw": 150
+    },
+    {
+      "t": "text",
+      "x": 20950,
+      "y": 28000,
+      "text": "SEN66",
+      "size": 2600,
+      "fill": "#111827",
+      "anchor": "middle",
+      "weight": "bold"
+    },
+    {
+      "t": "text",
+      "x": 20950,
+      "y": 33500,
+      "text": "线缆连接 · 不插面包板",
+      "size": 1300,
+      "fill": "#374151",
+      "anchor": "middle"
+    }
   ],
   "geometry_status": "approximate",
   "electrical_status": "approximate",
   "status_notes": "外形按 41.9×41.9×12.4 mm 近似建模，连接器位置为示意。电流峰值未录入，供电评估保持 needs_review。",
   "sources": [
-    { "title": "Sensirion SEN6x datasheet", "url": "https://sensirion.com/resource/datasheet/SEN6x" },
-    { "title": "Sensirion arduino-i2c-sen66 (power supply notes)", "url": "https://github.com/Sensirion/arduino-i2c-sen66" }
+    {
+      "title": "Sensirion SEN6x datasheet",
+      "url": "https://sensirion.com/resource/datasheet/SEN6x"
+    },
+    {
+      "title": "Sensirion arduino-i2c-sen66 (power supply notes)",
+      "url": "https://github.com/Sensirion/arduino-i2c-sen66"
+    }
   ],
-  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
 }

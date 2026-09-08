@@ -9,53 +9,252 @@
   "category": "sensor",
   "mount": "breadboard",
   "origin": "top_left",
-  "generator": { "type": "single_row_header", "edge": "bottom", "inset_um": 1270 },
+  "generator": {
+    "type": "single_row_header",
+    "edge": "bottom",
+    "inset_um": 1270
+  },
   "params_schema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "pin_names": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 8, "description": "自左向右针名，按转接板丝印填写" },
-      "body_size_um": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
-      "mount_orientation": { "type": "string", "enum": ["upright", "flat"] }
+      "pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 2,
+        "maxItems": 8,
+        "description": "自左向右针名，按转接板丝印填写"
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "type": "string",
+        "enum": [
+          "upright",
+          "flat"
+        ]
+      }
     }
   },
-  "params_default": { "pin_names": ["VCC", "GND", "SCL", "SDA"], "body_size_um": [15000, 11000], "mount_orientation": "upright" },
+  "params_default": {
+    "pin_names": [
+      "VCC",
+      "GND",
+      "SCL",
+      "SDA"
+    ],
+    "body_size_um": [
+      15000,
+      11000
+    ],
+    "mount_orientation": "upright"
+  },
   "config_schema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "i2c_address": { "type": ["integer", "null"], "description": "实际 I²C 地址（十进制），未知留 null" },
-      "supply_voltage_v": { "type": ["object", "null"], "properties": { "min": { "type": "number" }, "max": { "type": "number" } }, "required": ["min", "max"], "description": "转接板允许的供电范围（含板载稳压时可能高于芯片）" }
+      "i2c_address": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "description": "实际 I²C 地址（十进制），未知留 null"
+      },
+      "supply_voltage_v": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "description": "转接板允许的供电范围（含板载稳压时可能高于芯片）"
+      }
     }
   },
-  "config_default": { "i2c_address": 83, "supply_voltage_v": null },
-  "body": { "size_um": [15000, 11000], "height_um": 3000, "standoff_um": 0, "corner_radius_um": 600 },
+  "config_default": {
+    "i2c_address": 83,
+    "supply_voltage_v": null
+  },
+  "body": {
+    "size_um": [
+      15000,
+      11000
+    ],
+    "height_um": 3000,
+    "standoff_um": 0,
+    "corner_radius_um": 600
+  },
   "pins": [],
   "pin_meta": {
-    "VCC": { "role": "power_in", "voltage_v": null, "aliases": ["VIN", "VDD", "3V3"] },
-    "VIN": { "role": "power_in", "voltage_v": null },
-    "3V3": { "role": "power_in", "voltage_v": 3.3 },
-    "GND": { "role": "ground" },
-    "SCL": { "role": "i2c_scl", "io_voltage_v": null, "direction": "in", "drive": "open_drain" },
-    "SDA": { "role": "i2c_sda", "io_voltage_v": null, "direction": "bidir", "drive": "open_drain" },
-    "INT": { "role": "signal_out", "io_voltage_v": null, "direction": "out", "drive": "open_drain" }
+    "VCC": {
+      "role": "power_in",
+      "voltage_v": null,
+      "aliases": [
+        "VIN",
+        "VDD",
+        "3V3"
+      ]
+    },
+    "VIN": {
+      "role": "power_in",
+      "voltage_v": null
+    },
+    "3V3": {
+      "role": "power_in",
+      "voltage_v": 3.3
+    },
+    "GND": {
+      "role": "ground"
+    },
+    "SCL": {
+      "role": "i2c_scl",
+      "io_voltage_v": null,
+      "direction": "in",
+      "drive": "open_drain"
+    },
+    "SDA": {
+      "role": "i2c_sda",
+      "io_voltage_v": null,
+      "direction": "bidir",
+      "drive": "open_drain"
+    },
+    "INT": {
+      "role": "signal_out",
+      "io_voltage_v": null,
+      "direction": "out",
+      "drive": "open_drain"
+    }
+  },
+  "simulation": {
+    "driver": "sensor.ltr390@1",
+    "pins": {
+      "SDA": "sda",
+      "SCL": "scl",
+      "VCC": "vcc",
+      "GND": "gnd"
+    },
+    "controls": [
+      {
+        "id": "lux",
+        "feature_label": "传感器",
+        "action": "slider",
+        "channel": "ambient_lux",
+        "range": {
+          "min": 0,
+          "max": 50000,
+          "step": 10,
+          "default": 300,
+          "unit": "lx"
+        }
+      },
+      {
+        "id": "uvi",
+        "feature_label": "传感器",
+        "action": "slider",
+        "channel": "uv_index",
+        "range": {
+          "min": 0,
+          "max": 15,
+          "step": 0.1,
+          "default": 1,
+          "unit": "UVI"
+        }
+      }
+    ]
   },
   "electrical": {
     "supply_voltage_v": null,
-    "supply_current_ma": { "typical": 0.2, "peak": null },
+    "supply_current_ma": {
+      "typical": 0.2,
+      "peak": null
+    },
     "io_voltage_v": null,
-    "i2c": { "address_default": 83, "address_options": [83], "configurable": false, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "固定 0x53 (83)。" },
+    "i2c": {
+      "address_default": 83,
+      "address_options": [
+        83
+      ],
+      "configurable": false,
+      "sda_pin": "SDA",
+      "scl_pin": "SCL",
+      "notes": "固定 0x53 (83)。"
+    },
     "notes": "芯片本体供电范围 1.7–3.6 V；转接板是否含稳压/电平转换未知，请在 config.supply_voltage_v 中填写实测/资料值。"
   },
-  "features": [{ "type": "sensor_window", "label": "传感器", "rect_um": { "x": 5500, "y": 2000, "w": 4000, "h": 4000 } }],
+  "features": [
+    {
+      "type": "sensor_window",
+      "label": "传感器",
+      "rect_um": {
+        "x": 5500,
+        "y": 2000,
+        "w": 4000,
+        "h": 4000
+      }
+    }
+  ],
   "render": [
-    { "t": "rect", "x": 0, "y": 0, "w": 15000, "h": 11000, "rx": 600, "fill": "#4c1d95", "stroke": "#1f2937", "sw": 200 },
-    { "t": "rect", "x": 5500, "y": 2000, "w": 4000, "h": 4000, "rx": 300, "fill": "#111827", "stroke": "#9ca3af", "sw": 100 },
-    { "t": "text", "x": 7500, "y": 8300, "text": "LTR390", "size": 1100, "fill": "#f9fafb", "anchor": "middle" }
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 15000,
+      "h": 11000,
+      "rx": 600,
+      "fill": "#4c1d95",
+      "stroke": "#1f2937",
+      "sw": 200
+    },
+    {
+      "t": "rect",
+      "x": 5500,
+      "y": 2000,
+      "w": 4000,
+      "h": 4000,
+      "rx": 300,
+      "fill": "#111827",
+      "stroke": "#9ca3af",
+      "sw": 100
+    },
+    {
+      "t": "text",
+      "x": 7500,
+      "y": 8300,
+      "text": "LTR390",
+      "size": 1100,
+      "fill": "#f9fafb",
+      "anchor": "middle"
+    }
   ],
   "geometry_status": "unknown",
   "electrical_status": "approximate",
   "status_notes": "通用 I²C 转接板模板：15×11 mm 外形与 4 针顺序只是占位，尚未按具体转接板核实（geometry_status=unknown）。芯片地址与供电范围来自芯片资料。",
-  "sources": [{ "title": "Lite-On LTR-390UV-01 datasheet", "url": "https://optoelectronics.liteon.com/en-global/Led/LED-Component/Detail/926" }],
-  "license": { "spdx": "MIT", "attribution": "Original drawing by Breadboard Studio contributors" }
+  "sources": [
+    {
+      "title": "Lite-On LTR-390UV-01 datasheet",
+      "url": "https://optoelectronics.liteon.com/en-global/Led/LED-Component/Detail/926"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
 }
