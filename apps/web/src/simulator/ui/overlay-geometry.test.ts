@@ -10,7 +10,9 @@ import {
   featureRect,
   inscribedCircle,
   overlayControls,
+  overlayDisplays,
   overlayVisuals,
+  parseHexColor,
   rgbFill,
   visualTestId,
   type FeatureSource
@@ -212,5 +214,43 @@ describe('rotation is carried by the group transform, not by the rect', () => {
     const flat = featureRect(touch, '触摸区');
     expect(flat).toEqual({ x: 3, y: 1.5, width: 9, height: 6 });
     expect(transformAttr({ position, rotation: 270 })).toBe('translate(40 25) rotate(270)');
+  });
+});
+
+describe('display panels', () => {
+  const oled: FeatureSource = {
+    features: [
+      { type: 'display', label: '128×64 OLED', rect_um: { x: 2000, y: 3000, w: 22000, h: 11000 } },
+      { type: 'silk', label: '型号', rect_um: { x: 0, y: 0, w: 4000, h: 2000 } }
+    ],
+    simulation: {
+      visuals: [
+        { id: 'screen', feature_label: '128×64 OLED', kind: 'display', channel: 'framebuffer' },
+        { id: 'led', feature_label: '型号', kind: 'led', channel: 'rgb' },
+        { id: 'ghost', feature_label: '不存在的丝印', kind: 'display', channel: 'other' }
+      ]
+    }
+  } as FeatureSource;
+
+  it('places a panel from the catalog binding, not from a runtime frame', () => {
+    // The panel must exist before the first frame, or an OLED that is off would
+    // have nowhere to be black.
+    expect(overlayDisplays(oled)).toEqual([{ channel: 'framebuffer', feature: '128×64 OLED', rect: { x: 2, y: 3, width: 22, height: 11 } }]);
+  });
+
+  it('ignores non-display visuals and labels the drawing does not have', () => {
+    expect(overlayDisplays({ features: [], simulation: { visuals: [] } } as FeatureSource)).toEqual([]);
+    expect(overlayDisplays({ features: [] } as FeatureSource)).toEqual([]);
+    // 'ghost' names a label with no feature, 'led' is not a display: both dropped.
+    expect(overlayDisplays(oled).map((d) => d.channel)).toEqual(['framebuffer']);
+  });
+
+  it('turns the panel colour into channels, and never into a dead-looking black', () => {
+    expect(parseHexColor('#f8fafc')).toEqual([248, 250, 252]);
+    expect(parseHexColor('#38bdf8')).toEqual([56, 189, 248]);
+    expect(parseHexColor('  #38BDF8 ')).toEqual([56, 189, 248]);
+    for (const bad of ['', 'blue', '#fff', 'rgb(1,2,3)', '#12345g']) {
+      expect(parseHexColor(bad), bad).toEqual([248, 250, 252]);
+    }
   });
 });

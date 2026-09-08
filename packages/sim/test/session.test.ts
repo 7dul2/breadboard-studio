@@ -8,141 +8,14 @@
  * These cases are the machine evidence for M-S1 acceptance ①, ③ and ④.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { newQuickJSWASMModuleFromVariant, type QuickJSWASMModule } from 'quickjs-emscripten-core';
-import releaseSyncVariant from '@jitl/quickjs-wasmfile-release-sync';
-import { transform } from 'sucrase';
-import type { ProgramAsset, SimulationControlAction } from '@breadboard-studio/schema';
-import type { DeviceDriver, DriverRegistry, WallClock } from '../src/contracts.js';
-import {
-  SIM_PROTOCOL_VERSION,
-  type DeviceVisualState,
-  type HostCommand,
-  type NetRuntimeView,
-  type RuntimeMessage,
-  type SimDiagnostic,
-  type SimulationSnapshot
-} from '../src/types.js';
+import type { SimulationControlAction } from '@breadboard-studio/schema';
+import type { DeviceDriver, DriverRegistry } from '../src/contracts.js';
+import { SIM_PROTOCOL_VERSION, type DeviceVisualState } from '../src/types.js';
+import { Harness, loadQuickJs, programWith } from './harness/session-harness.js';
 import { ESP32S3_DRIVER_ID, createEsp32S3Driver } from '../src/devices/esp32s3.js';
 import { builtinDrivers } from '../src/devices/registry.js';
-import { SessionRuntime, hasWakeableInputSources, type SessionRuntimeOptions } from '../src/worker/session.js';
+import { hasWakeableInputSources } from '../src/worker/session.js';
 import { fixtureSnapshot } from './devices/harness.js';
-
-let quickjs: QuickJSWASMModule;
-
-beforeAll(async () => {
-  quickjs = await newQuickJSWASMModuleFromVariant(releaseSyncVariant);
-}, 60_000);
-
-/**
- * A clock the test owns. `step` is how far a single `nowMs()` reading moves it,
- * which is how the interrupt handler reaches its deadline without any real
- * timer; `ms` is moved explicitly whenever a host tick fires.
- */
-class TestClock implements WallClock {
-  ms = 0;
-  constructor(private readonly step = 0.05) {}
-  nowMs(): number {
-    const value = this.ms;
-    this.ms += this.step;
-    return value;
-  }
-}
-
-const SESSION_ID = 'sim-1';
-
-/** Distributive omit: a plain `Omit` over the command union would collapse the variants. */
-type WithoutEnvelope<T> = T extends unknown ? Omit<T, 'protocol' | 'sessionId'> : never;
-type BareCommand = WithoutEnvelope<HostCommand>;
-
-/** Drives one `SessionRuntime` by hand: no real timers, one pending tick at a time. */
-class Harness {
-  readonly clock: TestClock;
-  readonly messages: RuntimeMessage[] = [];
-  readonly session: SessionRuntime;
-  private pending: { delayMs: number; run: () => void } | null = null;
-
-  constructor(options: Partial<SessionRuntimeOptions> & { clockStep?: number } = {}) {
-    const { clockStep, ...rest } = options;
-    this.clock = new TestClock(clockStep);
-    this.session = new SessionRuntime({
-      quickjs,
-      transform,
-      clock: this.clock,
-      emit: (batch) => this.messages.push(...batch),
-      schedule: (delayMs, run) => {
-        this.pending = { delayMs, run };
-        return () => {
-          if (this.pending?.run === run) this.pending = null;
-        };
-      },
-      // Every channel goes out on every tick: the throttling itself is covered
-      // by outbox.test.ts, and here it would only hide messages.
-      intervalsMs: { status: 0, serial: 0, 'visual-diff': 0, 'io-snapshot': 0, profile: 0 },
-      ...rest
-    });
-  }
-
-  send(command: BareCommand): void {
-    this.session.handle({ protocol: SIM_PROTOCOL_VERSION, sessionId: SESSION_ID, ...command } as HostCommand);
-  }
-
-  /** Fire the pending host tick, moving the wall clock by the delay it asked for. */
-  tick(): boolean {
-    const pending = this.pending;
-    if (!pending) return false;
-    this.pending = null;
-    this.clock.ms += pending.delayMs;
-    pending.run();
-    return true;
-  }
-
-  /** Tick until `stop` says so, the session stops scheduling, or `limit` ticks. */
-  run(limit: number, stop: () => boolean = () => false): number {
-    for (let i = 0; i < limit; i++) {
-      if (stop()) return i;
-      if (!this.tick()) return i;
-    }
-    return limit;
-  }
-
-  diagnostics(): SimDiagnostic[] {
-    return this.messages.flatMap((message) => (message.type === 'diagnostic' ? [message.diagnostic] : []));
-  }
-
-  codes(): string[] {
-    return this.diagnostics().map((diagnostic) => diagnostic.code);
-  }
-
-  serialText(): string[] {
-    return this.messages.flatMap((message) => (message.type === 'serial' ? [message.text] : []));
-  }
-
-  nowUsSeries(): number[] {
-    return this.messages.flatMap((message) => (message.type === 'status' ? [message.nowUs] : []));
-  }
-
-  lastNowUs(): number {
-    const series = this.nowUsSeries();
-    return series.length === 0 ? 0 : (series[series.length - 1] as number);
-  }
-
-  statuses(): string[] {
-    return this.messages.flatMap((message) => (message.type === 'status' ? [message.status] : []));
-  }
-
-  /** Every visual array published for one component, in order. */
-  visualsOf(componentId: string): DeviceVisualState[][] {
-    return this.messages.flatMap((message) =>
-      message.type === 'visual-diff' && message.states[componentId] ? [message.states[componentId] as DeviceVisualState[]] : []
-    );
-  }
-
-  /** The most recent net monitor projection, i.e. what the panel would show. */
-  lastIoSnapshot(): NetRuntimeView[] {
-    const snapshots = this.messages.flatMap((message) => (message.type === 'io-snapshot' ? [message.nets] : []));
-    return snapshots[snapshots.length - 1] ?? [];
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Control routing doubles. The channel a control ends up on is a property of
@@ -189,12 +62,6 @@ function spyRegistry(sink: ControlCall[]): DriverRegistry {
     [TOUCH_DRIVER_ID]: (ctx) =>
       withControlSpy({ driverId: TOUCH_DRIVER_ID, onControl: () => {} } satisfies DeviceDriver, ctx.componentId, sink)
   });
-}
-
-function programWith(snapshot: SimulationSnapshot, source: string): ProgramAsset {
-  const base = snapshot.programs[0];
-  if (!base) throw new Error('fixture has no program');
-  return { ...base, source };
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +156,8 @@ function blinkHarness(): Harness {
 
 // ---------------------------------------------------------------------------
 
+beforeAll(loadQuickJs, 60_000);
+
 describe('SessionRuntime', () => {
   describe('the blinking RGB vertical slice', () => {
     it('(a) prints setup output on the serial channel', () => {
@@ -344,18 +213,34 @@ describe('SessionRuntime', () => {
       const harness = blinkHarness();
       const unsupported = harness.diagnostics().filter((d) => d.code === 'unsupported_device');
       const ids = unsupported.map((d) => d.componentIds?.[0]);
-      // The invariant, not a head count: exactly one info per device that got
-      // no driver. `oled` waits for M-S3; `touch` is on the list only while
-      // `input.ttp223@1` is missing, so asserting the pair would break on the
-      // day that driver lands rather than on a real regression.
+      // The invariant, not a head count: exactly one info per device that got no
+      // driver. Every part in the v0.2 fixture now has one, so this list is empty —
+      // which is why the second half of the test supplies a device that has none.
       const driverless = fixtureSnapshot()
         .devices.filter((device) => device.driver === null || !builtinDrivers().has(device.driver))
         .map((device) => device.componentId)
         .sort();
-      expect(driverless).toContain('oled');
       expect(ids.slice().sort()).toEqual(driverless);
       for (const diagnostic of unsupported) expect(diagnostic.severity).toBe('info');
       harness.send({ type: 'dispose' });
+
+      // A part the catalog points at a driver nobody implements is reported once and
+      // otherwise ignored: it stays an electrical endpoint, it does not fail the run.
+      const snapshot = fixtureSnapshot();
+      const withStranger = {
+        ...snapshot,
+        devices: snapshot.devices.map((d) => (d.componentId === 'oled' ? { ...d, driver: 'display.nonexistent@9' } : d))
+      };
+      const second = new Harness();
+      second.send({ type: 'prepare', snapshot: withStranger, program: programWith(withStranger, BLINK_SOURCE) });
+      second.send({ type: 'run' });
+      second.run(60, () => second.lastNowUs() >= 100_000);
+      const strangers = second.diagnostics().filter((d) => d.code === 'unsupported_device');
+      expect(strangers).toHaveLength(1);
+      expect(strangers[0]!.componentIds).toEqual(['oled']);
+      expect(strangers[0]!.severity).toBe('info');
+      expect(second.diagnostics().filter((d) => d.severity === 'error')).toEqual([]);
+      second.send({ type: 'dispose' });
     });
 
     it('pauses on command and stops moving virtual time', () => {
@@ -458,23 +343,57 @@ describe('SessionRuntime', () => {
     });
   });
 
-  describe('I²C is honestly unavailable in M-S1', () => {
-    it('fails every transaction with one warning and keeps running', () => {
-      const snapshot = fixtureSnapshot();
-      // The fixture's own program drives the OLED over I²C every iteration.
-      const harness = new Harness();
-      harness.send({ type: 'prepare', snapshot, program: snapshot.programs[0]! });
-      harness.send({ type: 'run' });
-      harness.run(400, () => harness.lastNowUs() >= 200_000);
+  describe('I²C through the session', () => {
+    const PROBE = `import { Wire, Serial, sleep } from '@bbs/runtime';
 
-      const bus = harness.diagnostics().filter((d) => d.code === 'i2c_bus_unavailable');
-      expect(bus).toHaveLength(1);
-      expect(bus[0]!.severity).toBe('warning');
-      expect(bus[0]!.message).toContain('M-S3');
-      // A warning must not end the session: virtual time kept moving.
+export async function setup() {
+  Serial.begin(115200);
+  const ok = Wire.begin();
+  Serial.println('begin=' + ok);
+  Serial.println('write=' + (await Wire.write(0x3c, [0x00, 0xaf])));
+  Serial.println('wrong=' + (await Wire.write(0x3d, [0x00])));
+}
+
+export async function loop() {
+  await sleep(50);
+}
+`;
+
+    it('reaches the OLED, and tells a wrong address apart from a working one', () => {
+      const snapshot = fixtureSnapshot();
+      const harness = new Harness();
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, PROBE) });
+      harness.send({ type: 'run' });
+      harness.run(400, () => harness.serialText().includes('wrong='));
+
+      const serial = harness.serialText();
+      expect(serial, 'begin() resolved the catalog bus').toContain('begin=0');
+      expect(serial, 'the module answered at its own address').toContain('write=0');
+      expect(serial, 'and did not answer at 0x3d').toContain('wrong=2');
+      expect(harness.diagnostics().filter((d) => d.code === 'i2c_nack')).toHaveLength(1);
       expect(harness.diagnostics().filter((d) => d.severity === 'error')).toEqual([]);
-      expect(harness.lastNowUs()).toBeGreaterThan(0);
-      expect(harness.serialText()).toContain('ready');
+      harness.send({ type: 'dispose' });
+    });
+
+    it('a transaction before begin() is a bus error the program can see', () => {
+      const snapshot = fixtureSnapshot();
+      const source = `import { Wire, Serial, sleep } from '@bbs/runtime';
+
+export async function setup() {
+  Serial.begin(115200);
+  Serial.println('early=' + (await Wire.write(0x3c, [0x00])));
+}
+
+export async function loop() {
+  await sleep(50);
+}
+`;
+      const harness = new Harness();
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, source) });
+      harness.send({ type: 'run' });
+      harness.run(200, () => harness.serialText().includes('early='));
+      expect(harness.serialText()).toContain('early=4');
+      expect(harness.diagnostics().filter((d) => d.code === 'i2c_bus_unavailable')).toHaveLength(1);
       harness.send({ type: 'dispose' });
     });
   });

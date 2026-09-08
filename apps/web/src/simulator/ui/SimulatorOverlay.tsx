@@ -24,7 +24,8 @@ import { useCallback, useMemo, useRef, type PointerEvent as ReactPointerEvent } 
 import type { DesignModel } from '@breadboard-studio/core';
 import { transformAttr } from '@breadboard-studio/render';
 import { useSimulatorStore } from '../simulatorStore';
-import { controlTestId, overlayControls, overlayVisuals, visualTestId, type FeatureSource, type OverlayControl } from './overlay-geometry';
+import { controlTestId, overlayControls, overlayDisplays, overlayVisuals, visualTestId, type FeatureSource, type OverlayControl, type OverlayDisplay } from './overlay-geometry';
+import { OledScreen } from './OledScreen';
 
 /** Statuses in which the runtime accepts control events and paints visuals. */
 const LIVE = new Set(['running', 'paused', 'stepping']);
@@ -53,10 +54,10 @@ export function SimulatorOverlay({ model }: Props) {
   // it, so they do not have to travel through the snapshot. Parts without a
   // `simulation` block have no driver, hence neither controls nor visuals.
   const parts = useMemo(() => {
-    const list: { componentId: string; def: FeatureSource; transform: string; controls: OverlayControl[] }[] = [];
+    const list: { componentId: string; def: FeatureSource; transform: string; controls: OverlayControl[]; displays: OverlayDisplay[] }[] = [];
     for (const pc of model.components.values()) {
       if (!pc.def.simulation) continue;
-      list.push({ componentId: pc.instance.id, def: pc.def, transform: transformAttr(pc.transform), controls: overlayControls(pc.def) });
+      list.push({ componentId: pc.instance.id, def: pc.def, transform: transformAttr(pc.transform), controls: overlayControls(pc.def), displays: overlayDisplays(pc.def) });
     }
     return list;
   }, [model]);
@@ -67,7 +68,9 @@ export function SimulatorOverlay({ model }: Props) {
     <g className="sim-overlay" data-testid="sim-overlay">
       {parts.map((part) => {
         const painted = overlayVisuals(part.def, visuals[part.componentId]);
-        if (!painted.length && !part.controls.length) return null;
+        // A panel is mounted whether or not a frame has arrived: an OLED that is off has
+        // to be black on the canvas, not absent from it.
+        if (!painted.length && !part.controls.length && !part.displays.length) return null;
         return (
           <g key={part.componentId} transform={part.transform} data-sim-part={part.componentId}>
             {painted.map((visual) =>
@@ -96,6 +99,9 @@ export function SimulatorOverlay({ model }: Props) {
                 />
               )
             )}
+            {part.displays.map((display) => (
+              <OledScreen key={`display:${display.channel}`} componentId={part.componentId} feature={display.feature} rect={display.rect} />
+            ))}
             {part.controls.map((control) => (
               <ControlHit key={control.controlId} componentId={part.componentId} control={control} send={send} />
             ))}

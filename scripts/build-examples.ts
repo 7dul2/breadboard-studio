@@ -216,26 +216,36 @@ write('environment_node.breadboard.json', env);
 // (ESP32-S3 N16R8 + TTP223 + SSD1315 OLED, wired by auto_wire, with a Studio TS program)
 // ---------------------------------------------------------------------------
 const TOUCH_DISPLAY_SOURCE = `// 触摸显示示例 · Studio TypeScript（API 见 docs/SIMULATOR_DESIGN.md §8.1）
-// 阶段 0：仿真器还没有代码执行后端，这段程序只随设计一起保存，暂时不会执行。
 // 接线：TTP223 IO → GPIO4；SSD1315 OLED SDA → GPIO8、SCL → GPIO9（I²C 地址 0x3C）。
-import { gpio, Wire, Serial, sleep, INPUT } from '@bbs/runtime';
+// 摸一下触摸键：屏幕从 Ready 变成 Touched，板载 RGB 同时由蓝转绿。
+import { gpio, Wire, Serial, board, sleep, INPUT } from '@bbs/runtime';
 import { SSD1306 } from '@bbs/devices/ssd1306';
 
 const TOUCH = 4;
 const oled = new SSD1306(Wire, 0x3c, 128, 64);
+let last = -1;
 
 export async function setup() {
   gpio.pinMode(TOUCH, INPUT);
   Serial.begin(115200);
   await Wire.begin({ sda: 8, scl: 9 });
-  await oled.begin();
-  Serial.println('ready');
+  // begin() 的返回值就是第一笔事务的结果：接错线或地址不对时它是 false，
+  // 之后 show() 会直接跳过，屏幕保持黑色，而不是假装画上去了。
+  const ok = await oled.begin();
+  Serial.println(ok ? 'ready' : 'oled missing');
 }
 
 export async function loop() {
+  const touched = gpio.digitalRead(TOUCH) === 1;
+  if (touched !== (last === 1)) {
+    last = touched ? 1 : 0;
+    Serial.println(touched ? 'touch=1' : 'touch=0');
+  }
+  board.rgb(touched ? 0 : 0, touched ? 180 : 0, touched ? 0 : 120);
   oled.clear();
   oled.setColor('white');
-  oled.text(8, 24, gpio.digitalRead(TOUCH) ? 'Touched' : 'Ready');
+  oled.text(8, 16, touched ? 'Touched' : 'Ready');
+  oled.text(8, 32, 'GPIO4');
   await oled.show();
   await sleep(20);
 }
@@ -245,7 +255,7 @@ let touchDisplay = createEmptyDesign('触摸显示：ESP32-S3 N16R8 + TTP223 + S
 touchDisplay.metadata.created_at = FIXED_NOW;
 touchDisplay.metadata.updated_at = FIXED_NOW;
 touchDisplay.metadata.description =
-  '仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序，触摸时在屏幕上显示 Touched。';
+  '仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序：触摸时屏幕显示 Touched、板载 RGB 由蓝转绿。';
 touchDisplay.metadata.author = 'Breadboard Studio examples';
 touchDisplay.metadata.tags = ['esp32-s3', 'n16r8', 'ttp223', 'ssd1315', 'oled', 'simulator', 'example'];
 touchDisplay = run(

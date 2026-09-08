@@ -23,7 +23,7 @@ Breadboard Studio 是一个开源的面包板布局工具：你可以直接操�
 
 设计会自动保存在当前浏览器中，也可以导出 `.breadboard.json` 备份、分享或在另一台设备上继续编辑。
 
-> 当前版本提供布局、布线和静态校验，也可以为主控编写程序并**运行**：代码在隔离沙箱里真实执行，能驱动板载 RGB、打印串口、按虚拟时间暂停与单步。OLED 显示还在做，见[仿真器方案](docs/SIMULATOR_DESIGN.md)与[实施计划](docs/SIMULATOR_RUNTIME_PLAN.md)。
+> 当前版本提供布局、布线和静态校验，也可以为主控编写程序并**运行**：代码在隔离沙箱里真实执行，能驱动板载 RGB、打印串口、经真实 I²C 总线把画面写进 OLED，并按虚拟时间暂停与单步。见[仿真器方案](docs/SIMULATOR_DESIGN.md)与[实施计划](docs/SIMULATOR_RUNTIME_PLAN.md)。
 
 ## 可以怎么玩
 
@@ -177,7 +177,7 @@ pnpm bb export design.breadboard.json --format svg --out layout.svg
 - 自动排线依赖型号数据，复杂布局可能需要手动整理；大网络的优化包含启发式搜索。
 - 设计数据保存在浏览器本地，暂无云同步和多人协作；建议定期导出 JSON。
 
-后续重点是补充并实测元件、改进布线体验，以及把交互式仿真做完整。仿真器已完成[阶段 1 与阶段 2](docs/SIMULATOR_RUNTIME_PLAN.md)：用户代码在 QuickJS 沙箱里真实执行，可驱动 ESP32-S3 的 GPIO 与板载 RGB，支持暂停、单步、复位与倍速；触摸键与 BOOT/RST 可以直接在画布上按，输入经真实导线到达程序。接下来是 I²C 与 OLED 显示（阶段 3）。
+后续重点是补充并实测元件、改进布线体验，以及把交互式仿真做完整。仿真器已完成[阶段 1 到阶段 3](docs/SIMULATOR_RUNTIME_PLAN.md)：用户代码在 QuickJS 沙箱里真实执行，可驱动 ESP32-S3 的 GPIO 与板载 RGB，支持暂停、单步、复位与倍速；触摸键与 BOOT/RST 可以直接在画布上按；I²C 是控制器级的真实总线，SSD1315 OLED 的画面由程序一字节一字节写进去——断线、错地址、没供电各自报出不同的诊断，而不是屏幕默默不亮。接下来是传感器行为模型与录制回放（阶段 4）。
 
 ## 一起完善它
 
@@ -206,4 +206,4 @@ Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an acc
 
 The CLI and browser share the same geometry, connectivity graph, and transaction engine. Agents can inspect and edit `.breadboard.json` files directly. See the [Agent guide](docs/AGENT_GUIDE.md) for commands and patch examples.
 
-Programs now run: user code executes in an isolated QuickJS sandbox on a deterministic virtual clock, driving the board's on-board RGB and the serial console, with pause, single-step, reset and playback speed. Buttons and touch input work on the canvas and reach the program through the real wiring; the OLED display is still in progress. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.
+Programs now run: user code executes in an isolated QuickJS sandbox on a deterministic virtual clock, driving the board's on-board RGB, the serial console and — over a real controller-level I²C bus — the SSD1315 OLED, with pause, single-step, reset and playback speed. Buttons and touch input work on the canvas and reach the program through the real wiring. Cut a wire, use the wrong address or leave the panel unpowered and each fails differently, with a diagnostic that names the fix. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.

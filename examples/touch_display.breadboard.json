@@ -8,7 +8,7 @@
     "revision": 3,
     "created_at": "2026-09-05T00:00:00.000Z",
     "updated_at": "2026-09-05T00:00:00.000Z",
-    "description": "仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96\" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序，触摸时在屏幕上显示 Touched。",
+    "description": "仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96\" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序：触摸时屏幕显示 Touched、板载 RGB 由蓝转绿。",
     "author": "Breadboard Studio examples",
     "tags": [
       "esp32-s3",
@@ -297,7 +297,7 @@
       "name": "触摸显示示例",
       "target_component_id": "mcu",
       "language": "studio-ts",
-      "source": "// 触摸显示示例 · Studio TypeScript（API 见 docs/SIMULATOR_DESIGN.md §8.1）\n// 阶段 0：仿真器还没有代码执行后端，这段程序只随设计一起保存，暂时不会执行。\n// 接线：TTP223 IO → GPIO4；SSD1315 OLED SDA → GPIO8、SCL → GPIO9（I²C 地址 0x3C）。\nimport { gpio, Wire, Serial, sleep, INPUT } from '@bbs/runtime';\nimport { SSD1306 } from '@bbs/devices/ssd1306';\n\nconst TOUCH = 4;\nconst oled = new SSD1306(Wire, 0x3c, 128, 64);\n\nexport async function setup() {\n  gpio.pinMode(TOUCH, INPUT);\n  Serial.begin(115200);\n  await Wire.begin({ sda: 8, scl: 9 });\n  await oled.begin();\n  Serial.println('ready');\n}\n\nexport async function loop() {\n  oled.clear();\n  oled.setColor('white');\n  oled.text(8, 24, gpio.digitalRead(TOUCH) ? 'Touched' : 'Ready');\n  await oled.show();\n  await sleep(20);\n}\n"
+      "source": "// 触摸显示示例 · Studio TypeScript（API 见 docs/SIMULATOR_DESIGN.md §8.1）\n// 接线：TTP223 IO → GPIO4；SSD1315 OLED SDA → GPIO8、SCL → GPIO9（I²C 地址 0x3C）。\n// 摸一下触摸键：屏幕从 Ready 变成 Touched，板载 RGB 同时由蓝转绿。\nimport { gpio, Wire, Serial, board, sleep, INPUT } from '@bbs/runtime';\nimport { SSD1306 } from '@bbs/devices/ssd1306';\n\nconst TOUCH = 4;\nconst oled = new SSD1306(Wire, 0x3c, 128, 64);\nlet last = -1;\n\nexport async function setup() {\n  gpio.pinMode(TOUCH, INPUT);\n  Serial.begin(115200);\n  await Wire.begin({ sda: 8, scl: 9 });\n  // begin() 的返回值就是第一笔事务的结果：接错线或地址不对时它是 false，\n  // 之后 show() 会直接跳过，屏幕保持黑色，而不是假装画上去了。\n  const ok = await oled.begin();\n  Serial.println(ok ? 'ready' : 'oled missing');\n}\n\nexport async function loop() {\n  const touched = gpio.digitalRead(TOUCH) === 1;\n  if (touched !== (last === 1)) {\n    last = touched ? 1 : 0;\n    Serial.println(touched ? 'touch=1' : 'touch=0');\n  }\n  board.rgb(touched ? 0 : 0, touched ? 180 : 0, touched ? 0 : 120);\n  oled.clear();\n  oled.setColor('white');\n  oled.text(8, 16, touched ? 'Touched' : 'Ready');\n  oled.text(8, 32, 'GPIO4');\n  await oled.show();\n  await sleep(20);\n}\n"
     }
   ],
   "simulation": {

@@ -4,6 +4,7 @@ import type { SimDeviceSpec } from '../../src/types.js';
 import { BUILTIN_DRIVERS, builtinDrivers } from '../../src/devices/registry.js';
 import { ESP32S3_DRIVER_ID, Esp32S3Driver } from '../../src/devices/esp32s3.js';
 import { TTP223_DRIVER_ID } from '../../src/devices/ttp223.js';
+import { SSD1315_DRIVER_ID } from '../../src/devices/ssd1315.js';
 import { createDeviceHarness, fixtureSpec } from './harness.js';
 
 /** Every key `DeviceContext` documents — and nothing that reaches another device. */
@@ -100,9 +101,9 @@ describe('driver registry', () => {
     expect(registry.create(touch.ctx)?.driverId).toBe('input.ttp223@1');
     expect(registry.create(oled.ctx)?.driverId).toBe('display.ssd1315@1');
     expect(created).toEqual(['input.ttp223@1:touch', 'display.ssd1315@1:oled']);
-    // The built-in table itself is untouched by the extras. TTP223 joined it in
-    // M-S2; the SSD1315 entry arrives in M-S3.
-    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID]);
+    // The built-in table itself is untouched by the extras, and now holds all three
+    // v0.2 drivers: the MCU (M-S1), the TTP223 (M-S2) and the OLED (M-S3).
+    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID, SSD1315_DRIVER_ID]);
   });
 
   it('R7 exposes net ids as opaque strings, equal only when the pins really share a net', () => {

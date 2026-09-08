@@ -27,7 +27,7 @@ export function state(page: Page): Promise<BbsState> {
 /** Mirror of `SimVisualHook` in apps/web/src/testHooks.ts; display frames expose no pixels. */
 export type SimVisualHook =
   | { kind: 'led'; feature: string; rgb: [number, number, number]; intensity: number }
-  | { kind: 'display'; feature: string; width: number; height: number; enabled: boolean; onPixels: number; sha: string }
+  | { kind: 'display'; feature: string; width: number; height: number; enabled: boolean; onPixels: number; sha: string; storedPixelBytes: number }
   | { kind: 'pressed'; feature: string; active: boolean };
 
 /** Mirror of `SimulatorHookState` in apps/web/src/testHooks.ts. */

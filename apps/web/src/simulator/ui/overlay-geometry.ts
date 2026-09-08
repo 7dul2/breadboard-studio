@@ -37,8 +37,15 @@ export interface OverlayCircle {
 
 /** Just enough of a component definition to place an overlay; keeps the tests small. */
 export type FeatureSource = Pick<ComponentDefinition, 'features'> & {
-  simulation?: Pick<NonNullable<ComponentDefinition['simulation']>, 'controls'> | undefined;
+  simulation?: Pick<NonNullable<ComponentDefinition['simulation']>, 'controls' | 'visuals'> | undefined;
 };
+
+/** A display panel declared by the catalog, with somewhere on the drawing to put it. */
+export interface OverlayDisplay {
+  channel: string;
+  feature: string;
+  rect: OverlayRect;
+}
 
 export type OverlayVisual =
   | { kind: 'led'; feature: string; rect: OverlayRect; circle: OverlayCircle; fill: string; opacity: number }
@@ -82,6 +89,19 @@ export function rgbFill(rgb: readonly [number, number, number]): string {
   return `rgb(${channel(rgb[0])}, ${channel(rgb[1])}, ${channel(rgb[2])})`;
 }
 
+/**
+ * `#rrggbb` → `[r, g, b]` for the OLED tint. The driver sends the panel colour as
+ * a CSS string (the same literal core renders with), and `putImageData` needs
+ * channels; anything unparseable falls back to the white panel rather than to
+ * black, which would look like a dead screen.
+ */
+export function parseHexColor(css: string): [number, number, number] {
+  const m = /^#([0-9a-f]{6})$/i.exec(css.trim());
+  if (!m) return [248, 250, 252];
+  const n = Number.parseInt(m[1]!, 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
 /** LED brightness → SVG opacity, clamped to [0, 1] (a driver may report 0/1 or a fraction). */
 export function clampIntensity(intensity: number): number {
   if (!Number.isFinite(intensity)) return 0;
@@ -92,8 +112,10 @@ export function clampIntensity(intensity: number): number {
  * Pair the runtime visual states of one component with the feature rects of its
  * definition, matching `DeviceVisualState.feature` against `features[].label`.
  *
- * Dropped on purpose: `display` states (they need a canvas in a
- * `<foreignObject>`, M-S3) and any state whose feature label has no rect. When
+ * Dropped on purpose: `display` states — their pixels never reach the store at
+ * all (see `visualBus`), so `OledScreen` subscribes to the bus and paints them
+ * outside React; use `overlayDisplays` for their geometry. Also dropped is any
+ * state whose feature label has no rect. When
  * a component reports the same (kind, feature) twice in one frame the last one
  * wins, so the result can be keyed by `kind:feature` without React duplicates.
  */
@@ -112,6 +134,23 @@ export function overlayVisuals(def: FeatureSource, states: readonly DeviceVisual
     }
   }
   return [...byKey.values()];
+}
+
+/**
+ * Where this component's display panels are drawn. Unlike LEDs and buttons these
+ * are taken from the *catalog binding* rather than from a runtime state: the panel
+ * has to exist on screen before the first frame arrives, otherwise a display that
+ * is off would have nowhere to be black.
+ */
+export function overlayDisplays(def: FeatureSource): OverlayDisplay[] {
+  const out: OverlayDisplay[] = [];
+  for (const visual of def.simulation?.visuals ?? []) {
+    if (visual.kind !== 'display') continue;
+    const rect = featureRect(def, visual.feature_label);
+    if (!rect) continue;
+    out.push({ channel: visual.channel, feature: visual.feature_label, rect });
+  }
+  return out;
 }
 
 /**

@@ -52,8 +52,9 @@ import { builtinDrivers } from '../devices/registry.js';
 import { isMcuHostApi, type McuHostApi } from '../devices/esp32s3.js';
 import { compileStudioTs, type CompiledProgram, type SucraseTransform } from '../runtime/compile.js';
 import { I2C_STATUS, type I2cStatusCode } from '../runtime/guest-modules.js';
+import { DEFAULT_I2C_HZ, I2cController, I2cRegistry } from '../i2c.js';
 import { describeError, isInterruptError, type GuestErrorShape } from '../runtime/diagnostics.js';
-import { StudioTsSandbox, type I2cReadResult, type SandboxHost } from '../runtime/studio-ts.js';
+import { StudioTsSandbox, type I2cBeginOptions, type I2cReadResult, type SandboxHost } from '../runtime/studio-ts.js';
 import { SimLoop, DEFAULT_EVENT_BUDGET, DEFAULT_SLICE_MS } from './loop.js';
 import { Outbox, type OutboxChannel } from './outbox.js';
 import { SUPPORTED_SPEEDS } from './pacer.js';
@@ -198,6 +199,14 @@ export class SessionRuntime {
   private readonly controlBindings = new Map<string, SimControlBinding>();
   private mcu: (DeviceDriver & McuHostApi) | null = null;
 
+  /**
+   * The I²C bus (plan §8). The registry is rebuilt with the devices on every
+   * prepare; the controller is the program's single `Wire` peripheral, and it is
+   * unbound until `Wire.begin()` resolves a real pair of nets.
+   */
+  private i2cTargets = new I2cRegistry();
+  private i2c: I2cController = this.createI2cController();
+
   private phase: ProgramPhase = 'none';
   private prepared = false;
   private running = false;
@@ -310,6 +319,13 @@ export class SessionRuntime {
 
     this.snapshot = snapshot;
     this.program = program;
+    // The bus is rebuilt with the devices: targets re-register from their drivers'
+    // `attachI2c`, and the controller starts unbound so the program must call
+    // `Wire.begin()` again. The objects are reused rather than replaced because the
+    // controller captured this registry.
+    this.i2cTargets.clear();
+    this.i2c.abort();
+    this.i2c.bind(null);
 
     this.buildKernel(snapshot);
 
@@ -491,12 +507,24 @@ export class SessionRuntime {
       diagnose: (diagnostic) => this.emitDiagnostic({ ...diagnostic, atUs: this.scheduler.nowUs, componentIds: [componentId] }),
       diagnoseOnce: (key, diagnostic) =>
         this.emitOnce(`${componentId}|${key}`, { ...diagnostic, atUs: this.scheduler.nowUs, componentIds: [componentId] }),
-      attachI2c: (sdaPin: string, sclPin: string, _addresses: number[]) => {
+      attachI2c: (sdaPin: string, sclPin: string, addresses: number[]) => {
         requirePin(sdaPin, 'attachI2c');
         requirePin(sclPin, 'attachI2c');
-        // The bus itself lands in M-S3; registering here would pretend a
-        // transaction could succeed.
-        this.i2cUnavailable(componentId);
+        // Net ids are resolved on the main thread; the worker only compares them.
+        // An unwired pin still gets its `unconnected:` literal, which simply never
+        // matches a controller's bus — that is how a cut SDA becomes a NACK.
+        const sdaNet = spec.pinNets?.[sdaPin] ?? `unconnected:${componentId}.${sdaPin}`;
+        const sclNet = spec.pinNets?.[sclPin] ?? `unconnected:${componentId}.${sclPin}`;
+        const wanted = addresses.filter((a) => Number.isInteger(a) && a >= 0 && a <= 0x7f);
+        this.i2cTargets.register({
+          componentId,
+          sdaNet,
+          sclNet,
+          addresses: () => wanted,
+          powered: () => this.powerStates.get(componentId)?.powered ?? false,
+          onWrite: (address, bytes, stop) => entry.driver?.onI2cWrite?.(address, bytes, stop) ?? 'nack',
+          onRead: (address, length) => entry.driver?.onI2cRead?.(address, length) ?? null
+        });
       }
     };
 
@@ -562,21 +590,12 @@ export class SessionRuntime {
     sleep: (delayUs: number, done: () => void) => {
       this.scheduler.after(delayUs, 'guest:sleep', 'sleep', null, () => done());
     },
-    i2cBegin: () => this.i2cUnavailable(),
-    i2cEnd: () => {},
-    i2cSetClock: () => {},
-    i2cWrite: (_address: number, _bytes: Uint8Array, done: (status: I2cStatusCode) => void) => {
-      const status = this.i2cUnavailable();
-      this.scheduler.after(0, 'guest:i2c', 'i2c-write', null, () => done(status));
-    },
-    i2cRead: (_address: number, _length: number, done: (result: I2cReadResult) => void) => {
-      const status = this.i2cUnavailable();
-      this.scheduler.after(0, 'guest:i2c', 'i2c-read', null, () => done({ status, bytes: new Uint8Array(0) }));
-    },
-    i2cWriteRead: (_address: number, _bytes: Uint8Array, _length: number, done: (result: I2cReadResult) => void) => {
-      const status = this.i2cUnavailable();
-      this.scheduler.after(0, 'guest:i2c', 'i2c-write-read', null, () => done({ status, bytes: new Uint8Array(0) }));
-    },
+    i2cBegin: (options) => this.i2cBegin(options),
+    i2cEnd: () => this.i2c.bind(null),
+    i2cSetClock: (hz: number) => this.i2c.setClock(hz),
+    i2cWrite: (address: number, bytes: Uint8Array, done: (status: I2cStatusCode) => void) => this.i2c.write(address, bytes, done),
+    i2cRead: (address: number, length: number, done: (result: I2cReadResult) => void) => this.i2c.read(address, length, done),
+    i2cWriteRead: (address: number, bytes: Uint8Array, length: number, done: (result: I2cReadResult) => void) => this.i2c.writeRead(address, bytes, length, done),
     diagnose: (diagnostic: SimDiagnostic) =>
       this.emitDiagnostic({
         atUs: this.scheduler.nowUs,
@@ -593,22 +612,96 @@ export class SessionRuntime {
     return mcu;
   }
 
-  /**
-   * I²C lands in M-S3 (plan §11.3). Until then every transaction fails loudly:
-   * a status code the guest can test plus one warning per session, rather than
-   * a pretend ACK that would make a wrong address look like success.
-   */
-  private i2cUnavailable(componentId?: string): I2cStatusCode {
-    const target = componentId ?? this.program?.target_component_id;
-    this.emitOnce(
-      'i2c_bus_unavailable|m-s1',
-      this.diagnostic('i2c_bus_unavailable', 'I²C 总线在本版本还没有实现（计划在 M-S3 落地）：所有 I²C 事务都会返回总线错误，OLED 不会显示内容。', {
-        atUs: this.scheduler.nowUs,
-        ...(target ? { componentIds: [target] } : {})
-      })
-    );
-    return I2C_STATUS.ERR_BUS;
+  /** The controller the guest's `Wire` drives; rebuilt with the session. */
+  private createI2cController(): I2cController {
+    return new I2cController({
+      registry: this.i2cTargets,
+      schedule: (delayUs, label, commit) => {
+        this.scheduler.after(delayUs, 'guest:i2c', label, null, commit);
+      },
+      diagnoseOnce: (key, diagnostic) => this.emitOnce(key, { ...diagnostic, atUs: this.scheduler.nowUs }),
+      controllerId: () => this.program?.target_component_id
+    });
   }
+
+  /**
+   * `Wire.begin()` (plan §8.4). Two hops, both of which can fail honestly: a GPIO
+   * number becomes a pin name through the MCU driver, and a pin name becomes a net
+   * id through the snapshot. Without arguments the controller's default bus from
+   * the catalog is used, which is what the fixture and most programs want.
+   *
+   * Known inconsistency worth stating: remapping I²C onto non-default pins works
+   * here, while core's static rules still judge the design by `i2cBuses(mcu)` and
+   * will report `i2c_device_without_controller`. The runtime is right; the panel is
+   * conservative. Fixing core is out of scope for v0.2 (plan §8.2).
+   */
+  private i2cBegin(options: I2cBeginOptions): I2cStatusCode {
+    const controllerId = this.program?.target_component_id;
+    const spec = controllerId ? this.snapshot?.devices.find((d) => d.componentId === controllerId) : undefined;
+    const frequency = typeof options.frequency === 'number' && Number.isFinite(options.frequency) && options.frequency > 0 ? Math.round(options.frequency) : DEFAULT_I2C_HZ;
+
+    const fail = (reason: string): I2cStatusCode => {
+      this.emitOnce(
+        `i2c_bus_unavailable|begin|${reason}`,
+        this.diagnostic('i2c_bus_unavailable', `Wire.begin() 失败：${reason}`, {
+          atUs: this.scheduler.nowUs,
+          ...(controllerId ? { componentIds: [controllerId] } : {})
+        })
+      );
+      this.i2c.bind(null);
+      return I2C_STATUS.ERR_BUS;
+    };
+
+    if (!spec) return fail('当前项目里没有运行程序的主控。');
+    if (!this.powerStates.get(spec.componentId)?.powered) return fail('主控没有供电，I²C 外设不工作。');
+
+    let sdaNet: string | undefined;
+    let sclNet: string | undefined;
+    if (options.sda === undefined && options.scl === undefined) {
+      const index = typeof options.bus === 'number' ? options.bus : 0;
+      const bus = spec.i2c?.buses?.find((b) => b.index === index) ?? spec.i2c?.buses?.[0];
+      if (!bus) return fail('这块主控没有可用的 I²C 总线定义。');
+      sdaNet = bus.sdaNet;
+      sclNet = bus.sclNet;
+    } else {
+      const resolve = (gpio: unknown, label: string): string | null => {
+        if (typeof gpio !== 'number' || !Number.isInteger(gpio)) {
+          this.pendingBeginError = `${label} 必须是 GPIO 编号。`;
+          return null;
+        }
+        let pin: string;
+        try {
+          pin = this.requireMcu().pinNameOf(gpio);
+        } catch {
+          this.pendingBeginError = `这块主控没有 GPIO${gpio}，无法作为 ${label}。`;
+          return null;
+        }
+        const net = spec.pinNets?.[pin];
+        if (!net) {
+          this.pendingBeginError = `${label}（GPIO${gpio} / ${pin}）没有接任何东西。`;
+          return null;
+        }
+        return net;
+      };
+      this.pendingBeginError = null;
+      sdaNet = resolve(options.sda, 'SDA') ?? undefined;
+      sclNet = sdaNet === undefined ? undefined : (resolve(options.scl, 'SCL') ?? undefined);
+      if (!sdaNet || !sclNet) return fail(this.pendingBeginError ?? '引脚无法解析。');
+    }
+
+    // `buildSnapshot` gives an unwired pin the literal `unconnected:<id>.<pin>` so the
+    // worker never has to tell "no key" from "wired wrong". Binding to one would work —
+    // nothing else is on it, so every transaction would NACK — but "SDA 没有接任何东西"
+    // is the sentence that actually fixes the circuit, so both paths refuse it here.
+    for (const [net, label] of [[sdaNet, 'SDA'], [sclNet, 'SCL']] as const) {
+      if (net.startsWith('unconnected:')) return fail(`${label}（${net.slice('unconnected:'.length)}）没有接任何东西，总线不成立。`);
+    }
+    if (sdaNet === sclNet) return fail(`SDA 与 SCL 落在同一条网络（${sdaNet}）上，这不是一条可用的总线。`);
+    this.i2c.bind({ sdaNet, sclNet, frequencyHz: frequency });
+    return I2C_STATUS.OK;
+  }
+
+  private pendingBeginError: string | null = null;
 
   // -------------------------------------------------------------------------
   // Transport commands
@@ -719,6 +812,10 @@ export class SessionRuntime {
       return;
     }
     mcu?.setResetButton(false);
+    // The controller is part of the MCU, so its binding and any queued transaction
+    // die with the reset; the OLED keeps its GDDRAM, which is what real hardware does.
+    this.i2c.abort();
+    this.i2c.bind(null);
     this.sandbox?.dispose();
     this.sandbox = null;
     const sandbox = this.buildSandbox();

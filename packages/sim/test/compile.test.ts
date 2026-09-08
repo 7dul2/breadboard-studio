@@ -20,15 +20,18 @@ function fixtureProgram(): ProgramAsset {
 }
 
 describe('compileStudioTs', () => {
-  it('C1 keeps the fixture line-for-line: 25 lines in, 25 lines out', () => {
+  it('C1 keeps the fixture line-for-line, however long the fixture gets', () => {
     const asset = fixtureProgram();
-    expect(asset.source.split('\n').length).toBe(25);
+    // The invariant is "same number of lines out as in", not a particular count:
+    // pinning the number turned every edit to the example program into a failure.
+    const lines = asset.source.split('\n').length;
+    expect(lines, 'the fixture is a real program, not a stub').toBeGreaterThan(20);
 
     const result = compileStudioTs(asset, transform);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.filename).toBe('program_main');
-    expect(result.code.split('\n').length).toBe(25);
+    expect(result.code.split('\n').length).toBe(lines);
 
     // The lines that carry executable statements must not move: a QuickJS frame
     // `at loop (program_main:20:3)` has to point at the same line the user sees.

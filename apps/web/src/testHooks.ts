@@ -13,7 +13,7 @@ import type { StrippedDisplayState } from './simulator/runtime/visualBus';
  */
 export type SimVisualHook =
   | { kind: 'led'; feature: string; rgb: [number, number, number]; intensity: number }
-  | { kind: 'display'; feature: string; width: number; height: number; enabled: boolean; onPixels: number; sha: string }
+  | { kind: 'display'; feature: string; width: number; height: number; enabled: boolean; onPixels: number; sha: string; storedPixelBytes: number }
   | { kind: 'pressed'; feature: string; active: boolean };
 
 export interface SimulatorHookState {
@@ -66,7 +66,10 @@ function visualHook(state: DeviceVisualState): SimVisualHook {
       height: stripped.height,
       enabled: stripped.enabled,
       onPixels: stripped.onPixels ?? 0,
-      sha: stripped.sha ?? ''
+      sha: stripped.sha ?? '',
+      // The claim under test: the store keeps a zero-length array, never the frame.
+      // Reading `.length` here is the only way an e2e can see what the store holds.
+      storedPixelBytes: stripped.pixels?.length ?? -1
     };
   }
   if (state.kind === 'led') return { kind: 'led', feature: state.feature, rgb: [...state.rgb] as [number, number, number], intensity: state.intensity };

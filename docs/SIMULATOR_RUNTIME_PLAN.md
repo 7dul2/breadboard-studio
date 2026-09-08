@@ -1006,6 +1006,18 @@ simulatorControl(componentId: string, controlId: string, value: boolean | number
 | 新增测试 | `packages/sim/test/i2c.test.ts`、`devices/ssd1315.test.ts`、`integration-touch-display.test.ts`（规格书 §15 集成七步 + 上述四反例，纯 Node、虚拟时间）；`e2e/sim-i2c.spec.ts` |
 | 回退 | display 通道单独开关，关掉后 M-S1/M-S2 行为不变 |
 
+#### 11.3 实施结果与偏差（2026-09-09）
+
+M-S3 落地时有五处与本节原文不同，都是实现过程中发现原文的预设不成立：
+
+1. **断 SDA 的结果是 `i2c_bus_unavailable`，不是 `i2c_nack`。** 原文预期 NACK 且 `netIds` 含 `unconnected:oled.SDA`。实测 `remove_wire w7` 之后，`mcu.GPIO8` 与 `oled.SDA` 的 `pinNets` 键**双双消失**——那根线是把两个孔组连起来的唯一物件。`Wire.begin({sda:8, scl:9})` 于是在第一跳就失败。既然这样，`begin()` 的两条路径（显式引脚 / 目录默认总线）现在都会拒绝 `unconnected:` 网络：绑上去也只会让每笔事务 NACK，而「SDA 没有接任何东西」才是能修好电路的那句话。四反例因此**更**可区分，不是更少。
+2. **同一控制器的事务 FIFO 串行化**（§8.3 提过但未展开）已实现：控制器持一个队列，寻址、位数与诊断都在事务**真正开始**时才决定。没有这一层，三笔未 `await` 的事务会按时长而非调用顺序结束——单测 ⑩ 正是这样抓到它的。
+3. **命令集比 §7.4 的清单多三条**：`0xDA`（COM 引脚配置）、`0x2E`/`0x2F`（滚动开关）被静默接受。内置客户端库的 `begin()` 会发它们，对一段**正确**的初始化序列报 warning 纯属噪声。
+4. **页寻址模式忽略 `0x21`/`0x22`**，列指针在 0–127 内回绕。数据手册说这两条命令只在水平/垂直模式生效；忠实实现意味着忘记发 `0x20` 的程序会真的看到「第二行盖住第一行」这个经典 bug。
+5. **`0xA1`+`0xC8` 视作正向**，`0xA0` 镜像 x、`0xC0` 镜像 y。真实模块的排线本身是镜像的，初始化序列发这一对就是为了抵消它；建模面板排线不值得，这样标准初始化看着是正的，而程序翻转其中一条时能看到翻转。
+
+验收 ② 的「像素不进 store」由 `storedPixelBytes` 测试钩子直接断言（store 里那个数组的 `.length`），并做过变异验证：把 `EMPTY_PIXELS` 换成 8192 字节后该用例失败。
+
 ### 11.4 测试策略
 
 - **单元（vitest, `environment: 'node'`）**：`vitest.config.ts` 的 include 已覆盖 `packages/*/test/**` 与 `apps/web/src/**`，**无需改配置**。QuickJS/sucrase 相关的沙箱单测放在 `packages/sim/test/`（依赖在 `packages/sim` 的 devDependencies），不放 `apps/web`。
