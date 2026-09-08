@@ -4,7 +4,7 @@
  * Everything here is plain data: serialisable, versioned and independent of
  * React, the DOM or Zustand. Runtime state never enters the design document.
  */
-import type { PinDirection, PinRole, ProgramAsset, SimulationConfig, SimulationControlAction, SimulationSpeed, SimulationVisualKind } from '@breadboard-studio/schema';
+import type { PinDirection, PinRole, ProgramAsset, SimulationConfig, SimulationControlAction, SimulationControlRange, SimulationSpeed, SimulationVisualKind } from '@breadboard-studio/schema';
 
 /** Bumped whenever HostCommand / RuntimeMessage change shape. Messages with another version are ignored. */
 export const SIM_PROTOCOL_VERSION = 1 as const;
@@ -145,6 +145,8 @@ export interface SimControlBinding {
   action: SimulationControlAction;
   /** Driver channel the control feeds. */
   channel: string;
+  /** Bounds of a `slider`, straight from the catalog. Absent for buttons and pads. */
+  range?: SimulationControlRange;
 }
 
 /** A feature whose appearance follows the running simulation. */

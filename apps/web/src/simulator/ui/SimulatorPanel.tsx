@@ -7,6 +7,7 @@ import { useStore } from '../../store';
 import { useSimulatorStore } from '../simulatorStore';
 import { SerialConsole } from './SerialConsole';
 import { IoInspector } from './IoInspector';
+import { SensorSliders } from './SensorSliders';
 
 const SEVERITY_LABEL: Record<SimDiagnostic['severity'], string> = { error: '错误', warning: '警告', info: '信息' };
 type SimulationPatch = Extract<Op, { op: 'set_simulation_config' }>['patch'];
@@ -206,6 +207,8 @@ export function SimulatorPanel() {
           ))}
         </ul>
       </section>
+
+      <SensorSliders />
 
       <section className="sim-section">
         <div className="sim-section-title">串口</div>

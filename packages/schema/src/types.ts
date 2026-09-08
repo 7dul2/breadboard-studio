@@ -402,6 +402,22 @@ export interface SimulationControlDef {
   action: SimulationControlAction;
   /** Driver channel the control feeds. */
   channel: string;
+  /**
+   * Bounds of a `slider`, in the channel's own unit. It belongs to the part, not
+   * to the panel: −40…125 °C is what an SHT4x can measure, and the UI should be
+   * able to draw the control without knowing what an SHT4x is.
+   */
+  range?: SimulationControlRange;
+}
+
+export interface SimulationControlRange {
+  min: number;
+  max: number;
+  step?: number;
+  /** Where the slider sits before anyone touches it. */
+  default?: number;
+  /** Shown next to the value, e.g. `°C`. */
+  unit?: string;
 }
 
 /** A feature whose appearance follows the running simulation (LED, display, state badge). */

@@ -206,6 +206,12 @@ table.pins td { padding: 2px 4px; border-top: 1px solid #eef0f4; vertical-align:
   .sim-controls .sim-label { display: none; }
   .sim-controls button { padding: 4px 6px; min-width: 28px; }
 }
+/* Sensor sliders: name on the left, value on the right, the track between them. */
+.sim-slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding: 4px 10px; }
+.sim-slider-name { font-size: 12px; color: var(--muted); }
+.sim-slider output { font-variant-numeric: tabular-nums; font-size: 12px; }
+.sim-slider input[type='range'] { grid-column: 1 / -1; width: 100%; }
+
 .sim-status { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: #6b7280; }
 .sim-status::before, .sim-light::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff; opacity: 0.9; }
 .sim-light { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: #6b7280; }

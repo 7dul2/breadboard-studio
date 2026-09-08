@@ -118,7 +118,8 @@ const pinMeta = {
   }
 } as const;
 
-const simulationBinding = (extra: Record<string, unknown>) =>
+/** `extra` keys are required; `optional` keys are allowed but not demanded. */
+const simulationBinding = (extra: Record<string, unknown>, optional: Record<string, unknown> = {}) =>
   ({
     type: 'object',
     required: ['id', 'feature_label', 'channel', ...Object.keys(extra)],
@@ -127,7 +128,8 @@ const simulationBinding = (extra: Record<string, unknown>) =>
       id: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_-]{0,63}$' },
       feature_label: { type: 'string', minLength: 1 },
       channel: { type: 'string', minLength: 1 },
-      ...extra
+      ...extra,
+      ...optional
     }
   }) as const;
 
@@ -140,7 +142,20 @@ const simulation = {
     driver: { type: 'string', pattern: '^[a-z0-9_.-]+@[0-9]+$' },
     pins: { type: 'object', additionalProperties: { type: ['string', 'integer'] } },
     properties: { type: 'object' },
-    controls: { type: 'array', items: simulationBinding({ action: { type: 'string', enum: ['press', 'touch', 'toggle', 'slider'] } }) },
+    controls: {
+      type: 'array',
+      items: simulationBinding(
+        { action: { type: 'string', enum: ['press', 'touch', 'toggle', 'slider'] } },
+        {
+          range: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['min', 'max'],
+            properties: { min: { type: 'number' }, max: { type: 'number' }, step: { type: 'number', exclusiveMinimum: 0 }, default: { type: 'number' }, unit: { type: 'string' } }
+          }
+        }
+      )
+    },
     visuals: { type: 'array', items: simulationBinding({ kind: { type: 'string', enum: ['led', 'display', 'state'] } }) }
   }
 } as const;
