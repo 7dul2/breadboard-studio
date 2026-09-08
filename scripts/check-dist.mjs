@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test';
 
 const dist = join(import.meta.dirname, '..', 'apps', 'web', 'dist');
 const base = '/breadboard-studio/';
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.wasm': 'application/wasm' };
 const server = createServer((req, res) => {
   let path = req.url.split('?')[0];
   if (!path.startsWith(base)) { res.writeHead(404); res.end('not under base'); return; }

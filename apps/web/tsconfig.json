@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // WebWorker is needed by the simulator worker entry: without it `self` is
+    // typed as Window and transferable postMessage overloads do not resolve.
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
     "types": ["vite/client", "node"]
   },
   "include": ["src", "vite.config.ts"]

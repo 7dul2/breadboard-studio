@@ -19,7 +19,11 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+        # Match the Pages deployment so `check:dist` serves the same asset paths.
+        env:
+          VITE_BASE: /breadboard-studio/
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm check:dist
       - run: pnpm test:e2e
         env:
           CI: 'true'
