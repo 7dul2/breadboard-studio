@@ -30,6 +30,7 @@
     "@breadboard-studio/core": "workspace:*",
     "@breadboard-studio/render": "workspace:*",
     "@breadboard-studio/schema": "workspace:*",
+    "@breadboard-studio/sim": "workspace:*",
     "@playwright/test": "1.63.0",
     "@types/node": "26.4.1",
     "tsx": "4.23.13",

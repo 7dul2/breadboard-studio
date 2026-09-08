@@ -30,3 +30,28 @@ describe('built-in catalog', () => {
     expect(parseModelRef('Breadboard@1')).toBeNull();
   });
 });
+
+describe('simulation bindings', () => {
+  it('bind controls and visuals to existing feature labels and declare versioned drivers', () => {
+    const c = builtinCatalog();
+    const withSim = c.listComponents().filter((d) => d.simulation);
+    expect(withSim.map((d) => d.id).sort()).toEqual(['esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'led_5mm', 'oled_0_91_i2c', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'sht41_breakout', 'ttp223_module', 'xiao_esp32s3_sense']);
+    for (const d of withSim) {
+      const sim = d.simulation!;
+      expect(sim.driver, d.id).toMatch(/^[a-z0-9_.-]+@[0-9]+$/);
+      const labels = new Set((d.features ?? []).map((f) => f.label));
+      const pinNames = new Set(d.pins.length ? d.pins.map((p) => p.name) : Object.keys(d.pin_meta));
+      for (const control of sim.controls ?? []) expect(labels.has(control.feature_label), `${d.id} control ${control.id}`).toBe(true);
+      for (const visual of sim.visuals ?? []) expect(labels.has(visual.feature_label), `${d.id} visual ${visual.id}`).toBe(true);
+      for (const pin of Object.keys(sim.pins ?? {})) expect(pinNames.has(pin), `${d.id} pin ${pin}`).toBe(true);
+      const ids = [...(sim.controls ?? []), ...(sim.visuals ?? [])].map((b) => b.id);
+      expect(new Set(ids).size, d.id).toBe(ids.length);
+    }
+    const n16r8 = c.getComponent('esp32s3_n16r8_dual_usb@1')!;
+    expect(n16r8.simulation).toMatchObject({ driver: 'mcu.esp32s3.behavioral@1', pins: expect.objectContaining({ GPIO0: 0, GPIO48: 48, TX: 43, RX: 44 }) });
+    expect(n16r8.simulation!.controls!.map((x) => x.feature_label)).toEqual(['BOOT', 'RST']);
+    expect(n16r8.features!.find((f) => f.type === 'led')).toMatchObject({ label: 'RGB' });
+    expect(c.getComponent('ttp223_module@1')!.simulation!.controls![0]).toMatchObject({ action: 'touch', channel: 'touch' });
+    expect(c.getComponent('oled_0_96_ssd1315_i2c@1')!.simulation!.visuals![0]).toMatchObject({ kind: 'display', feature_label: '128×64 OLED' });
+  });
+});

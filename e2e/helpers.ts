@@ -22,7 +22,21 @@ export function state(page: Page): Promise<BbsState> {
   return page.evaluate(() => (window as unknown as { __bbs: { state: () => BbsState } }).__bbs.state());
 }
 
-export function design(page: Page): Promise<{ metadata: { name: string; revision: number }; boards: { id: string; position_um: [number, number] }[]; components: { id: string; placement: Record<string, unknown> }[]; wires: { id: string; from: Record<string, string>; to?: Record<string, string> }[] }> {
+export interface SimulatorHookState {
+  status: string;
+  sessionId: string | null;
+  programId: string | null;
+  allowed: string[];
+  diagnostics: { code: string; severity: string; message: string }[];
+  editorOpen: boolean;
+  dirty: boolean;
+}
+
+export function simulator(page: Page): Promise<SimulatorHookState> {
+  return page.evaluate(() => (window as unknown as { __bbs: { simulator: () => SimulatorHookState } }).__bbs.simulator());
+}
+
+export function design(page: Page): Promise<{ schema_version: string; metadata: { name: string; revision: number }; boards: { id: string; position_um: [number, number] }[]; components: { id: string; placement: Record<string, unknown> }[]; wires: { id: string; from: Record<string, string>; to?: Record<string, string> }[]; programs?: { id: string; name: string; target_component_id: string; language: string; source: string }[]; simulation?: { active_program_id?: string; speed?: number; random_seed?: number; usb_powered_components?: string[] } }> {
   return page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => never } }).__bbs.getDesign());
 }
 

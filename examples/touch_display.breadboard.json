@@ -1,0 +1,311 @@
+{
+  "schema_version": "1.1",
+  "catalog_versions": {
+    "builtin": "0.1.0"
+  },
+  "metadata": {
+    "name": "触摸显示：ESP32-S3 N16R8 + TTP223 + SSD1315 OLED",
+    "revision": 3,
+    "created_at": "2026-09-05T00:00:00.000Z",
+    "updated_at": "2026-09-05T00:00:00.000Z",
+    "description": "仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96\" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序，触摸时在屏幕上显示 Touched。",
+    "author": "Breadboard Studio examples",
+    "tags": [
+      "esp32-s3",
+      "n16r8",
+      "ttp223",
+      "ssd1315",
+      "oled",
+      "simulator",
+      "example"
+    ]
+  },
+  "boards": [
+    {
+      "id": "bb",
+      "model": "breadboard_830@1",
+      "position_um": [
+        0,
+        0
+      ],
+      "rotation_deg": 0,
+      "name": "主板 830"
+    }
+  ],
+  "components": [
+    {
+      "id": "mcu",
+      "name": "ESP32-S3 N16R8",
+      "model": "esp32s3_n16r8_dual_usb@1",
+      "notes": "板体占 30–51 列、b–j 行。旋转 270° 让 GPIO/3V3 这一排落在 b 行，可从 a 行引出；另一排在 j 行被板体遮挡，本例不使用。",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "b30",
+        "anchor_pin": "GND_4",
+        "rotation_deg": 270
+      }
+    },
+    {
+      "id": "touch",
+      "name": "TTP223 触摸键",
+      "model": "ttp223_module@1",
+      "config": {
+        "output_mode": "active_high",
+        "toggle_mode": false,
+        "supply_v": 3.3
+      },
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "e10",
+        "anchor_pin": "VCC",
+        "rotation_deg": 0
+      }
+    },
+    {
+      "id": "oled",
+      "name": "0.96\" OLED（SSD1315）",
+      "model": "oled_0_96_ssd1315_i2c@1",
+      "config": {
+        "i2c_address": 60
+      },
+      "notes": "平躺模块，针脚在 b 行、从 a 行引出；板体盖住 53–62 列的 b–i 行。",
+      "placement": {
+        "kind": "board",
+        "board_id": "bb",
+        "anchor_hole": "b56",
+        "anchor_pin": "GND",
+        "rotation_deg": 0
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "w1",
+      "from": {
+        "hole": "bb.a30"
+      },
+      "to": {
+        "hole": "bb.top_outer_24"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "GND 馈线 → bb 电源轨"
+    },
+    {
+      "id": "w2",
+      "from": {
+        "hole": "bb.top_outer_25"
+      },
+      "to": {
+        "hole": "bb.top_outer_26"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "GND 桥线 → bb 电源轨"
+    },
+    {
+      "id": "w3",
+      "from": {
+        "hole": "bb.a56"
+      },
+      "to": {
+        "hole": "bb.top_outer_45"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [
+        [
+          140970,
+          13330
+        ]
+      ],
+      "name": "GND: oled.GND"
+    },
+    {
+      "id": "w4",
+      "from": {
+        "hole": "bb.a51"
+      },
+      "to": {
+        "hole": "bb.top_inner_41"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "3V3 馈线 → bb 电源轨"
+    },
+    {
+      "id": "w5",
+      "from": {
+        "hole": "bb.a57"
+      },
+      "to": {
+        "hole": "bb.top_inner_46"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "3V3: oled.VCC"
+    },
+    {
+      "id": "w6",
+      "from": {
+        "hole": "bb.a58"
+      },
+      "to": {
+        "hole": "bb.a37"
+      },
+      "color": "yellow",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "SCL: oled.SCL"
+    },
+    {
+      "id": "w7",
+      "from": {
+        "hole": "bb.a59"
+      },
+      "to": {
+        "hole": "bb.a40"
+      },
+      "color": "blue",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "SDA: oled.SDA"
+    },
+    {
+      "id": "w8",
+      "from": {
+        "hole": "bb.a12"
+      },
+      "to": {
+        "hole": "bb.top_outer_9"
+      },
+      "color": "black",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "GND: touch.GND"
+    },
+    {
+      "id": "w9",
+      "from": {
+        "hole": "bb.top_inner_26"
+      },
+      "to": {
+        "hole": "bb.top_inner_25"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "3V3 桥线 → bb 电源轨"
+    },
+    {
+      "id": "w10",
+      "from": {
+        "hole": "bb.a10"
+      },
+      "to": {
+        "hole": "bb.top_inner_7"
+      },
+      "color": "red",
+      "route": "flat",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "3V3: touch.VCC"
+    },
+    {
+      "id": "w11",
+      "from": {
+        "hole": "bb.a11"
+      },
+      "to": {
+        "hole": "bb.a48"
+      },
+      "color": "green",
+      "route": "elevated",
+      "path_mode": "auto",
+      "waypoints_um": [],
+      "name": "TOUCH_IO: touch.IO"
+    }
+  ],
+  "net_intents": [
+    {
+      "id": "n_gnd",
+      "name": "GND",
+      "endpoints": [
+        "mcu.GND_4",
+        "oled.GND",
+        "touch.GND"
+      ],
+      "notes": "自动布线生成（主板 mcu）"
+    },
+    {
+      "id": "n_3v3",
+      "name": "3V3",
+      "endpoints": [
+        "mcu.3V3_2",
+        "oled.VCC",
+        "touch.VCC"
+      ],
+      "notes": "自动布线生成（主板 mcu）"
+    },
+    {
+      "id": "n_scl",
+      "name": "SCL",
+      "endpoints": [
+        "mcu.GPIO9",
+        "oled.SCL"
+      ],
+      "notes": "自动布线生成（主板 mcu）"
+    },
+    {
+      "id": "n_sda",
+      "name": "SDA",
+      "endpoints": [
+        "mcu.GPIO8",
+        "oled.SDA"
+      ],
+      "notes": "自动布线生成（主板 mcu）"
+    },
+    {
+      "id": "n_touch_io",
+      "name": "TOUCH_IO",
+      "endpoints": [
+        "mcu.GPIO4",
+        "touch.IO"
+      ],
+      "notes": "自动布线生成（主板 mcu）"
+    }
+  ],
+  "constraints": [],
+  "programs": [
+    {
+      "id": "program_main",
+      "name": "触摸显示示例",
+      "target_component_id": "mcu",
+      "language": "studio-ts",
+      "source": "// 触摸显示示例 · Studio TypeScript（API 见 docs/SIMULATOR_DESIGN.md §8.1）\n// 阶段 0：仿真器还没有代码执行后端，这段程序只随设计一起保存，暂时不会执行。\n// 接线：TTP223 IO → GPIO4；SSD1315 OLED SDA → GPIO8、SCL → GPIO9（I²C 地址 0x3C）。\nimport { gpio, Wire, Serial, sleep, INPUT } from '@bbs/runtime';\nimport { SSD1306 } from '@bbs/devices/ssd1306';\n\nconst TOUCH = 4;\nconst oled = new SSD1306(Wire, 0x3c, 128, 64);\n\nexport async function setup() {\n  gpio.pinMode(TOUCH, INPUT);\n  Serial.begin(115200);\n  await Wire.begin({ sda: 8, scl: 9 });\n  await oled.begin();\n  Serial.println('ready');\n}\n\nexport async function loop() {\n  oled.clear();\n  oled.setColor('white');\n  oled.text(8, 24, gpio.digitalRead(TOUCH) ? 'Touched' : 'Ready');\n  await oled.show();\n  await sleep(20);\n}\n"
+    }
+  ],
+  "simulation": {
+    "active_program_id": "program_main",
+    "speed": 1,
+    "random_seed": 1,
+    "usb_powered_components": [
+      "mcu"
+    ]
+  }
+}

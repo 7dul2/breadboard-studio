@@ -118,6 +118,33 @@ const pinMeta = {
   }
 } as const;
 
+const simulationBinding = (extra: Record<string, unknown>) =>
+  ({
+    type: 'object',
+    required: ['id', 'feature_label', 'channel', ...Object.keys(extra)],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_-]{0,63}$' },
+      feature_label: { type: 'string', minLength: 1 },
+      channel: { type: 'string', minLength: 1 },
+      ...extra
+    }
+  }) as const;
+
+/** Simulator binding: which driver models the part and how features map to driver channels. */
+const simulation = {
+  type: 'object',
+  required: ['driver'],
+  additionalProperties: false,
+  properties: {
+    driver: { type: 'string', pattern: '^[a-z0-9_.-]+@[0-9]+$' },
+    pins: { type: 'object', additionalProperties: { type: ['string', 'integer'] } },
+    properties: { type: 'object' },
+    controls: { type: 'array', items: simulationBinding({ action: { type: 'string', enum: ['press', 'touch', 'toggle', 'slider'] } }) },
+    visuals: { type: 'array', items: simulationBinding({ kind: { type: 'string', enum: ['led', 'display', 'state'] } }) }
+  }
+} as const;
+
 const renderPrimitive = {
   type: 'object',
   required: ['t'],
@@ -253,7 +280,7 @@ export const componentDefinitionSchema = {
         required: ['type'],
         additionalProperties: false,
         properties: {
-          type: { type: 'string', enum: ['usb_c', 'usb_micro', 'antenna_area', 'connector', 'sensor_window', 'button', 'display', 'fan', 'cable'] },
+          type: { type: 'string', enum: ['usb_c', 'usb_micro', 'antenna_area', 'connector', 'sensor_window', 'button', 'display', 'led', 'fan', 'cable'] },
           label: { type: 'string' },
           side: { type: 'string', enum: ['top', 'bottom', 'left', 'right'] },
           rect_um: {
@@ -266,6 +293,7 @@ export const componentDefinitionSchema = {
         }
       }
     },
+    simulation,
     render: { type: 'array', items: renderPrimitive },
     geometry_status: status,
     electrical_status: status,

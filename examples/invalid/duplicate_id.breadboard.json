@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "catalog_versions": {
     "builtin": "0.1.0"
   },
@@ -150,12 +150,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          19685,
-          40000
-        ],
-        [
           15875,
-          40000
+          33020
         ]
       ],
       "name": "XIAO 3V3 → A 板 + 轨"
@@ -173,12 +169,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          22225,
-          41270
-        ],
-        [
           20955,
-          41270
+          33020
         ]
       ],
       "name": "XIAO GND → A 板 − 轨"
@@ -196,12 +188,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          32385,
-          42540
-        ],
-        [
           28575,
-          42540
+          38100
         ]
       ],
       "name": "SHT41 VCC"
@@ -220,11 +208,15 @@
       "waypoints_um": [
         [
           34925,
-          43810
+          37200
         ],
         [
-          31115,
-          43810
+          27675,
+          37200
+        ],
+        [
+          27675,
+          48260
         ]
       ],
       "name": "SHT41 GND"
@@ -242,12 +234,12 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          47625,
-          42540
+          42175,
+          38100
         ],
         [
-          41275,
-          42540
+          42175,
+          45720
         ]
       ],
       "name": "BMP390 VCC"
@@ -265,12 +257,12 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          50165,
-          43810
+          57415,
+          38100
         ],
         [
-          43815,
-          43810
+          57415,
+          48260
         ]
       ],
       "name": "BMP390 GND"
@@ -288,12 +280,24 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          62865,
-          42540
+          58315,
+          38100
+        ],
+        [
+          58315,
+          49160
+        ],
+        [
+          42915,
+          49160
+        ],
+        [
+          42915,
+          46620
         ],
         [
           56515,
-          42540
+          46620
         ]
       ],
       "name": "LTR390 VCC"
@@ -311,12 +315,12 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          65405,
-          43810
+          72655,
+          38100
         ],
         [
-          59055,
-          43810
+          72655,
+          48260
         ]
       ],
       "name": "LTR390 GND"
@@ -332,16 +336,7 @@
       "color": "blue",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          14605,
-          24760
-        ],
-        [
-          40005,
-          24760
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SDA D4 → SHT41"
     },
     {
@@ -355,16 +350,7 @@
       "color": "yellow",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          12065,
-          24760
-        ],
-        [
-          37465,
-          24760
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SCL D5 → SHT41"
     },
     {
@@ -381,11 +367,7 @@
       "waypoints_um": [
         [
           40005,
-          34920
-        ],
-        [
-          55245,
-          34920
+          35560
         ]
       ],
       "name": "SDA → BMP390"
@@ -403,12 +385,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          37465,
-          34920
-        ],
-        [
           52705,
-          34920
+          33020
         ]
       ],
       "name": "SCL → BMP390"
@@ -426,12 +404,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          55245,
-          34920
-        ],
-        [
           70485,
-          34920
+          33020
         ]
       ],
       "name": "SDA → LTR390"
@@ -450,11 +424,11 @@
       "waypoints_um": [
         [
           52705,
-          34920
+          32420
         ],
         [
           67945,
-          34920
+          32420
         ]
       ],
       "name": "SCL → LTR390"
@@ -470,16 +444,7 @@
       "color": "blue",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          70485,
-          22220
-        ],
-        [
-          93345,
-          22220
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SDA 跨板 A→B"
     },
     {
@@ -493,16 +458,7 @@
       "color": "yellow",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          67945,
-          22220
-        ],
-        [
-          98425,
-          22220
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SCL 跨板 A→B"
     },
     {
@@ -530,16 +486,7 @@
       "color": "red",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          210000,
-          36500
-        ],
-        [
-          210000,
-          46350
-        ]
-      ],
+      "waypoints_um": [],
       "name": "电源 3V3 → B 板 + 轨"
     },
     {
@@ -553,16 +500,7 @@
       "color": "black",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          214000,
-          38000
-        ],
-        [
-          214000,
-          48890
-        ]
-      ],
+      "waypoints_um": [],
       "name": "电源 GND → B 板 − 轨"
     },
     {
@@ -576,20 +514,7 @@
       "color": "red",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          109000,
-          120600
-        ],
-        [
-          92000,
-          120600
-        ],
-        [
-          92000,
-          46350
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SEN66 VDD"
     },
     {
@@ -603,20 +528,7 @@
       "color": "black",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          111500,
-          122100
-        ],
-        [
-          90500,
-          122100
-        ],
-        [
-          90500,
-          48890
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SEN66 GND"
     },
     {
@@ -630,20 +542,7 @@
       "color": "blue",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          114000,
-          123600
-        ],
-        [
-          89000,
-          123600
-        ],
-        [
-          89000,
-          15870
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SEN66 SDA"
     },
     {
@@ -657,20 +556,7 @@
       "color": "yellow",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          116500,
-          125100
-        ],
-        [
-          87500,
-          125100
-        ],
-        [
-          87500,
-          15870
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SEN66 SCL"
     },
     {
@@ -684,20 +570,7 @@
       "color": "black",
       "route": "elevated",
       "path_mode": "auto",
-      "waypoints_um": [
-        [
-          119000,
-          126600
-        ],
-        [
-          86000,
-          126600
-        ],
-        [
-          86000,
-          48890
-        ]
-      ],
+      "waypoints_um": [],
       "name": "SEN66 SEL → GND"
     },
     {
@@ -713,12 +586,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          19685,
-          40000
-        ],
-        [
           15875,
-          40000
+          33020
         ]
       ],
       "name": "XIAO 3V3 → A 板 + 轨"

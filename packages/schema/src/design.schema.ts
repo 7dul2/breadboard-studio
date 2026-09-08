@@ -1,12 +1,14 @@
 /**
- * JSON Schema (draft 2020-12) for `.breadboard.json` design documents, schema_version 1.0.
+ * JSON Schema (draft 2020-12) for `.breadboard.json` design documents, schema_version 1.1.
  * Structural rules only; geometry and electrical rules live in @breadboard-studio/core.
+ * 1.1 adds the optional `programs` and `simulation` sections; 1.0 files migrate losslessly.
  */
 
 const ID_PATTERN = '^[A-Za-z_][A-Za-z0-9_-]{0,63}$';
 const HOLE_ADDRESS_PATTERN = '^[A-Za-z_][A-Za-z0-9_-]*\\.[A-Za-z0-9_+-]+$';
 const MODEL_REF_PATTERN = '^[a-z0-9_]+@[0-9]+$';
 const COLOR_PATTERN = '^(#[0-9a-fA-F]{6}|[a-z][a-z_-]{1,31})$';
+const ENTRY_PATTERN = '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$';
 
 const pointUm = {
   type: 'array',
@@ -35,7 +37,7 @@ const endpointObject = {
 
 export const designSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://breadboard-studio.dev/schema/design-1.0.json',
+  $id: 'https://breadboard-studio.dev/schema/design-1.1.json',
   title: 'Breadboard Studio design document',
   type: 'object',
   required: ['schema_version', 'catalog_versions', 'metadata', 'boards', 'components', 'wires', 'net_intents', 'constraints'],
@@ -204,6 +206,32 @@ export const designSchema = {
         components: { type: 'array', items: { type: 'object' } }
       }
     },
+    programs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'name', 'target_component_id', 'language', 'source'],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', pattern: ID_PATTERN },
+          name: { type: 'string', minLength: 1, maxLength: 200 },
+          target_component_id: { type: 'string', pattern: ID_PATTERN },
+          language: { type: 'string', enum: ['studio-ts'] },
+          source: { type: 'string', maxLength: 1048576 },
+          entry: { type: 'string', pattern: ENTRY_PATTERN }
+        }
+      }
+    },
+    simulation: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        active_program_id: { type: 'string', pattern: ID_PATTERN },
+        speed: { type: 'number', enum: [0.1, 0.25, 0.5, 1, 2, 5, 10] },
+        random_seed: { type: 'integer', minimum: 0, maximum: 4294967295 },
+        usb_powered_components: { type: 'array', items: { type: 'string', pattern: ID_PATTERN } }
+      }
+    },
     view: {
       type: 'object',
       additionalProperties: false,
@@ -218,4 +246,4 @@ export const designSchema = {
   }
 } as const;
 
-export const patterns = { ID_PATTERN, HOLE_ADDRESS_PATTERN, MODEL_REF_PATTERN, COLOR_PATTERN };
+export const patterns = { ID_PATTERN, HOLE_ADDRESS_PATTERN, MODEL_REF_PATTERN, COLOR_PATTERN, ENTRY_PATTERN };

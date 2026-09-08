@@ -6,9 +6,10 @@ import { hasPrevious, loadCurrent, loadPrevious, saveCurrent, stashPrevious, typ
 import deskExample from '../../../examples/desk_device.breadboard.json';
 import envExample from '../../../examples/environment_node.breadboard.json';
 import stressExample from '../../../examples/stress_test.breadboard.json';
+import touchExample from '../../../examples/touch_display.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
-export type RightTab = 'properties' | 'dsl' | 'build';
+export type RightTab = 'properties' | 'dsl' | 'build' | 'simulation';
 
 export interface Toast {
   id: number;
@@ -29,8 +30,22 @@ export interface WireDraft {
 export const EXAMPLES: { key: string; name: string; doc: unknown }[] = [
   { key: 'desk_device', name: '桌面设备：ESP32-S3 + OLED + 触摸键', doc: deskExample },
   { key: 'environment_node', name: '双面包板环境节点：XIAO + 传感器 + SEN66', doc: envExample },
-  { key: 'stress_test', name: '性能测试：4 板 / 20 模块 / 100 线', doc: stressExample }
+  { key: 'stress_test', name: '性能测试：4 板 / 20 模块 / 100 线', doc: stressExample },
+  { key: 'touch_display', name: '触摸显示：N16R8 + TTP223 + SSD1315（含程序）', doc: touchExample }
 ];
+
+/** Ops that only touch programs / launch configuration and never the electrical topology. */
+const NON_TOPOLOGY_OPS = new Set<Op['op']>(['add_program', 'update_program', 'remove_program', 'set_simulation_config', 'set_metadata']);
+
+/**
+ * Installed by the simulator store: returns false while a simulation session is
+ * prepared or executing, in which case topology edits are refused (docs §11.1).
+ * Registered lazily so store.ts never imports the simulator module.
+ */
+let topologyGuard: (() => boolean) | null = null;
+export function setTopologyGuard(fn: (() => boolean) | null): void {
+  topologyGuard = fn;
+}
 
 const analysisCache = new WeakMap<DesignDocument, Analysis>();
 export function analysisOf(design: DesignDocument): Analysis {
@@ -69,6 +84,8 @@ interface State {
   highlightEndpoints: string[];
   highlightObjects: string[];
   fitRequest: number;
+  /** Incremented whenever the whole document is swapped (new/import/example/restore), never by an edit. */
+  documentGeneration: number;
   requestFit: () => void;
 
   apply: (ops: Op[], label?: string) => ApplyResult;
@@ -168,12 +185,18 @@ export const useStore = create<State>((set, get) => {
     highlightEndpoints: [],
     highlightObjects: [],
     fitRequest: 0,
+    documentGeneration: 0,
     requestFit() {
       set({ fitRequest: get().fitRequest + 1 });
     },
 
     apply(ops, label) {
       const { design, past } = get();
+      if (topologyGuard && !topologyGuard() && ops.some((op) => !NON_TOPOLOGY_OPS.has(op.op))) {
+        const message = '仿真会话进行中：先点“停止”再修改设计';
+        get().toast('error', message);
+        return { ok: false, error: { code: 'op_failed', message } };
+      }
       const r = applyOps(design, ops, { catalog: builtinCatalog() });
       if (!r.ok) {
         const details = r.error.results?.map((x) => `${x.code}: ${x.message}`) ?? r.error.issues?.map((i) => `${i.path} ${i.message}`) ?? [];
@@ -332,7 +355,8 @@ export const useStore = create<State>((set, get) => {
         buildStep: 0,
         highlightEndpoints: [],
         highlightObjects: [],
-        fitRequest: get().fitRequest + 1
+        fitRequest: get().fitRequest + 1,
+        documentGeneration: get().documentGeneration + 1
       });
       scheduleSave(d, set);
     },

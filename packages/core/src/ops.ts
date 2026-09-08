@@ -1,5 +1,5 @@
-import type { ComponentInstance, Constraint, DesignDocument, DesignMetadata, JsonValue, NetIntent, Placement, PointUm, RotationDeg, WireEndpoint, WireInstance, WireRoute, WirePathMode } from '@breadboard-studio/schema';
-import { validateDesignSchema } from '@breadboard-studio/schema';
+import type { ComponentInstance, Constraint, DesignDocument, DesignMetadata, JsonValue, NetIntent, Placement, PointUm, ProgramAsset, ProgramLanguage, RotationDeg, SimulationConfig, WireEndpoint, WireInstance, WireRoute, WirePathMode } from '@breadboard-studio/schema';
+import { PROGRAM_LANGUAGES, SIMULATION_SPEEDS, migrateDesign, validateDesignSchema } from '@breadboard-studio/schema';
 import { Catalog, builtinCatalog } from '@breadboard-studio/catalog';
 import { parseAddress } from './address.js';
 import { analyzeDesign } from './analyze.js';
@@ -73,7 +73,15 @@ export type Op =
   | { op: 'add_definition'; definition: unknown }
   | { op: 'remove_definition'; ref: string }
   /** Auto-wire peripherals to a host by pin role (power/ground via rails, I²C, free GPIOs). Expands into add_wire / net intent ops. */
-  | { op: 'auto_wire'; host: string; components: string[]; options?: AutoWireOptions };
+  | { op: 'auto_wire'; host: string; components: string[]; options?: AutoWireOptions }
+  /** Programs (schema 1.1) are design content: the target component must exist; `language` defaults to studio-ts. */
+  | { op: 'add_program'; program: Omit<ProgramAsset, 'language'> & { language?: ProgramLanguage } }
+  | { op: 'update_program'; id: string; patch: Partial<Omit<ProgramAsset, 'id'>> }
+  | { op: 'remove_program'; id: string }
+  /** Merge into `simulation`; `null` clears a key. Referenced programs/components must exist. */
+  | { op: 'set_simulation_config'; patch: SimulationConfigPatch };
+
+export type SimulationConfigPatch = { [K in keyof SimulationConfig]?: SimulationConfig[K] | null };
 
 /** Extra output produced by ops that plan work (currently only `auto_wire`). */
 export type OpReport = { op: 'auto_wire'; op_index: number; plan: AutoWirePlan };
@@ -117,13 +125,16 @@ function ensureUnlocked(obj: { locked?: boolean; id: string }, what: string): vo
   if (obj.locked) throw new OpError(`${what} "${obj.id}" 已锁定，先解锁再修改`);
 }
 
+function allIds(design: DesignDocument): { id: string }[] {
+  return [...design.boards, ...design.components, ...design.wires, ...design.net_intents, ...design.constraints, ...(design.programs ?? [])];
+}
+
 function ensureUniqueId(design: DesignDocument, id: string): void {
-  const all = [...design.boards, ...design.components, ...design.wires, ...design.net_intents, ...design.constraints];
-  if (all.some((o) => o.id === id)) throw new OpError(`ID "${id}" 已被占用`);
+  if (allIds(design).some((o) => o.id === id)) throw new OpError(`ID "${id}" 已被占用`);
 }
 
 function nextId(design: DesignDocument, prefix: string): string {
-  const used = new Set([...design.boards, ...design.components, ...design.wires, ...design.net_intents, ...design.constraints].map((o) => o.id));
+  const used = new Set(allIds(design).map((o) => o.id));
   let n = 1;
   while (used.has(`${prefix}${n}`)) n++;
   return `${prefix}${n}`;
@@ -141,8 +152,48 @@ function wireBelongsToOwners(wire: WireInstance, owners: Set<string>): boolean {
   });
 }
 
+function programsTargeting(design: DesignDocument, owners: Set<string>): ProgramAsset[] {
+  return (design.programs ?? []).filter((program) => owners.has(program.target_component_id));
+}
+
+/** Drop simulation settings that point at removed programs/components; delete the section when it becomes empty. */
+function pruneSimulationConfig(design: DesignDocument, removedPrograms: Set<string>, removedOwners: Set<string>, changed: Set<string>): void {
+  const sim = design.simulation;
+  if (!sim) return;
+  const next: SimulationConfig = { ...sim };
+  let touched = false;
+  if (next.active_program_id !== undefined && removedPrograms.has(next.active_program_id)) {
+    delete next.active_program_id;
+    touched = true;
+  }
+  if (next.usb_powered_components) {
+    const kept = next.usb_powered_components.filter((id) => !removedOwners.has(id));
+    if (kept.length !== next.usb_powered_components.length) {
+      touched = true;
+      if (kept.length) next.usb_powered_components = kept;
+      else delete next.usb_powered_components;
+    }
+  }
+  if (!touched) return;
+  changed.add('simulation');
+  if (Object.keys(next).length) design.simulation = next;
+  else delete design.simulation;
+}
+
 /** Remove or trim declarations that would otherwise retain dangling references after a cascade. */
 function pruneDependentReferences(design: DesignDocument, removedOwners: Set<string>, removedWireIds: Set<string>, changed: Set<string>): void {
+  const removedPrograms = new Set<string>();
+  if (design.programs?.length) {
+    design.programs = design.programs.filter((program) => {
+      if (!removedOwners.has(program.target_component_id)) return true;
+      removedPrograms.add(program.id);
+      changed.add(program.id);
+      return false;
+    });
+    if (!design.programs.length) delete design.programs;
+  }
+  pruneSimulationConfig(design, removedPrograms, removedOwners, changed);
+
   design.net_intents = design.net_intents.flatMap((intent) => {
     const endpoints = intent.endpoints.filter((endpoint) => !addressBelongsTo(endpoint, removedOwners));
     if (endpoints.length === intent.endpoints.length) return [intent];
@@ -217,8 +268,9 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const wires = design.wires.filter((wire) => wireBelongsToOwners(wire, owners));
       const intents = design.net_intents.filter((intent) => intent.endpoints.some((endpoint) => addressBelongsTo(endpoint, owners)));
       const constraints = design.constraints.filter((constraint) => constraint.type === 'isolate' && (addressBelongsTo(constraint.a, owners) || addressBelongsTo(constraint.b, owners)));
-      if ((dependents.length || wires.length || intents.length || constraints.length) && !op.cascade) {
-        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((c) => c.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
+      const programs = programsTargeting(design, owners);
+      if ((dependents.length || wires.length || intents.length || constraints.length || programs.length) && !op.cascade) {
+        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((c) => c.id).join(', ') || '无'}；程序 ${programs.map((p) => p.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
       }
       for (const d of dependents) changed.add(d.id);
       for (const w of wires) changed.add(w.id);
@@ -264,8 +316,9 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const wires = design.wires.filter((wire) => wireBelongsToOwners(wire, owners));
       const intents = design.net_intents.filter((intent) => intent.endpoints.some((endpoint) => addressBelongsTo(endpoint, owners)));
       const constraints = design.constraints.filter((constraint) => constraint.type === 'isolate' && (addressBelongsTo(constraint.a, owners) || addressBelongsTo(constraint.b, owners)));
-      if ((wires.length || intents.length || constraints.length) && !op.cascade) {
-        throw new OpError(`元件 "${op.id}" 仍被使用：导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((item) => item.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
+      const programs = programsTargeting(design, owners);
+      if ((wires.length || intents.length || constraints.length || programs.length) && !op.cascade) {
+        throw new OpError(`元件 "${op.id}" 仍被使用：导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((item) => item.id).join(', ') || '无'}；程序 ${programs.map((p) => p.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
       }
       design.wires = design.wires.filter((w) => !wires.includes(w));
       for (const w of wires) changed.add(w.id);
@@ -382,7 +435,9 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       return;
     }
     case 'replace_design': {
-      const v = validateDesignSchema(op.design);
+      const mig = migrateDesign(op.design);
+      if (!mig.ok) throw new OpError(`替换的设计无法载入：${mig.error}`);
+      const v = validateDesignSchema(mig.doc);
       if (!v.ok || !v.value) throw new OpError(`替换的设计不符合 schema：${v.issues.map((i) => `${i.path} ${i.message}`).join('; ')}`);
       const next = cloneDesign(v.value);
       design.schema_version = next.schema_version;
@@ -395,8 +450,61 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       design.constraints = next.constraints;
       if (next.embedded_catalog) design.embedded_catalog = next.embedded_catalog;
       else delete design.embedded_catalog;
+      if (next.programs?.length) design.programs = next.programs;
+      else delete design.programs;
+      if (next.simulation && Object.keys(next.simulation).length) design.simulation = next.simulation;
+      else delete design.simulation;
       if (next.view) design.view = next.view;
       changed.add('design');
+      return;
+    }
+    case 'add_program': {
+      const p = op.program;
+      ensureUniqueId(design, p.id);
+      const language = p.language ?? 'studio-ts';
+      if (!(PROGRAM_LANGUAGES as readonly string[]).includes(language)) throw new OpError(`不支持的程序语言 "${language}"（支持：${PROGRAM_LANGUAGES.join(', ')}）`);
+      if (typeof p.source !== 'string') throw new OpError(`程序 "${p.id}" 缺少 source 字符串`);
+      if (!design.components.some((c) => c.id === p.target_component_id)) throw new OpError(`程序 "${p.id}" 的目标元件 "${p.target_component_id}" 不存在`);
+      const program: ProgramAsset = { id: p.id, name: p.name, target_component_id: p.target_component_id, language, source: p.source, ...(p.entry ? { entry: p.entry } : {}) };
+      design.programs = [...(design.programs ?? []), program];
+      changed.add(p.id);
+      return;
+    }
+    case 'update_program': {
+      const p = mustFind(design.programs ?? [], op.id, '程序');
+      const { id: _id, ...rest } = op.patch as Partial<ProgramAsset>;
+      const patch = stripUndefined(rest);
+      if (patch.language !== undefined && !(PROGRAM_LANGUAGES as readonly string[]).includes(patch.language)) throw new OpError(`不支持的程序语言 "${patch.language}"（支持：${PROGRAM_LANGUAGES.join(', ')}）`);
+      if (patch.target_component_id !== undefined && !design.components.some((c) => c.id === patch.target_component_id)) throw new OpError(`程序 "${op.id}" 的目标元件 "${patch.target_component_id}" 不存在`);
+      Object.assign(p, patch);
+      changed.add(op.id);
+      return;
+    }
+    case 'remove_program': {
+      mustFind(design.programs ?? [], op.id, '程序');
+      design.programs = (design.programs ?? []).filter((p) => p.id !== op.id);
+      if (!design.programs.length) delete design.programs;
+      pruneSimulationConfig(design, new Set([op.id]), new Set(), changed);
+      changed.add(op.id);
+      return;
+    }
+    case 'set_simulation_config': {
+      if (typeof op.patch !== 'object' || op.patch === null || Array.isArray(op.patch)) throw new OpError('set_simulation_config 需要一个 patch 对象');
+      const cfg: Record<string, unknown> = { ...(design.simulation ?? {}) };
+      for (const [key, value] of Object.entries(op.patch)) {
+        if (value === undefined) continue;
+        if (value === null) delete cfg[key];
+        else cfg[key] = value;
+      }
+      const next = cfg as SimulationConfig;
+      if (next.active_program_id !== undefined && !(design.programs ?? []).some((p) => p.id === next.active_program_id)) throw new OpError(`程序 "${next.active_program_id}" 不存在，不能设为启动程序`);
+      if (next.speed !== undefined && !(SIMULATION_SPEEDS as readonly number[]).includes(next.speed)) throw new OpError(`仿真倍速必须是 ${SIMULATION_SPEEDS.join('/')} 之一`);
+      if (next.random_seed !== undefined && (!Number.isInteger(next.random_seed) || next.random_seed < 0)) throw new OpError('random_seed 必须是非负整数');
+      for (const id of next.usb_powered_components ?? []) if (!design.components.some((c) => c.id === id)) throw new OpError(`usb_powered_components 引用的元件 "${id}" 不存在`);
+      if (next.usb_powered_components && !next.usb_powered_components.length) delete next.usb_powered_components;
+      if (Object.keys(next).length) design.simulation = next;
+      else delete design.simulation;
+      changed.add('simulation');
       return;
     }
     case 'add_definition': {
@@ -508,6 +616,8 @@ export function applyOps(design: DesignDocument, ops: Op[], options: ApplyOption
       throw e;
     }
   }
+  if (draft.programs && !draft.programs.length) delete draft.programs;
+  if (draft.simulation && !Object.keys(draft.simulation).length) delete draft.simulation;
   draft.metadata.revision = design.metadata.revision + 1;
   draft.metadata.updated_at = (options.now ?? (() => new Date().toISOString()))();
   const schema = validateDesignSchema(draft);

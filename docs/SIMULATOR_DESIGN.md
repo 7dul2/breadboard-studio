@@ -4,6 +4,25 @@
 > 目标版本：`v0.2` 行为级仿真，后续可扩展真实固件后端
 > 首个完整演示：ESP32-S3 N16R8 + TTP223 + SSD1315 OLED + 板载 RGB
 
+## 实施状态
+
+**阶段 0 完成（2026-09-07）**，已落地：
+
+- schema 1.1：`programs[]`、`simulation`，`1.0 → 1.1` 无损迁移（只改版本号，`loadDesign` 自动迁移，迁移后的哈希与直接按 1.1 写出的一致）；JSON Schema 与类型同步。
+- 操作：`add_program`、`update_program`、`remove_program`、`set_simulation_config`；删除元件/面包板时指向它的程序会阻止删除，`cascade` 时一并删除并清理 `simulation` 引用。
+- 规则：`program_target_missing`、`simulation_program_missing`、`unknown_reference`（阻断），`program_target_unsupported`、`program_target_not_controller`（警告）；`duplicate_id` 覆盖程序 id；程序与仿真配置参与内容哈希。
+- `packages/sim` 骨架：协议类型（`SimStatus`、`SimulationSnapshot`、`HostCommand`/`RuntimeMessage` 等）、状态机（`transition`/`allowedCommands`/`canEditTopology`）、`SimulatorController`（启动前检查、`designChanged` 过期标记）、`buildSnapshot`、`SimulationBackend` 接口；没有后端时 `run` 直接进入 `faulted` 并报告 `runtime_unavailable`。
+- 目录绑定：三块 ESP32-S3 板、TTP223、三个 OLED、LED、SHT41 的 `simulation` 字段与 `led` 类型 feature（见 `docs/CATALOG.md`）。
+- Web：右侧“仿真”标签与代码编辑器，保存走 `applyOps`（可撤销、随项目导入导出）。
+- CLI：`programs`、`program export`、`program import`；`ops`/`inspect` 包含程序与仿真配置。
+- 示例：`examples/touch_display.breadboard.json`（N16R8 + TTP223 + SSD1315 + 程序）。
+
+**明确没有做**：不执行任何代码；没有 Worker、沙箱或 Studio TS 编译；没有任何器件驱动行为（GPIO、I²C、OLED、RGB 均未模拟）。
+
+阶段 0 的评审修复：倍速属于运行时控制，改它不再判定快照过期（其余 `simulation` 字段仍然过期）；`stop`/`reset` 在 `await` 前就清掉会话身份，后端 `start`/`pause` 的异常转成 `program_runtime_error` 诊断而不是抛给调用方；切换项目会丢弃未保存的代码草稿并关闭抽屉；代码抽屉高度按中间栏比例夹紧，画布至少保留 120 px；元件定义的 `simulation` 绑定改为 schema 层语义校验（`feature_label`、引脚名、绑定 id 唯一），导入的自定义定义也会被拒绝。
+
+**阶段 1–3 已排出实施计划**，见 [`SIMULATOR_RUNTIME_PLAN.md`](SIMULATOR_RUNTIME_PLAN.md)（2026-09-08 起草，尚未开工）。该计划基于实测结论修订了本文的几处方案（编译器改用 sucrase、中断不可恢复、`digitalRead` 遇 Z/X 的裁决、`I2cController` 返回状态码、队列溢出转故障态），差异清单见计划第 13 节。以下各节保持提案原文。
+
 ## 1. 目标
 
 在现有面包板编辑器中加入可运行的交互式仿真：
@@ -297,7 +316,7 @@ type DriveStrength = 'weak' | 'pull' | 'strong';
 - `open_drain` 只能驱动 0 或 Z。
 - 强 0 与强 1 同网 → `X`，产生 `digital_contention`。
 - 上拉/下拉只在没有相反强驱动时生效。
-- `digitalRead(X)` 抛出或返回带诊断的未知值，不能偷偷当成 0。
+- `digitalRead(X)` 不能偷偷当成 0。**实施裁决（2026-09-08）**：返回 0，但必须同时产生 `floating_input` / `digital_contention` 诊断，并提供四值原值 API `gpio.digitalReadRaw(pin)`。不采用抛异常，因为未捕获的读取会把会话打成 `faulted`，与阶段 2「拆线后代码不再收到输入但仿真继续」的验收冲突。
 
 网络值变化后，只唤醒订阅该网络的设备。
 
@@ -316,8 +335,10 @@ v0.2 实现控制器级事务，不逐位模拟波形：
 
 ```ts
 interface I2cController {
-  write(address: number, bytes: Uint8Array): Promise<void>;
-  read(address: number, length: number): Promise<Uint8Array>;
+  // 实施裁决（2026-09-08）：返回状态码而非 Promise<void>。NACK 是 warning，
+  // 会话必须继续；抛异常会被 program_runtime_error 打成 faulted。
+  write(address: number, bytes: Uint8Array): Promise<I2cStatus>;
+  read(address: number, length: number): Promise<Uint8Array>;      // 失败时长度 0
   writeRead(address: number, write: Uint8Array, readLength: number): Promise<Uint8Array>;
 }
 ```
@@ -330,7 +351,8 @@ interface I2cController {
 
 第一版使用 `Studio TypeScript`：
 
-- TypeScript 由浏览器中的 `esbuild-wasm` 懒加载编译。
+- TypeScript 由浏览器中的 **sucrase** 懒加载转译（**实施裁决（2026-09-08）**：原定 `esbuild-wasm` 实测需额外下载 13,978,850 B wasm，与本文 §14「不进首屏主包」的精神冲突；sucrase 无 wasm 且逐行保真，行号可直接映回编辑器）。
+- **只做语法转译，不做类型检查**：写 `.ts` 不等于有类型保护，类型错误要到运行期才暴露为 `program_runtime_error`。
 - 生成的 JavaScript 放进 QuickJS/WASM 沙箱执行。
 - 只允许导入 `@bbs/runtime` 和内置器件库；禁止任意 npm、网络和文件访问。
 - 编辑器可使用 Monaco，也必须懒加载；若包体积压力过大，第一阶段先用带行号的轻量编辑器，接口保持不变。
@@ -363,7 +385,7 @@ export async function loop() {
 }
 ```
 
-所有可能等待虚拟时间或总线的操作均为异步。运行时必须检测连续不 `await` 的死循环，并在指令预算耗尽时暂停，显示源码位置和 `execution_budget_exceeded`。
+所有可能等待虚拟时间或总线的操作均为异步。运行时必须检测连续不 `await` 的死循环，并在指令预算耗尽时**终止当前 loop 并进入故障态**，显示源码位置和 `execution_budget_exceeded`（**实施裁决（2026-09-08）**：QuickJS 的中断不可恢复，被中断的调用不会续跑，所以只能终止而非暂停）。
 
 ### 8.2 后端接口
 
@@ -555,9 +577,9 @@ interface SimDiagnostic {
 - 仿真逻辑全部在 Worker；主线程只处理用户输入和批量视觉 diff。
 - 默认单次 Worker 时间片最多 5 ms 或 10,000 个事件，以先到者为准。
 - 默认串口缓存 1 MB，超出后丢弃最旧内容并提示。
-- 默认事件队列上限 100,000，超过即暂停。
+- 默认事件队列上限 100,000，超过即**进入故障态**（**实施裁决（2026-09-08）**：队列满之后没有任何操作能让它缩小，恢复运行会立刻再次溢出，故不能只是暂停）。
 - OLED UI 刷新上限 30 FPS，串口 UI 刷新上限 20 FPS。
-- Monaco、esbuild-wasm、QuickJS 均动态导入，不能进入编辑器首屏主包。
+- Monaco、sucrase、QuickJS 均动态导入，不能进入编辑器首屏主包。
 - Worker 无网络权限不是浏览器天然保证，必须由 QuickJS 隔离；不能直接用 `new Function` 执行用户代码。
 - 导入项目时只保存源代码，不自动运行。
 

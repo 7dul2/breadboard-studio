@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { builtinCatalog, CATALOG_VERSION } from '@breadboard-studio/catalog';
 import { designSchema } from '@breadboard-studio/schema';
 import type { DesignDocument } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type AutoWireOptions, type AutoWirePlan, type RuleResult } from '@breadboard-studio/core';
+import { activeProgram, analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type AutoWireOptions, type AutoWirePlan, type Op, type RuleResult } from '@breadboard-studio/core';
 import { exportSvg } from '@breadboard-studio/render';
 
 export const EXIT = { OK: 0, PROBLEMS: 1, USAGE: 2, CONFLICT: 3 } as const;
@@ -87,6 +87,15 @@ function fmtPlan(plan: AutoWirePlan): string[] {
 
 function resultsJson(results: RuleResult[]) {
   return results.map((r) => ({ severity: r.severity, code: r.code, category: r.category, blocking: r.blocking, message: r.message, objects: r.objects, endpoints: r.endpoints ?? [], suggestion: r.suggestion ?? null }));
+}
+
+/** Program list without the source text (use `program export` for that). */
+function programsJson(design: DesignDocument) {
+  return (design.programs ?? []).map((p) => ({ id: p.id, name: p.name, target_component_id: p.target_component_id, language: p.language, entry: p.entry ?? null, source_lines: p.source.length ? p.source.split('\n').length : 0 }));
+}
+
+function fmtProgramsLine(design: DesignDocument): string {
+  return `程序：${design.programs?.length ?? 0} 个（启动程序：${activeProgram(design)?.id ?? '无'}）`;
 }
 
 export function buildProgram(): Command {
@@ -173,9 +182,13 @@ export function buildProgram(): Command {
         { op: 'replace_design', fields: 'design (完整设计文档)' },
         { op: 'add_definition', fields: 'definition (板/元件定义 JSON，内嵌到 embedded_catalog)' },
         { op: 'remove_definition', fields: 'ref (id@version)' },
-        { op: 'auto_wire', fields: 'host, components[], options?{supply_voltage_v?, power_distribution?: auto|rail|direct, signal_pins?{"comp.pin": "hostPin"}, net_intents?, route?: auto|flat|elevated, optimize?: global|greedy, time_budget_ms?, i2c_conflicts?: bus_first|address_first|report, require_all?}' }
+        { op: 'auto_wire', fields: 'host, components[], options?{supply_voltage_v?, power_distribution?: auto|rail|direct, signal_pins?{"comp.pin": "hostPin"}, net_intents?, route?: auto|flat|elevated, optimize?: global|greedy, time_budget_ms?, i2c_conflicts?: bus_first|address_first|report, require_all?}' },
+        { op: 'add_program', fields: 'program{id, name, target_component_id (必须是现有元件), source, language?: studio-ts, entry?}' },
+        { op: 'update_program', fields: 'id, patch{name?, target_component_id?, source?, entry?, language?}' },
+        { op: 'remove_program', fields: 'id（同时清除 simulation.active_program_id）' },
+        { op: 'set_simulation_config', fields: 'patch{active_program_id?, speed?: 0.1|0.25|0.5|1|2|5|10, random_seed?, usb_powered_components?[]}（值为 null 表示清除该键；引用必须存在）' }
       ];
-      out(!!opts.json, { ok: true, command: 'ops', ops }, () => ops.map((o) => `${o.op.padEnd(20)} ${o.fields}`).join('\n'));
+      out(!!opts.json, { ok: true, command: 'ops', ops }, () => ops.map((o) => `${o.op.padEnd(22)} ${o.fields}`).join('\n'));
     });
 
   program
@@ -199,13 +212,14 @@ export function buildProgram(): Command {
       }));
       const wires = [...a.model.wires.values()].map((w) => ({ id: w.instance.id, name: w.instance.name ?? null, from: w.from?.address ?? null, to: w.to?.address ?? null, color: w.instance.color, route: w.instance.route, length_um: w.length_um, conducts: w.conducts }));
       const nets = a.connectivity.nets.map((n) => ({ id: n.id, name: n.name, intents: n.intent_ids, pins: n.pins, wires: n.wires, holes: n.holes.length }));
-      const data = { ok: true, command: 'inspect', file, metadata: design.metadata, revision: design.metadata.revision, hash: designHash(design), catalog_versions: design.catalog_versions, boards, components, wires, nets, summary: a.summary };
+      const data = { ok: true, command: 'inspect', file, metadata: design.metadata, revision: design.metadata.revision, hash: designHash(design), catalog_versions: design.catalog_versions, boards, components, wires, nets, programs: programsJson(design), simulation: design.simulation ?? null, summary: a.summary };
       out(!!opts.json, data, () => {
         const lines = [`${design.metadata.name}  (revision ${design.metadata.revision}, hash ${designHash(design).slice(0, 12)})`, `面包板 ${boards.length}，元件 ${components.length}，导线 ${wires.length}，网络 ${nets.length}`];
         for (const b of boards) lines.push(`  board ${b.id} ${b.model} @ (${b.position_um.join(', ')}) rot ${b.rotation_deg}`);
         for (const c of components) lines.push(`  component ${c.id} ${c.model} ${c.on_board ? '' : '(板外)'}: ${c.pins.map((p) => `${p.name}${p.hole ? '=' + p.hole : ''}`).join(' ')}`);
         for (const w of wires) lines.push(`  wire ${w.id} ${w.color} ${w.from} → ${w.to ?? '(草稿)'} ${(w.length_um / 1000).toFixed(1)}mm`);
         for (const n of nets) lines.push(`  net ${n.name}: ${n.pins.join(', ')}`);
+        lines.push(fmtProgramsLine(design));
         lines.push(`结果：error ${a.summary.error}, warning ${a.summary.warning}, needs_review ${a.summary.needs_review}, info ${a.summary.info}`);
         return lines.join('\n');
       });
@@ -404,6 +418,83 @@ export function buildProgram(): Command {
       out(!!opts.json, { ok: true, command: 'steps', file, count: steps.length, note: '搭建步骤只是指导，不代表实物已经导通；长度不含插入深度与弯折余量。', steps }, () =>
         steps.map((s) => `${String(s.index).padStart(3)}. [${s.color}/${s.route === 'elevated' ? '杜邦线' : '硬质跳线'}] ${s.from_label}  →  ${s.to_label}${s.length_mm !== null ? `  (~${s.length_mm} mm)` : ''}${s.net ? `  net ${s.net}` : ''}${s.complete ? '  ✓' : ''}`).join('\n')
       );
+    });
+
+  program
+    .command('programs <file>')
+    .description('列出设计中的程序与仿真配置（本版本只保存与校验程序，不执行）')
+    .option('--json', 'JSON 输出')
+    .action((file: string, opts: { json?: boolean }) => {
+      const design = readDesign(file);
+      const programs = programsJson(design);
+      const active = activeProgram(design);
+      out(!!opts.json, { ok: true, command: 'programs', file, revision: design.metadata.revision, hash: designHash(design), programs, simulation: design.simulation ?? null, active_program_id: active?.id ?? null }, () => {
+        const lines = [`${design.metadata.name}  ${fmtProgramsLine(design)}`];
+        for (const p of programs) lines.push(`  ${p.id.padEnd(16)} ${p.name}  → ${p.target_component_id}  [${p.language}${p.entry ? `, ${p.entry}` : ''}, ${p.source_lines} 行]${active?.id === p.id ? '  (启动)' : ''}`);
+        const sim = design.simulation;
+        lines.push(sim ? `仿真配置：${Object.entries(sim).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join('，')}` : '仿真配置：无');
+        lines.push('说明：程序随项目保存并参与校验与 hash；本版本尚不执行代码。');
+        return lines.join('\n');
+      });
+    });
+
+  const prog = program.command('program').description('程序源码的导出与导入（写入走 add_program / update_program 事务）');
+  prog
+    .command('export <file> <id>')
+    .description('把一个程序的源码原样写到文件')
+    .requiredOption('--out <path>', '输出文件')
+    .option('--json', 'JSON 输出')
+    .action((file: string, id: string, opts: { out: string; json?: boolean }) => {
+      const design = readDesign(file);
+      const p = (design.programs ?? []).find((x) => x.id === id);
+      if (!p) throw new CliError(`程序 ${id} 不存在（使用 bb programs ${file} 查看）`, EXIT.USAGE);
+      writeAtomic(opts.out, p.source);
+      out(!!opts.json, { ok: true, command: 'program.export', file, id, name: p.name, target_component_id: p.target_component_id, language: p.language, entry: p.entry ?? null, out: opts.out, bytes: Buffer.byteLength(p.source, 'utf8') }, () => `已导出程序 ${id}（${p.name}，目标 ${p.target_component_id}）到 ${opts.out}`);
+    });
+  prog
+    .command('import <file> <id>')
+    .description('从源码文件新建或更新程序：id 不存在时 add_program（需要 --target），否则 update_program 替换源码')
+    .requiredOption('--source <path>', '源码文件（studio-ts）')
+    .option('--name <name>', '程序名称（新建时默认为 id）')
+    .option('--target <componentId>', '目标主控元件 ID（新建时必填）')
+    .option('--activate', '同时设为启动程序（simulation.active_program_id）')
+    .option('--out <out>', '输出文件（默认覆盖输入文件）')
+    .option('--dry-run', '只报告，不写入')
+    .option('--expect-revision <n>', '期望的 revision', (v) => Number(v))
+    .option('--expect-hash <hash>', '期望的内容 hash')
+    .option('--json', 'JSON 输出')
+    .action((file: string, id: string, opts: { source: string; name?: string; target?: string; activate?: boolean; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; json?: boolean }) => {
+      const design = readDesign(file);
+      const sourcePath = resolve(opts.source);
+      if (!existsSync(sourcePath)) throw new CliError(`源码文件不存在：${opts.source}`, EXIT.USAGE);
+      const source = readFileSync(sourcePath, 'utf8');
+      const existing = (design.programs ?? []).find((p) => p.id === id);
+      const ops: Op[] = [];
+      if (existing) {
+        ops.push({ op: 'update_program', id, patch: { source, ...(opts.name !== undefined ? { name: opts.name } : {}), ...(opts.target !== undefined ? { target_component_id: opts.target } : {}) } });
+      } else {
+        if (!opts.target) throw new CliError(`程序 ${id} 不存在；新建程序需要 --target <主控元件 ID>`, EXIT.USAGE);
+        ops.push({ op: 'add_program', program: { id, name: opts.name ?? id, target_component_id: opts.target, source } });
+      }
+      if (opts.activate) ops.push({ op: 'set_simulation_config', patch: { active_program_id: id } });
+      const r = applyOps(design, ops, { expected_revision: opts.expectRevision, expected_hash: opts.expectHash });
+      if (!r.ok) {
+        const code = r.error.code === 'revision_conflict' ? EXIT.CONFLICT : EXIT.PROBLEMS;
+        throw new CliError(r.error.message, code, { error: { ...r.error, results: r.error.results ? resultsJson(r.error.results) : undefined } });
+      }
+      const target = opts.out ?? file;
+      if (!opts.dryRun) writeAtomic(target, serializeDesign(r.design));
+      const s = summarize(r.results);
+      const action = existing ? 'updated' : 'added';
+      const sourceLines = source.length ? source.split('\n').length : 0;
+      out(!!opts.json, { ok: true, command: 'program.import', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, id, action, activated: !!opts.activate, source: opts.source, source_lines: sourceLines, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, changed: r.changed, summary: s, results: resultsJson(r.results) }, () => {
+        const lines = [`${opts.dryRun ? '[dry-run] ' : ''}${action === 'added' ? '已新建' : '已更新'}程序 ${id}（${sourceLines} 行${opts.activate ? '，设为启动程序' : ''}）：revision ${design.metadata.revision} → ${r.revision}${opts.dryRun ? '' : `，写入 ${target}`}`];
+        lines.push(`变更对象：${r.changed.join(', ')}`);
+        lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
+        for (const x of r.results.filter((x) => x.severity === 'error' || x.severity === 'warning')) lines.push(fmtResult(x));
+        lines.push('说明：程序随项目保存并参与校验与 hash；本版本尚不执行代码。');
+        return lines.join('\n');
+      });
     });
 
   return program;

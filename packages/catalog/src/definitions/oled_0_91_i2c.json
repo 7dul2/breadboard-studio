@@ -37,6 +37,27 @@
     "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL" }
   },
   "features": [{ "type": "display", "label": "128×32 OLED", "rect_um": { "x": 6000, "y": 1500, "w": 30000, "h": 9000 } }],
+  "simulation": {
+    "driver": "display.ssd1315@1",
+    "pins": {
+      "SDA": "sda",
+      "SCL": "scl",
+      "VCC": "vcc",
+      "GND": "gnd"
+    },
+    "properties": {
+      "width": 128,
+      "height": 32
+    },
+    "visuals": [
+      {
+        "id": "screen",
+        "feature_label": "128×32 OLED",
+        "kind": "display",
+        "channel": "framebuffer"
+      }
+    ]
+  },
   "render": [
     { "t": "rect", "x": 0, "y": 0, "w": 38000, "h": 12000, "rx": 600, "fill": "#1d4ed8", "stroke": "#1e3a8a", "sw": 200 },
     { "t": "rect", "x": 6000, "y": 1500, "w": 30000, "h": 9000, "rx": 300, "fill": "#0b1020", "stroke": "#334155", "sw": 120 },

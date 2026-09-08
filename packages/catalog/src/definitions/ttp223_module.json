@@ -44,6 +44,30 @@
     "i2c": null
   },
   "features": [{ "type": "button", "label": "触摸区", "rect_um": { "x": 3000, "y": 1500, "w": 9000, "h": 6000 } }],
+  "simulation": {
+    "driver": "input.ttp223@1",
+    "pins": {
+      "VCC": "vcc",
+      "IO": "out",
+      "GND": "gnd"
+    },
+    "controls": [
+      {
+        "id": "touch",
+        "feature_label": "触摸区",
+        "action": "touch",
+        "channel": "touch"
+      }
+    ],
+    "visuals": [
+      {
+        "id": "touched",
+        "feature_label": "触摸区",
+        "kind": "state",
+        "channel": "touch"
+      }
+    ]
+  },
   "render": [
     { "t": "rect", "x": 0, "y": 0, "w": 15000, "h": 11000, "rx": 600, "fill": "#b91c1c", "stroke": "#7f1d1d", "sw": 200 },
     { "t": "circle", "cx": 7500, "cy": 4500, "r": 3200, "fill": "#fecaca", "stroke": "#7f1d1d", "sw": 120 },

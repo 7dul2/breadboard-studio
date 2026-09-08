@@ -11,8 +11,9 @@
  *   `<component_id>.<pin_name>`.
  */
 
-export const SCHEMA_VERSION = '1.0' as const;
-export const SUPPORTED_SCHEMA_VERSIONS = ['1.0'] as const;
+/** Schema written by this build. Older supported versions are migrated on load (see migrate.ts). */
+export const SCHEMA_VERSION = '1.1' as const;
+export const SUPPORTED_SCHEMA_VERSIONS = ['1.0', '1.1'] as const;
 
 export type Um = number;
 export type PointUm = [Um, Um];
@@ -125,6 +126,41 @@ export interface EmbeddedCatalog {
   components?: ComponentDefinition[];
 }
 
+// ---------------------------------------------------------------------------
+// Programs and simulation launch configuration (schema 1.1)
+// ---------------------------------------------------------------------------
+
+export const PROGRAM_LANGUAGES = ['studio-ts'] as const;
+export type ProgramLanguage = (typeof PROGRAM_LANGUAGES)[number];
+
+/**
+ * Source code that runs on one controller instance in the simulator. Programs
+ * are design content: versioned, hashed, undoable and exported with the file.
+ * Runtime state (pin levels, framebuffers, virtual time) is never stored here.
+ */
+export interface ProgramAsset {
+  id: string;
+  name: string;
+  /** Component instance the program runs on. Removing that component removes the program (cascade). */
+  target_component_id: string;
+  language: ProgramLanguage;
+  source: string;
+  /** Entry file name, default `main.ts`. Reserved for multi-file programs. */
+  entry?: string;
+}
+
+export const SIMULATION_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10] as const;
+export type SimulationSpeed = (typeof SIMULATION_SPEEDS)[number];
+
+/** How a simulation session is launched. Starting, pausing or running never changes the design. */
+export interface SimulationConfig {
+  active_program_id?: string;
+  speed?: SimulationSpeed;
+  random_seed?: number;
+  /** Host boards that receive USB power when the session starts. */
+  usb_powered_components?: string[];
+}
+
 export interface DesignDocument {
   schema_version: string;
   /** Catalog id -> catalog package version used when the design was saved. */
@@ -137,6 +173,10 @@ export interface DesignDocument {
   constraints: Constraint[];
   /** Definitions pinned inside the document so old designs survive catalog upgrades. */
   embedded_catalog?: EmbeddedCatalog;
+  /** Programs for controller instances (schema 1.1). */
+  programs?: ProgramAsset[];
+  /** Simulation launch configuration (schema 1.1). */
+  simulation?: SimulationConfig;
   view?: ViewState;
 }
 
@@ -295,7 +335,7 @@ export type RenderPrimitiveDef =
   | ({ t: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; sw?: number } & RenderPrimitiveBase);
 
 export interface FeatureDef {
-  type: 'usb_c' | 'usb_micro' | 'antenna_area' | 'connector' | 'sensor_window' | 'button' | 'display' | 'fan' | 'cable';
+  type: 'usb_c' | 'usb_micro' | 'antenna_area' | 'connector' | 'sensor_window' | 'button' | 'display' | 'led' | 'fan' | 'cable';
   label?: string;
   /** Side of the body (local, unrotated). */
   side?: 'top' | 'bottom' | 'left' | 'right';
@@ -342,6 +382,44 @@ export interface ElectricalDef {
   notes?: string;
 }
 
+export type SimulationControlAction = 'press' | 'touch' | 'toggle' | 'slider';
+export type SimulationVisualKind = 'led' | 'display' | 'state';
+
+/** A feature the user can operate while the simulation runs (button, touch pad, slider). */
+export interface SimulationControlDef {
+  id: string;
+  /** Must match a `features[].label`; the feature rect is the hit area. */
+  feature_label: string;
+  action: SimulationControlAction;
+  /** Driver channel the control feeds. */
+  channel: string;
+}
+
+/** A feature whose appearance follows the running simulation (LED, display, state badge). */
+export interface SimulationVisualDef {
+  id: string;
+  /** Must match a `features[].label`; the feature rect is where the overlay is drawn. */
+  feature_label: string;
+  kind: SimulationVisualKind;
+  /** Driver channel the visual reads. */
+  channel: string;
+}
+
+/**
+ * Declares which simulator driver models this component and how its pins,
+ * controls and visuals bind to that driver. Behaviour lives in
+ * @breadboard-studio/sim, never in the catalog.
+ */
+export interface SimulationDefinition {
+  /** Versioned driver id, e.g. `mcu.esp32s3.behavioral@1`. */
+  driver: string;
+  /** Pin name → driver channel (for MCUs the GPIO number). */
+  pins?: Record<string, string | number>;
+  properties?: Record<string, JsonValue>;
+  controls?: SimulationControlDef[];
+  visuals?: SimulationVisualDef[];
+}
+
 export interface ComponentDefinition {
   kind: 'component';
   id: string;
@@ -373,6 +451,8 @@ export interface ComponentDefinition {
   internal_nets?: string[][];
   electrical: ElectricalDef;
   features?: FeatureDef[];
+  /** Simulator binding (driver, pin channels, controls, visuals). Absent = no behaviour model. */
+  simulation?: SimulationDefinition;
   /** Original vector drawing in body-local µm (unrotated). */
   render: RenderPrimitiveDef[];
   geometry_status: ModelStatus;

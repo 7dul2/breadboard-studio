@@ -23,6 +23,9 @@ importers:
       '@breadboard-studio/schema':
         specifier: workspace:*
         version: link:packages/schema
+      '@breadboard-studio/sim':
+        specifier: workspace:*
+        version: link:packages/sim
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -53,6 +56,9 @@ importers:
       '@breadboard-studio/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@breadboard-studio/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -132,6 +138,18 @@ importers:
       ajv-formats:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
+
+  packages/sim:
+    dependencies:
+      '@breadboard-studio/catalog':
+        specifier: workspace:*
+        version: link:../catalog
+      '@breadboard-studio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@breadboard-studio/schema':
+        specifier: workspace:*
+        version: link:../schema
 
 packages:
 

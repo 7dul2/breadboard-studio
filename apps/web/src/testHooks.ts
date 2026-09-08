@@ -1,5 +1,6 @@
 import { useStore, analysisOf } from './store';
 import { designHash } from '@breadboard-studio/core';
+import { isDraftDirty, useSimulatorStore } from './simulator/simulatorStore';
 
 declare global {
   interface Window {
@@ -9,6 +10,15 @@ declare global {
       apply: (ops: unknown[]) => unknown;
       importJson: (text: string) => unknown;
       state: () => unknown;
+      simulator: () => {
+        status: string;
+        sessionId: string | null;
+        programId: string | null;
+        allowed: string[];
+        diagnostics: { code: string; severity: string; message: string }[];
+        editorOpen: boolean;
+        dirty: boolean;
+      };
     };
   }
 }
@@ -27,6 +37,18 @@ export function installTestHooks(): void {
     state: () => {
       const s = useStore.getState();
       return { selectedIds: s.selectedIds, selectedHole: s.selectedHole, tool: s.tool, storage: s.storage, dslDirty: s.dslDirty, buildMode: s.buildMode, past: s.past.length, future: s.future.length };
+    },
+    simulator: () => {
+      const s = useSimulatorStore.getState();
+      return {
+        status: s.status,
+        sessionId: s.sessionId,
+        programId: s.programId,
+        allowed: [...s.allowed],
+        diagnostics: s.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })),
+        editorOpen: s.editorOpen,
+        dirty: isDraftDirty(s.editorProgramId)
+      };
     }
   };
 }

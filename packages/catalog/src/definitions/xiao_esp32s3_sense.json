@@ -321,6 +321,31 @@
       "notes": "Sense 扩展板叠在主板上方，整体高度约 10 mm（近似）。"
     }
   ],
+  "simulation": {
+    "driver": "mcu.esp32s3.behavioral@1",
+    "pins": {
+      "D0": 1,
+      "D1": 2,
+      "D2": 3,
+      "D3": 4,
+      "D4": 5,
+      "D5": 6,
+      "D6": 43,
+      "D7": 44,
+      "D8": 7,
+      "D9": 8,
+      "D10": 9
+    },
+    "properties": {
+      "boot_gpio": 0,
+      "user_led_gpio": 21,
+      "user_led_active_low": true,
+      "uart0": {
+        "tx": 43,
+        "rx": 44
+      }
+    }
+  },
   "render": [
     {
       "t": "rect",

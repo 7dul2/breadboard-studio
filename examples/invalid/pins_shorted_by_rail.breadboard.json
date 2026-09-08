@@ -1,12 +1,12 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "catalog_versions": {
     "builtin": "0.1.0"
   },
   "metadata": {
     "name": "反例：LED 两脚插在同一电源轨",
     "revision": 1,
-    "created_at": "2026-09-05T03:22:17.646Z",
+    "created_at": "2026-09-05T00:00:00.000Z",
     "updated_at": "2026-09-05T00:00:00.000Z"
   },
   "boards": [

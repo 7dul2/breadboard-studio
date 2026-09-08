@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { EXAMPLES, useStore } from '../store';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { WIRE_COLORS } from '@breadboard-studio/render';
+import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
 
 const COLOR_NAMES: Record<string, string> = { red: '红', black: '黑', blue: '蓝', yellow: '黄', green: '绿', white: '白', orange: '橙', purple: '紫', brown: '棕', gray: '灰' };
 
@@ -111,6 +112,8 @@ export function Toolbar() {
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
       <label className="toggle"><input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} />针脚名</label>
       <label className="toggle"><input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮</label>
+      <span className="sep" />
+      <SimulatorToolbar />
       <span className="sep" />
       <button className={buildMode ? 'active' : ''} onClick={() => st.setBuildMode(!buildMode)} data-testid="build-mode">搭建模式</button>
       <span className="spacer" />

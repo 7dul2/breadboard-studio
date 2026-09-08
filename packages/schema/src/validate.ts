@@ -67,10 +67,40 @@ export function validateBoardDefinition(def: unknown): SchemaValidation<BoardDef
   return { ok: true, issues: [], value: def as BoardDefinition };
 }
 
+/**
+ * Semantic checks the JSON Schema cannot express: every simulation binding must
+ * point at a feature and a pin that exist in the same definition, otherwise the
+ * hit-test and overlay code would silently find nothing at runtime.
+ */
+function simulationIssues(def: ComponentDefinition): SchemaIssue[] {
+  const sim = def.simulation;
+  if (!sim) return [];
+  const issues: SchemaIssue[] = [];
+  const labels = new Set((def.features ?? []).map((f) => f.label).filter((l): l is string => !!l));
+  // Parametric definitions generate their pins, so pin_meta is the authoritative name list there.
+  const pinNames = new Set(def.pins.length ? def.pins.map((p) => p.name) : Object.keys(def.pin_meta ?? {}));
+  const bindings = [...(sim.controls ?? []).map((c, i) => ({ path: `/simulation/controls/${i}`, b: c })), ...(sim.visuals ?? []).map((v, i) => ({ path: `/simulation/visuals/${i}`, b: v }))];
+  for (const { path, b } of bindings) {
+    if (!labels.has(b.feature_label)) {
+      issues.push({ path: `${path}/feature_label`, message: `"${b.feature_label}" 不是该定义 features[].label 中的标签（可用：${[...labels].join('、') || '无'}）`, keyword: 'simulation' });
+    }
+  }
+  const ids = bindings.map(({ b }) => b.id);
+  for (const [i, id] of ids.entries()) {
+    if (ids.indexOf(id) !== i) issues.push({ path: `${bindings[i]!.path}/id`, message: `重复的绑定 id "${id}"`, keyword: 'simulation' });
+  }
+  for (const pin of Object.keys(sim.pins ?? {})) {
+    if (!pinNames.has(pin)) issues.push({ path: `/simulation/pins/${pin}`, message: `"${pin}" 不是该定义的引脚名`, keyword: 'simulation' });
+  }
+  return issues;
+}
+
 export function validateComponentDefinition(def: unknown): SchemaValidation<ComponentDefinition> {
   if (!componentValidator) componentValidator = getAjv().compile(componentDefinitionSchema);
   const valid = componentValidator(def);
   if (!valid) return { ok: false, issues: toIssues(componentValidator.errors) };
+  const issues = simulationIssues(def as ComponentDefinition);
+  if (issues.length) return { ok: false, issues };
   return { ok: true, issues: [], value: def as ComponentDefinition };
 }
 

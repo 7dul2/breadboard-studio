@@ -48,6 +48,29 @@
     "notes": "芯片本体供电范围 1.08–3.6 V；转接板是否含稳压/电平转换未知，请在 config.supply_voltage_v 中填写实测/资料值。"
   },
   "features": [{ "type": "sensor_window", "label": "传感器", "rect_um": { "x": 5500, "y": 2000, "w": 4000, "h": 4000 } }],
+  "simulation": {
+    "driver": "sensor.sht4x@1",
+    "pins": {
+      "SDA": "sda",
+      "SCL": "scl",
+      "VCC": "vcc",
+      "GND": "gnd"
+    },
+    "controls": [
+      {
+        "id": "temperature",
+        "feature_label": "传感器",
+        "action": "slider",
+        "channel": "temperature_c"
+      },
+      {
+        "id": "humidity",
+        "feature_label": "传感器",
+        "action": "slider",
+        "channel": "humidity_rh"
+      }
+    ]
+  },
   "render": [
     { "t": "rect", "x": 0, "y": 0, "w": 15000, "h": 11000, "rx": 600, "fill": "#065f46", "stroke": "#1f2937", "sw": 200 },
     { "t": "rect", "x": 5500, "y": 2000, "w": 4000, "h": 4000, "rx": 300, "fill": "#111827", "stroke": "#9ca3af", "sw": 100 },

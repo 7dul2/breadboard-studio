@@ -13,7 +13,7 @@ export function DslPanel() {
         <span className={`muted ${dirty ? 'dirty' : ''}`}> {dirty ? '草稿已修改，尚未应用' : `与画布同步 · revision ${revision}`}</span>
       </div>
       <p className="muted small">
-        声明式 JSON（schema 1.0）。编辑草稿后点“校验”或“应用”。非法草稿不会改变画布；画布修改在草稿未改动时会同步到这里。
+        声明式 JSON（schema 1.1）。编辑草稿后点“校验”或“应用”。非法草稿不会改变画布；画布修改在草稿未改动时会同步到这里。
       </p>
       <textarea className="dsl-text" value={dslText} onChange={(e) => st.setDslText(e.target.value)} spellCheck={false} data-testid="dsl-text" />
       <div className="row">

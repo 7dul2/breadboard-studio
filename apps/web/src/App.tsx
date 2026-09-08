@@ -6,6 +6,8 @@ import { Properties } from './components/Properties';
 import { Validation } from './components/Validation';
 import { DslPanel } from './components/DslPanel';
 import { BuildMode } from './components/BuildMode';
+import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
+import { CodeEditor } from './simulator/code/CodeEditor';
 import { useStore } from './store';
 
 function Toasts() {
@@ -101,6 +103,7 @@ export function App() {
         </aside>
         <section className="center">
           <Canvas />
+          <CodeEditor />
           <Validation />
         </section>
         <aside className="right">
@@ -108,11 +111,13 @@ export function App() {
             <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
             <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
             <button className={rightTab === 'build' ? 'active' : ''} onClick={() => { st.setRightTab('build'); if (!buildMode) st.setBuildMode(true); }} data-testid="tab-build">搭建</button>
+            <button className={rightTab === 'simulation' ? 'active' : ''} onClick={() => st.setRightTab('simulation')} data-testid="tab-simulation">仿真</button>
           </div>
           <div className="tab-body">
             {rightTab === 'properties' && <Properties />}
             {rightTab === 'dsl' && <DslPanel />}
             {rightTab === 'build' && <BuildMode />}
+            {rightTab === 'simulation' && <SimulatorPanel />}
           </div>
         </aside>
       </div>

@@ -25,6 +25,33 @@
   },
   "params_default": { "color": "red" },
   "electrical": { "supply_voltage_v": null, "supply_current_ma": { "typical": 10, "peak": 20 }, "io_voltage_v": null, "i2c": null },
+  "features": [
+    {
+      "type": "led",
+      "label": "LED",
+      "rect_um": {
+        "x": 0,
+        "y": 0,
+        "w": 5000,
+        "h": 5000
+      }
+    }
+  ],
+  "simulation": {
+    "driver": "output.led@1",
+    "pins": {
+      "A": "anode",
+      "K": "cathode"
+    },
+    "visuals": [
+      {
+        "id": "glow",
+        "feature_label": "LED",
+        "kind": "led",
+        "channel": "glow"
+      }
+    ]
+  },
   "render": [
     { "t": "circle", "cx": 2500, "cy": 2500, "r": 2500, "fill": "#fb7185", "stroke": "#9f1239", "sw": 150, "opacity": 0.9 },
     { "t": "circle", "cx": 2500, "cy": 2500, "r": 1300, "fill": "#fecdd3", "stroke": "#9f1239", "sw": 80 }

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "catalog_versions": {
     "builtin": "0.1.0"
   },
@@ -122,12 +122,8 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          8890,
-          10790
-        ],
-        [
           11430,
-          10790
+          15870
         ]
       ],
       "name": "GND → 电源轨"
@@ -189,11 +185,7 @@
       "waypoints_um": [
         [
           102870,
-          22220
-        ],
-        [
-          105410,
-          22220
+          5710
         ]
       ],
       "name": "OLED GND"
@@ -249,12 +241,12 @@
       "path_mode": "auto",
       "waypoints_um": [
         [
-          128270,
-          12060
+          126100,
+          15870
         ],
         [
-          130810,
-          12060
+          126100,
+          8250
         ]
       ],
       "name": "触摸 VCC"
@@ -270,7 +262,16 @@
       "color": "black",
       "route": "flat",
       "path_mode": "auto",
-      "waypoints_um": [],
+      "waypoints_um": [
+        [
+          135520,
+          15870
+        ],
+        [
+          135520,
+          5710
+        ]
+      ],
       "name": "触摸 GND"
     },
     {
@@ -284,7 +285,16 @@
       "color": "green",
       "route": "flat",
       "path_mode": "auto",
-      "waypoints_um": [],
+      "waypoints_um": [
+        [
+          130810,
+          15270
+        ],
+        [
+          54610,
+          15270
+        ]
+      ],
       "name": "触摸 IO → GPIO4"
     },
     {

@@ -44,6 +44,27 @@
     "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "地址通常为 0x3C，具体以模块配置为准" }
   },
   "features": [{ "type": "display", "label": "128×64 OLED", "rect_um": { "x": 2350, "y": 6200, "w": 22300, "h": 11500 } }],
+  "simulation": {
+    "driver": "display.ssd1315@1",
+    "pins": {
+      "SDA": "sda",
+      "SCL": "scl",
+      "VCC": "vcc",
+      "GND": "gnd"
+    },
+    "properties": {
+      "width": 128,
+      "height": 64
+    },
+    "visuals": [
+      {
+        "id": "screen",
+        "feature_label": "128×64 OLED",
+        "kind": "display",
+        "channel": "framebuffer"
+      }
+    ]
+  },
   "render": [
     { "t": "rect", "x": 0, "y": 0, "w": 27000, "h": 26500, "rx": 500, "fill": "#087eae", "stroke": "#07556f", "sw": 260 },
     { "t": "line", "x1": 900, "y1": 700, "x2": 26100, "y2": 700, "stroke": "#21a7cc", "sw": 180 },

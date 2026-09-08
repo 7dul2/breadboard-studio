@@ -212,6 +212,112 @@ env = run(
 write('environment_node.breadboard.json', env);
 
 // ---------------------------------------------------------------------------
+// Example 3: touch display — fixed reference design for the simulator
+// (ESP32-S3 N16R8 + TTP223 + SSD1315 OLED, wired by auto_wire, with a Studio TS program)
+// ---------------------------------------------------------------------------
+const TOUCH_DISPLAY_SOURCE = `// 触摸显示示例 · Studio TypeScript（API 见 docs/SIMULATOR_DESIGN.md §8.1）
+// 阶段 0：仿真器还没有代码执行后端，这段程序只随设计一起保存，暂时不会执行。
+// 接线：TTP223 IO → GPIO4；SSD1315 OLED SDA → GPIO8、SCL → GPIO9（I²C 地址 0x3C）。
+import { gpio, Wire, Serial, sleep, INPUT } from '@bbs/runtime';
+import { SSD1306 } from '@bbs/devices/ssd1306';
+
+const TOUCH = 4;
+const oled = new SSD1306(Wire, 0x3c, 128, 64);
+
+export async function setup() {
+  gpio.pinMode(TOUCH, INPUT);
+  Serial.begin(115200);
+  await Wire.begin({ sda: 8, scl: 9 });
+  await oled.begin();
+  Serial.println('ready');
+}
+
+export async function loop() {
+  oled.clear();
+  oled.setColor('white');
+  oled.text(8, 24, gpio.digitalRead(TOUCH) ? 'Touched' : 'Ready');
+  await oled.show();
+  await sleep(20);
+}
+`;
+
+let touchDisplay = createEmptyDesign('触摸显示：ESP32-S3 N16R8 + TTP223 + SSD1315 OLED');
+touchDisplay.metadata.created_at = FIXED_NOW;
+touchDisplay.metadata.updated_at = FIXED_NOW;
+touchDisplay.metadata.description =
+  '仿真器的固定参考设计：ESP32-S3 N16R8（双 Type-C，44 针）平躺跨过 830 孔板的中央沟槽，TTP223 触摸键接 GPIO4，0.96" SSD1315 OLED 走默认 I²C（SDA GPIO8 / SCL GPIO9，地址 0x3C）。全部走线由 auto_wire（greedy）生成；附带一段 Studio TypeScript 程序，触摸时在屏幕上显示 Touched。';
+touchDisplay.metadata.author = 'Breadboard Studio examples';
+touchDisplay.metadata.tags = ['esp32-s3', 'n16r8', 'ttp223', 'ssd1315', 'oled', 'simulator', 'example'];
+touchDisplay = run(
+  touchDisplay,
+  [
+    { op: 'add_board', board: { id: 'bb', model: 'breadboard_830@1', name: '主板 830', position_um: [0, 0], rotation_deg: 0 } },
+    {
+      op: 'add_component',
+      component: {
+        id: 'mcu',
+        name: 'ESP32-S3 N16R8',
+        model: 'esp32s3_n16r8_dual_usb@1',
+        // Rotation 270 puts the GPIO/3V3 header row in row b (tappable from row a);
+        // the other row sits in row j, where the body covers f–i.
+        placement: { kind: 'board', board_id: 'bb', anchor_hole: 'b30', anchor_pin: 'GND_4', rotation_deg: 270 },
+        notes: '板体占 30–51 列、b–j 行。旋转 270° 让 GPIO/3V3 这一排落在 b 行，可从 a 行引出；另一排在 j 行被板体遮挡，本例不使用。'
+      }
+    },
+    {
+      op: 'add_component',
+      component: {
+        id: 'touch',
+        name: 'TTP223 触摸键',
+        model: 'ttp223_module@1',
+        placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e10', anchor_pin: 'VCC', rotation_deg: 0 },
+        config: { output_mode: 'active_high', toggle_mode: false, supply_v: 3.3 }
+      }
+    },
+    {
+      op: 'add_component',
+      component: {
+        id: 'oled',
+        name: '0.96" OLED（SSD1315）',
+        model: 'oled_0_96_ssd1315_i2c@1',
+        placement: { kind: 'board', board_id: 'bb', anchor_hole: 'b56', anchor_pin: 'GND', rotation_deg: 0 },
+        config: { i2c_address: 60 },
+        notes: '平躺模块，针脚在 b 行、从 a 行引出；板体盖住 53–62 列的 b–i 行。'
+      }
+    }
+  ],
+  'touch display components'
+);
+{
+  // greedy is deterministic; the global optimiser has a wall-clock budget and could drift between runs.
+  // Read the planner report so a placement regression cannot silently drop a connection.
+  const r = applyOps(
+    touchDisplay,
+    [{ op: 'auto_wire', host: 'mcu', components: ['touch', 'oled'], options: { optimize: 'greedy', signal_pins: { 'touch.IO': 'GPIO4' } } }],
+    { now: () => FIXED_NOW }
+  );
+  if (!r.ok) {
+    console.error('[touch display auto_wire] apply failed:', JSON.stringify(r.error, null, 2));
+    process.exit(1);
+  }
+  const plan = r.reports.find((rep) => rep.op === 'auto_wire')?.plan;
+  if (!plan || plan.unresolved.length) {
+    console.error('[touch display auto_wire] unresolved pins:', JSON.stringify(plan?.unresolved ?? 'no plan', null, 2));
+    process.exit(1);
+  }
+  touchDisplay = r.design;
+}
+touchDisplay = run(
+  touchDisplay,
+  [
+    { op: 'add_program', program: { id: 'program_main', name: '触摸显示示例', target_component_id: 'mcu', source: TOUCH_DISPLAY_SOURCE } },
+    { op: 'set_simulation_config', patch: { active_program_id: 'program_main', speed: 1, random_seed: 1, usb_powered_components: ['mcu'] } }
+  ],
+  'touch display program'
+);
+write('touch_display.breadboard.json', touchDisplay);
+
+// ---------------------------------------------------------------------------
 // Counter-examples (must fail or warn in specific ways; see packages/cli tests)
 // ---------------------------------------------------------------------------
 const shortPG = run(desk, [{ op: 'add_wire', wire: { id: 'w_bad', name: '误接：+ 轨到 − 轨', from: { hole: 'bb.top_inner_20' }, to: { hole: 'bb.top_outer_20' }, color: 'red' } }], 'short');
@@ -253,8 +359,12 @@ const holeConflict = JSON.parse(serializeDesign(env)) as DesignDocument;
 holeConflict.components.push({ id: 'led1', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb_a', anchor_hole: 'j12', anchor_pin: 'A', rotation_deg: 0 } });
 write('hole_conflict.breadboard.json', holeConflict, invalidDir);
 
+// Pin the timestamps like every other example so repeated runs are byte-identical.
+const shortedByRailBase = createEmptyDesign('反例：LED 两脚插在同一电源轨');
+shortedByRailBase.metadata.created_at = FIXED_NOW;
+shortedByRailBase.metadata.updated_at = FIXED_NOW;
 const shortedByRail = run(
-  createEmptyDesign('反例：LED 两脚插在同一电源轨'),
+  shortedByRailBase,
   [
     { op: 'add_board', board: { id: 'bb', model: 'breadboard_400@1', position_um: [0, 0], rotation_deg: 0 } },
     { op: 'add_component', component: { id: 'led1', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'top_inner_3', anchor_pin: 'A', rotation_deg: 0 } } }
@@ -263,6 +373,6 @@ const shortedByRail = run(
 );
 write('pins_shorted_by_rail.breadboard.json', shortedByRail, invalidDir);
 
-const wrongJson = '{"schema_version": "1.0", "boards": [}';
+const wrongJson = '{"schema_version": "1.1", "boards": [}';
 writeFileSync(join(invalidDir, 'malformed.breadboard.json'), wrongJson + '\n');
 console.log('malformed.breadboard.json'.padEnd(44), '(rejected at parse)');

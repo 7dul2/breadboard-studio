@@ -23,6 +23,9 @@ pnpm bb apply design.breadboard.json --patch edits.json --dry-run --json
 pnpm bb apply design.breadboard.json --patch edits.json --out revised.breadboard.json --expect-revision 2
 pnpm bb export revised.breadboard.json --format svg --out layout.svg
 pnpm bb steps revised.breadboard.json --json
+pnpm bb programs design.breadboard.json --json                                   # 程序列表与仿真配置
+pnpm bb program export design.breadboard.json program_main --out main.ts         # 源码原样写出
+pnpm bb program import design.breadboard.json program_main --source main.ts --target mcu --activate --json
 pnpm bb schema          # 设计 JSON Schema
 pnpm bb ops             # apply 支持的操作
 ```
@@ -37,7 +40,9 @@ pnpm bb ops             # apply 支持的操作
     { "op": "add_component", "component": { "id": "sht41", "model": "sht41_breakout@1", "placement": { "kind": "board", "board_id": "bb_a", "anchor_hole": "j12", "anchor_pin": "VCC", "rotation_deg": 0 }, "config": { "i2c_address": 68 } } },
     { "op": "add_wire", "wire": { "from": { "pin": "mcu.D4" }, "to": { "pin": "sht41.SDA" }, "color": "blue", "route": "elevated" } },
     { "op": "add_net_intent", "net_intent": { "id": "n_sda", "name": "SDA", "endpoints": ["mcu.D4", "sht41.SDA"] } },
-    { "op": "update_property", "id": "sht41", "path": "config.i2c_address", "value": 69 }
+    { "op": "update_property", "id": "sht41", "path": "config.i2c_address", "value": 69 },
+    { "op": "add_program", "program": { "id": "program_main", "name": "读取温湿度", "target_component_id": "mcu", "source": "import { Serial, sleep } from '@bbs/runtime';\nexport async function loop() { Serial.println('tick'); await sleep(1000); }\n" } },
+    { "op": "set_simulation_config", "patch": { "active_program_id": "program_main", "speed": 1 } }
   ]
 }
 ```
@@ -45,10 +50,10 @@ pnpm bb ops             # apply 支持的操作
 - 一个补丁原子执行：任一操作失败或结果存在阻断错误（坏引用、引脚脱格、同孔两针、板体碰撞、端点被占用）→ 全部不应用，文件不变。
 - 电气问题（短路、地址冲突、供电不足）不阻断，写入后在结果里显著报告。
 - `{ "pin": "mcu.D4" }` 语法糖：引脚已插入面包板时自动解析为同组最近的空闲孔，否则解析为端子；文件里保存的总是显式孔/端子。
-- `expected_revision` / `expected_hash`（或命令行 `--expect-revision` / `--expect-hash`）用于防止覆盖并发修改。
+- `expected_revision` / `expected_hash`（或命令行 `--expect-revision` / `--expect-hash`）用于防止覆盖并发修改。`schema_version` 参与内容哈希，因此对 `1.0` 文件记录的 hash 在迁移到 `1.1` 后不再匹配（退出码 3）：先 `bb inspect` 重新取一次 hash。
 - `--force` 允许在阻断错误存在时仍写入（用于修复损坏文件）。
 
-操作清单：`add_board`、`remove_board`、`move_board`、`rotate_board`、`add_component`、`remove_component`、`move_component`、`rotate_component`、`add_wire`、`remove_wire`、`update_wire`、`update_property`、`add_net_intent`、`remove_net_intent`、`update_net_intent`、`add_constraint`、`remove_constraint`、`set_metadata`、`replace_design`、`add_definition`、`remove_definition`、`auto_wire`。字段见 `pnpm bb ops`。
+操作清单：`add_board`、`remove_board`、`move_board`、`rotate_board`、`add_component`、`remove_component`、`move_component`、`rotate_component`、`add_wire`、`remove_wire`、`update_wire`、`update_property`、`add_net_intent`、`remove_net_intent`、`update_net_intent`、`add_constraint`、`remove_constraint`、`set_metadata`、`replace_design`、`add_definition`、`remove_definition`、`auto_wire`、`add_program`、`update_program`、`remove_program`、`set_simulation_config`。字段见 `pnpm bb ops`。
 
 `autowire` / `auto_wire` 按目录中的引脚角色连接一个主控或电源主板与多个外设：
 
@@ -59,6 +64,10 @@ pnpm bb ops             # apply 支持的操作
 - **全局优化**（`--optimize global`，默认）：先做逐引脚贪心得到基线，再按同一目标函数（Σ 实际走线长度 + 每个拐弯 2 mm + 每根杜邦线 6 mm + 每根线 3 mm）整体搜索：每个信号/I²C 网络在“主板抽头 + 各成员引脚”上穷举全部生成树（≤ 7 个节点，Prüfer 序列，孔位容量约束），更大的网络退化为最小生成树；电源/GND 网络把电源轨段当作设施，枚举所有轨段子集（激活代价 = 馈线/桥线最小生成树，加各成员最近抽头），多个电源网络联合选段保证不共用轨段；然后按“先电源后信号、短线优先”顺序真实走线，对绕路的硬跳线做拆线重排与孔位重选，直到收敛或超过 `--time-budget`（默认 1500 ms）。只有目标值不高于贪心时才采用全局方案，因此**结果永远不劣于贪心**。`plan.optimization` 报告采用的策略、两种目标值、是否穷举（`exhaustive`）、耗时与每个网络的搜索规模；超过穷举上限或超时的部分会明确标为启发式。这是给定目标函数下的最优搜索，不是“物理上唯一正确”的布线。
 - **I²C 地址冲突**（`--i2c-conflicts`，默认 `bus_first`）：接线前先按有效地址（`config.i2c_address` 或目录默认）给每个 I²C 器件分配总线，同地址器件不会落在同一条总线上。主板有空闲控制器（`electrical.i2c.controllers`）且可映射 GPIO 时启用第 2 条总线（写入主板 `config.i2c_buses`，网络名 `SDA1`/`SCL1`），否则改用器件 `address_options` 里空闲的地址（写入 `config.i2c_address`）；`address_first` 顺序相反，`report` 只把冲突器件列为未连接。每次自动改动都会给出 `needs_review`（`auto_wire_i2c_bus_added` / `auto_wire_i2c_address_changed`），因为固件的 `Wire1.begin(sda, scl)`、地址常量和模块跳线要跟着改；两条总线都占满且地址不可改时报告 `i2c_address_conflict` 并建议多路复用器。
 - **报告**：`plan.connections`（每根线的网络、主板引脚、两端、线材、经轨/经孔组、估算长度）、`plan.bridges`（馈线/桥线）、`plan.i2c_buses`、`plan.config_changes`、`plan.skipped`、`plan.unresolved`（含原因与建议）、`plan.optimization`。`--require-all` 时任何未连接引脚都让整个操作失败、不写文件。所有结果都按引脚角色生成，不是电气仿真；`needs_review` 项仍需人工核对。
+
+## 程序与仿真
+
+schema 1.1 起，设计文件可以带 `programs[]`（主控实例的 Studio TS 源码）和 `simulation`（启动程序、倍速、随机种子、USB 供电主板），格式见 [设计文件格式](DESIGN_FORMAT.md)。源码是设计内容：修改走 `add_program` / `update_program` / `remove_program` / `set_simulation_config`，每次都是一次事务（`revision` +1、参与 hash、可撤销），目标元件必须存在，删除主控需要 `cascade` 才会连程序一起删。`bb programs` 列出程序与配置（`inspect` 也包含 `programs`/`simulation`），`bb program export` 把源码原样写出，`bb program import` 从源码文件新建（需要 `--target`）或更新程序，`--activate` 同时设为启动程序；它与 `apply` 一样支持 `--dry-run`、`--out`、`--expect-revision`/`--expect-hash`（冲突退出码 3），失败时不写文件。**阶段 0 只保存与校验，不执行**：没有任何命令会运行代码，`program_target_unsupported` 等警告只说明目标型号还没有仿真驱动。
 
 ## 结果格式
 

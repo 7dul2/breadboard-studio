@@ -517,6 +517,55 @@
       }
     }
   ],
+  "simulation": {
+    "driver": "mcu.esp32s3.behavioral@1",
+    "pins": {
+      "GPIO0": 0,
+      "GPIO1": 1,
+      "GPIO2": 2,
+      "GPIO3": 3,
+      "GPIO4": 4,
+      "GPIO5": 5,
+      "GPIO6": 6,
+      "GPIO7": 7,
+      "GPIO8": 8,
+      "GPIO9": 9,
+      "GPIO10": 10,
+      "GPIO11": 11,
+      "GPIO12": 12,
+      "GPIO13": 13,
+      "GPIO14": 14,
+      "GPIO15": 15,
+      "GPIO16": 16,
+      "GPIO17": 17,
+      "GPIO18": 18,
+      "GPIO19": 19,
+      "GPIO20": 20,
+      "GPIO21": 21,
+      "GPIO35": 35,
+      "GPIO36": 36,
+      "GPIO37": 37,
+      "GPIO38": 38,
+      "GPIO39": 39,
+      "GPIO40": 40,
+      "GPIO41": 41,
+      "GPIO42": 42,
+      "GPIO45": 45,
+      "GPIO46": 46,
+      "GPIO47": 47,
+      "GPIO48": 48,
+      "TX": 43,
+      "RX": 44
+    },
+    "properties": {
+      "boot_gpio": 0,
+      "rgb_gpio": 48,
+      "uart0": {
+        "tx": 43,
+        "rx": 44
+      }
+    }
+  },
   "render": [
     {
       "t": "rect",

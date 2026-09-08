@@ -118,6 +118,7 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
   for (const w of design.wires) checkId(w.id, 'wire');
   for (const n of design.net_intents) checkId(n.id, 'net_intent');
   for (const c of design.constraints) checkId(c.id, 'constraint');
+  for (const p of design.programs ?? []) checkId(p.id, 'program');
 
   // ---- boards ----
   for (const b of design.boards) {

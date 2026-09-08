@@ -453,6 +453,31 @@ export function checkModel(model: DesignModel): CheckOutput {
     }
   }
 
+  // ------------------------------------------------------------ programs / simulation launch config
+  const design = model.design;
+  const componentExists = (id: string) => design.components.some((c) => c.id === id);
+  for (const program of design.programs ?? []) {
+    if (!componentExists(program.target_component_id)) {
+      results.push(res('error', 'program_target_missing', 'schema', `程序 ${program.id}（${program.name}）的目标元件 ${program.target_component_id} 不存在`, [program.id], { blocking: true, suggestion: '把程序指向现有的主控实例，或删除该程序。' }));
+      continue;
+    }
+    const target = model.components.get(program.target_component_id);
+    if (!target) continue; // unknown model already reported
+    if (!target.def.simulation?.driver) {
+      results.push(res('warning', 'program_target_unsupported', 'interface', `程序 ${program.id} 的目标 ${target.instance.id}（${target.def.name}）没有仿真驱动，代码会随项目保存，但不能运行`, [program.id, target.instance.id], { suggestion: '选择带 simulation.driver 的主控定义，或为该定义补充 simulation 字段。' }));
+    }
+    if (target.def.category !== 'mcu') {
+      results.push(res('warning', 'program_target_not_controller', 'interface', `程序 ${program.id} 的目标 ${target.instance.id}（${target.def.name}）不是主控`, [program.id, target.instance.id], { suggestion: '程序应指向 MCU 开发板实例。' }));
+    }
+  }
+  const sim = design.simulation;
+  if (sim?.active_program_id !== undefined && !(design.programs ?? []).some((p) => p.id === sim.active_program_id)) {
+    results.push(res('error', 'simulation_program_missing', 'schema', `仿真配置的启动程序 ${sim.active_program_id} 不存在`, ['simulation'], { blocking: true, suggestion: '选择现有程序，或清除 simulation.active_program_id。' }));
+  }
+  for (const id of sim?.usb_powered_components ?? []) {
+    if (!componentExists(id)) results.push(res('error', 'unknown_reference', 'schema', `仿真配置 usb_powered_components 引用了不存在的元件 ${id}`, ['simulation'], { blocking: true }));
+  }
+
   // ------------------------------------------------------------ I2C buses
   const controllers = comps.filter((pc) => pc.def.category === 'mcu' && i2cPins(pc));
   const devices = comps.filter((pc) => pc.def.category !== 'mcu' && i2cPins(pc));

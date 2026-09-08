@@ -45,6 +45,32 @@
 
 没有 `generator` 时使用显式 `pins[]`。
 
+## 仿真绑定 `simulation`
+
+定义可选的 `simulation` 字段只声明“这个型号由哪个驱动模拟、引脚/控件/视觉如何对应”；具体行为写在 `packages/sim` 的驱动里，不进 JSON：
+
+| 字段 | 说明 |
+| --- | --- |
+| `driver` | 版本化驱动 id，如 `mcu.esp32s3.behavioral@1`。规则引擎据此判断程序目标是否可仿真（缺少时报 `program_target_unsupported`）。 |
+| `pins` | 引脚名 → 驱动通道（字符串，如 `"IO": "out"`）或 GPIO 号（数字，如 `"GPIO4": 4`）。 |
+| `properties` | 驱动常量，如 OLED 的 `width`/`height`、MCU 的 `boot_gpio`/`rgb_gpio`/`uart0`。 |
+| `controls[]` | 可交互区域 `{ id, feature_label, action: press|touch|toggle|slider, channel }`。 |
+| `visuals[]` | 随运行状态变化的外观 `{ id, feature_label, kind: led|display|state, channel }`。 |
+
+`feature_label` 必须与同一定义 `features[].label` 完全一致：点击命中区域与渲染区域继续由目录几何决定，驱动只通过 `channel` 收发事件。`features[].type` 新增 `led`（板载 RGB、单个 LED 的发光区域）。schema 见 `packages/schema/src/definition.schema.ts`，目录测试会校验这些字段。
+
+当前声明的驱动：
+
+| driver | 定义 | 绑定 |
+| --- | --- | --- |
+| `mcu.esp32s3.behavioral@1` | `esp32s3_n16r8_dual_usb@1`、`esp32s3_devkit_generic@1`、`xiao_esp32s3_sense@1` | `pins` 为 GPIO 号；N16R8 有 `BOOT`/`RST` 按键控件（`press`）与 `RGB` 视觉（`led`）；XIAO 记录用户 LED（GPIO21，低电平点亮）。 |
+| `input.ttp223@1` | `ttp223_module@1` | `触摸区` 控件（`touch`）→ `IO` 输出通道 `out`。 |
+| `display.ssd1315@1` | `oled_0_96_i2c@1`、`oled_0_91_i2c@1`、`oled_0_96_ssd1315_i2c@1` | `SDA`/`SCL`/`VCC`/`GND` 通道，`properties.width/height`，屏幕视觉（`display`，通道 `framebuffer`）。 |
+| `output.led@1` | `led_5mm@1` | `A`/`K` → `anode`/`cathode`，`LED` 视觉（`led`，通道 `glow`）。 |
+| `sensor.sht4x@1` | `sht41_breakout@1` | I²C 通道；`传感器` 上的温度/湿度滑杆控件（`slider`，通道 `temperature_c`/`humidity_rh`）。 |
+
+**行为尚未实现**：阶段 0 只保存并校验这些绑定，驱动本身在阶段 1+ 实现（见 `docs/SIMULATOR_DESIGN.md`）；现在给主控写程序不会让任何元件动起来。
+
 ## 添加一个简单模块（不改应用代码）
 
 1. 复制 `examples/custom_definition_example.json`，修改 `id`、`name`、`pin_names`、`pin_meta`、`electrical`、`render`，如实填写 `geometry_status`/`electrical_status` 和 `sources`。

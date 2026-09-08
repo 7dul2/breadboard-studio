@@ -12,6 +12,7 @@ pnpm workspace：
 | `packages/catalog` | 面包板/元件定义（JSON）与目录加载 | schema |
 | `packages/core` | 几何、孔阵、放置、导通图、规则、事务 | 不依赖 DOM/React |
 | `packages/render` | 共享场景（primitive 列表）与 SVG 导出 | core |
+| `packages/sim` | 仿真协议、状态机、快照、会话控制器 | core；不依赖 DOM/React |
 | `packages/cli` | `bb` 命令行 | core/render |
 | `apps/web` | 浏览器编辑器（React + Vite，SVG 画布） | 全部 |
 
@@ -78,10 +79,20 @@ pnpm workspace：
 
 ## 8. 版本、修订与哈希
 
-- `schema_version` 当前为 `"1.0"`；未列入支持列表的版本一律拒绝。
+- `schema_version` 当前为 `"1.1"`；支持列表为 `1.0`/`1.1`，`1.0` 文件载入时无损迁移到 `1.1`（只改版本号，迁移后的哈希与直接按 1.1 写出的一致）；未列入支持列表的版本一律拒绝。
 - `metadata.revision` 每次成功事务 +1；`hash` = 排除 `revision`/`updated_at`/`view` 后的规范 JSON 的 SHA-256。`apply` 可用 `expected_revision`/`expected_hash` 防止覆盖并发修改（冲突退出码 3）。
 - `catalog_versions` 记录保存时的目录版本；`embedded_catalog` 可把用到的定义固定在文件内。
 
 ## 9. 目录定义状态
 
 `geometry_status` 与 `electrical_status` 分别取 `verified` / `approximate` / `unknown`。`verified` 只表示与注明资料或实测吻合，不表示硬件认证。v0.1 内置定义没有任何一项是 `verified` 几何。
+
+## 10. 仿真：设计态与运行态
+
+完整方案见 `docs/SIMULATOR_DESIGN.md`；以下原则对所有实现阶段有效：
+
+- **设计文档是静态事实，运行态是临时事实**：`programs`/`simulation` 随文件保存、参与哈希与撤销；引脚电平、屏幕像素、按钮状态、虚拟时间、串口缓存只存在于仿真会话，启动/暂停/复位不增加 `revision`。修改接线、元件配置或代码后当前会话立即停止并记 `stale_simulation_snapshot`，必须重新运行才会得到新的快照；只改播放倍速不算修改，会话继续。
+- **复用现有导通图**：仿真快照由 `core` 的模型与导通图生成（稳定的网络 id、引脚 → 网络映射），不维护第二套接线关系。
+- **确定性优先**：相同设计、代码、输入事件和随机种子必须得到相同输出；时间一律是虚拟微秒，测试不依赖真实计时器。
+- **器件通过网络交流**：MCU 只能驱动/读取自己的引脚或在绑定到 SDA/SCL 网络的总线上发起事务，不能直接找到某个 OLED 实例；错线、断线、地址冲突因此真实暴露。
+- **代码执行必须隔离**：用户代码不能访问 DOM、`window`、`localStorage`、网络、文件系统或应用 Store，只能在独立 Worker 的沙箱里通过白名单硬件 API 运行。真实固件后端只能作为另一个 `SimulationBackend` 接入，不侵入电路内核与器件模型。

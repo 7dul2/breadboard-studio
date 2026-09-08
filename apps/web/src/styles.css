@@ -90,7 +90,8 @@ a { color: var(--accent); }
   .model-detail-card { width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 81px); }
 }
 
-.canvas-wrap { flex: 1; position: relative; min-height: 0; }
+/* min-height keeps the canvas visible when the code drawer is dragged tall. */
+.canvas-wrap { flex: 1; position: relative; min-height: 120px; }
 .canvas { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
 .canvas .scene-dim { opacity: 0.55; }
 .canvas .component-hit { cursor: move; }
@@ -189,3 +190,58 @@ table.pins td { padding: 2px 4px; border-top: 1px solid #eef0f4; vertical-align:
 .artwork-help { margin: 0; padding-left: 18px; color: var(--muted); }
 .artwork-help li { margin-bottom: 4px; }
 .field-inline { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+
+/* ---- simulator (phase 0 shell) ---- */
+.sim-controls { gap: 3px; }
+.sim-controls button { padding: 4px 7px; white-space: nowrap; }
+/* Below ~1720px the toolbar would wrap onto a second row and shrink the canvas: show icons only (titles keep the names). */
+@media (max-width: 1720px) {
+  .sim-controls .sim-label { display: none; }
+  .sim-controls button { padding: 4px 6px; min-width: 28px; }
+}
+.sim-status { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: #6b7280; }
+.sim-status::before, .sim-light::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff; opacity: 0.9; }
+.sim-light { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: #6b7280; }
+.sim-status-idle, .sim-light-idle { background: #6b7280; }
+.sim-status-compiling, .sim-light-compiling, .sim-status-prepared, .sim-light-prepared { background: var(--accent); }
+.sim-status-running, .sim-light-running { background: var(--success); }
+.sim-status-paused, .sim-light-paused, .sim-status-stepping, .sim-light-stepping { background: var(--warning); }
+.sim-status-faulted, .sim-light-faulted { background: var(--error); }
+.sim-panel { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.sim-panel .panel-title { padding-left: 0; padding-right: 0; }
+.sim-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.sim-section { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
+.sim-section-title { font-weight: 600; font-size: 12px; }
+.sim-section-head { display: flex; align-items: center; gap: 6px; }
+.sim-section p { margin: 0; }
+.sim-program-list { display: flex; flex-direction: column; gap: 4px; }
+.sim-program { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; }
+.sim-program.active { border-color: var(--accent); background: var(--accent-bg); }
+.sim-program-head { display: flex; align-items: center; gap: 6px; }
+.sim-program-head input[type="text"] { flex: 1; }
+.sim-program-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.sim-lang { font-size: 11px; color: var(--muted); }
+.sim-diagnostics { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 200px; overflow: auto; }
+.sim-diagnostic { display: grid; grid-template-columns: auto 1fr; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; align-items: baseline; font-size: 12px; }
+.sim-diagnostic:hover { background: #f1f3f7; }
+.sim-serial { max-height: 140px; min-height: 40px; overflow: auto; padding: 6px 8px; border-radius: 6px; background: #0f172a; color: #e2e8f0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; }
+.sim-serial .muted { color: #94a3b8; }
+.sim-serial-line.stderr { color: #fca5a5; }
+.sim-nets-wrap { max-height: 220px; overflow: auto; }
+table.sim-nets { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.sim-nets th { text-align: left; font-weight: 500; color: var(--muted); padding: 2px 4px; }
+table.sim-nets td { padding: 2px 4px; border-top: 1px solid #eef0f4; }
+.sim-info { padding: 6px 8px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; font-size: 12px; color: #1e3a8a; line-height: 1.5; }
+
+/* ---- code editor drawer ---- */
+/* Leave the validation panel its 34% and the canvas its 120px minimum, so the column never overflows. */
+.code-editor { flex: none; display: flex; flex-direction: column; min-height: 120px; max-height: calc(66% - 130px); background: var(--panel); border-top: 1px solid var(--border); }
+.code-handle { height: 6px; flex: none; cursor: row-resize; background: linear-gradient(to bottom, #e5e7eb, #f3f4f6); touch-action: none; }
+.code-handle:hover, .code-handle.dragging { background: var(--accent-bg); }
+.code-head { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
+.code-dirty { font-size: 11px; color: var(--muted); }
+.code-dirty.dirty { color: var(--warning); font-weight: 600; }
+.code-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.code-gutter, .code-text { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+.code-gutter { flex: none; min-width: 34px; padding: 6px 6px 6px 8px; color: var(--muted); text-align: right; background: #f6f7f9; border-right: 1px solid var(--border); overflow: hidden; user-select: none; }
+.code-text { flex: 1; padding: 6px 8px; border: none; border-radius: 0; resize: none; white-space: pre; overflow: auto; outline: none; tab-size: 2; }

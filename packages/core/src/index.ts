@@ -14,3 +14,4 @@ export * from './steps.js';
 export * from './analyze.js';
 export * from './ops.js';
 export * from './autowire.js';
+export * from './programs.js';

@@ -219,4 +219,154 @@ describe('bb CLI', () => {
     const badMode = json(['autowire', envBare, '--host', 'mcu', '--all', '--optimize', 'magic', '--dry-run']);
     expect(badMode.code).toBe(2);
   });
+
+  it('ops lists the program and simulation operations', () => {
+    const r = json(['ops']);
+    expect(r.code).toBe(0);
+    const ops = (r.json.ops as { op: string; fields: string }[]).map((o) => o.op);
+    expect(ops).toEqual(expect.arrayContaining(['add_program', 'update_program', 'remove_program', 'set_simulation_config']));
+  });
+
+  it('program import creates, activates, exports and updates a program atomically', () => {
+    const file = join(work, 'programs.breadboard.json');
+    copyFileSync(join(examples, 'desk_device.breadboard.json'), file);
+    const before = readFileSync(file, 'utf8');
+    const src = join(work, 'blink.ts');
+    // Mixed line endings and non-ASCII text: export must return the exact bytes.
+    const source = "// 闪灯测试\nimport { gpio, sleep } from '@bbs/runtime';\r\nexport async function loop() {\n  await sleep(500);\n}\n";
+    writeFileSync(src, source);
+
+    // A new id without --target is a usage error; the file is untouched.
+    const noTarget = json(['program', 'import', file, 'p_blink', '--source', src]);
+    expect(noTarget.code).toBe(2);
+    expect(noTarget.json.ok).toBe(false);
+    expect(readFileSync(file, 'utf8')).toBe(before);
+
+    // An unknown target is rejected by add_program (exit 1); the file is untouched.
+    const badTarget = json(['program', 'import', file, 'p_blink', '--source', src, '--target', 'nope']);
+    expect(badTarget.code).toBe(1);
+    expect(badTarget.json.ok).toBe(false);
+    expect((badTarget.json.error as { message: string }).message).toContain('nope');
+    expect(readFileSync(file, 'utf8')).toBe(before);
+
+    const added = json(['program', 'import', file, 'p_blink', '--source', src, '--target', 'mcu', '--name', '闪灯', '--activate']);
+    expect(added.code).toBe(0);
+    expect(added.json.action).toBe('added');
+    expect(added.json.activated).toBe(true);
+    expect(added.json.revision).toBe((added.json.previous_revision as number) + 1);
+    expect(added.json.changed).toEqual(expect.arrayContaining(['p_blink', 'simulation']));
+    const d1 = loadDesign(readFileSync(file, 'utf8')).design!;
+    expect(d1.programs!.map((p) => p.id)).toEqual(['p_blink']);
+    expect(d1.programs![0]!.source).toBe(source);
+    expect(d1.programs![0]!.language).toBe('studio-ts');
+    expect(d1.simulation?.active_program_id).toBe('p_blink');
+
+    expect(json(['validate', file]).code).toBe(0);
+
+    const list = json(['programs', file]);
+    expect(list.code).toBe(0);
+    const programs = list.json.programs as { id: string; name: string; target_component_id: string; language: string; source_lines: number }[];
+    expect(programs).toHaveLength(1);
+    expect(programs[0]).toMatchObject({ id: 'p_blink', name: '闪灯', target_component_id: 'mcu', language: 'studio-ts' });
+    expect(programs[0]!.source_lines).toBe(source.split('\n').length);
+    expect((list.json.simulation as { active_program_id: string }).active_program_id).toBe('p_blink');
+    expect(list.json.active_program_id).toBe('p_blink');
+
+    const ins = json(['inspect', file]);
+    expect((ins.json.programs as { id: string }[]).map((p) => p.id)).toEqual(['p_blink']);
+    expect((ins.json.simulation as { active_program_id: string }).active_program_id).toBe('p_blink');
+    expect(bb(['inspect', file]).stdout).toContain('程序：1 个（启动程序：p_blink）');
+    expect(bb(['inspect', join(examples, 'environment_node.breadboard.json')]).stdout).toContain('程序：0 个（启动程序：无）');
+
+    // export writes the exact source bytes back; a missing id exits 2 without writing.
+    const exported = join(work, 'blink.exported.ts');
+    const ex = json(['program', 'export', file, 'p_blink', '--out', exported]);
+    expect(ex.code).toBe(0);
+    expect(readFileSync(exported)).toEqual(readFileSync(src));
+    const exMissing = json(['program', 'export', file, 'nope', '--out', join(work, 'never.ts')]);
+    expect(exMissing.code).toBe(2);
+    expect(existsSync(join(work, 'never.ts'))).toBe(false);
+
+    // Importing an existing id updates the source and bumps the revision; name is kept.
+    const source2 = source + '// v2\n';
+    writeFileSync(src, source2);
+    const updated = json(['program', 'import', file, 'p_blink', '--source', src]);
+    expect(updated.code).toBe(0);
+    expect(updated.json.action).toBe('updated');
+    expect(updated.json.revision).toBe(d1.metadata.revision + 1);
+    const d2 = loadDesign(readFileSync(file, 'utf8')).design!;
+    expect(d2.programs).toHaveLength(1);
+    expect(d2.programs![0]!.source).toBe(source2);
+    expect(d2.programs![0]!.name).toBe('闪灯');
+    expect(d2.simulation?.active_program_id).toBe('p_blink');
+
+    // Revision conflict exits 3 and dry-run never writes.
+    const afterUpdate = readFileSync(file, 'utf8');
+    const conflict = json(['program', 'import', file, 'p_blink', '--source', src, '--expect-revision', '99']);
+    expect(conflict.code).toBe(3);
+    expect(readFileSync(file, 'utf8')).toBe(afterUpdate);
+    const dry = json(['program', 'import', file, 'p_blink', '--source', src, '--dry-run']);
+    expect(dry.code).toBe(0);
+    expect(dry.json.dry_run).toBe(true);
+    expect(readFileSync(file, 'utf8')).toBe(afterUpdate);
+  });
+
+  it('apply accepts add_program + set_simulation_config in one patch', () => {
+    const file = join(work, 'patch_program.breadboard.json');
+    copyFileSync(join(examples, 'desk_device.breadboard.json'), file);
+    const patch = join(work, 'program_patch.json');
+    writeFileSync(
+      patch,
+      JSON.stringify({
+        ops: [
+          { op: 'add_program', program: { id: 'p_main', name: '主程序', target_component_id: 'mcu', source: 'export async function loop() {}\n' } },
+          { op: 'set_simulation_config', patch: { active_program_id: 'p_main', speed: 2, usb_powered_components: ['mcu'] } }
+        ]
+      })
+    );
+    const r = json(['apply', file, '--patch', patch]);
+    expect(r.code).toBe(0);
+    expect(r.json.changed).toEqual(expect.arrayContaining(['p_main', 'simulation']));
+    const d = loadDesign(readFileSync(file, 'utf8')).design!;
+    expect(d.programs!.map((p) => p.id)).toEqual(['p_main']);
+    expect(d.simulation).toEqual({ active_program_id: 'p_main', speed: 2, usb_powered_components: ['mcu'] });
+    expect(json(['validate', file]).code).toBe(0);
+  });
+
+  it('importing into a schema 1.0 file writes 1.1 with the rest of the content unchanged', () => {
+    const modernFile = join(examples, 'desk_device.breadboard.json');
+    const modernBytes = readFileSync(modernFile, 'utf8');
+    const original = JSON.parse(modernBytes) as Record<string, unknown> & { metadata: { revision: number; updated_at?: string } };
+    expect(original.schema_version).toBe('1.1');
+    expect(original.programs).toBeUndefined();
+    const legacy = join(work, 'legacy.breadboard.json');
+    writeFileSync(legacy, JSON.stringify({ ...original, schema_version: '1.0' }, null, 2) + '\n');
+    const src = join(work, 'legacy.ts');
+    writeFileSync(src, 'export async function loop() {}\n');
+
+    const legacyOut = join(work, 'legacy_out.breadboard.json');
+    const r = json(['program', 'import', legacy, 'p1', '--source', src, '--target', 'mcu', '--out', legacyOut]);
+    expect(r.code).toBe(0);
+    const written = JSON.parse(readFileSync(legacyOut, 'utf8')) as typeof original;
+    expect(written.schema_version).toBe('1.1');
+    expect((written.programs as { id: string }[]).map((p) => p.id)).toEqual(['p1']);
+    expect(written.metadata.revision).toBe(original.metadata.revision + 1);
+
+    // Everything the import did not touch is byte-for-byte the original content (wires are
+    // re-normalized by every apply, so they are compared against a 1.1 import below).
+    const { programs: _p, simulation: _s, schema_version: _v, metadata: _m, wires: _w, ...rest } = written;
+    const { schema_version: _ov, metadata: _om, wires: _ow, ...origRest } = original;
+    expect(rest).toEqual(origRest);
+    expect({ ...written.metadata, revision: original.metadata.revision, updated_at: original.metadata.updated_at }).toEqual(original.metadata);
+
+    // The same import on the 1.1 original produces the same document and hash: migration is lossless.
+    const modernOut = join(work, 'modern_out.breadboard.json');
+    const r2 = json(['program', 'import', modernFile, 'p1', '--source', src, '--target', 'mcu', '--out', modernOut]);
+    expect(r2.code).toBe(0);
+    expect(r2.json.hash).toBe(r.json.hash);
+    const modern = JSON.parse(readFileSync(modernOut, 'utf8')) as typeof original;
+    expect({ ...written, metadata: { ...written.metadata, updated_at: null } }).toEqual({ ...modern, metadata: { ...modern.metadata, updated_at: null } });
+    // The example itself is never modified by --out.
+    expect(readFileSync(modernFile, 'utf8')).toBe(modernBytes);
+  });
 });
