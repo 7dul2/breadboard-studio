@@ -1,10 +1,16 @@
 /**
- * Worker-safe kernel surface. Everything re-exported here is pure TypeScript
- * with no dependency on `@breadboard-studio/core`, `catalog` or `snapshot.ts`,
- * so importing it never drags core + ajv into the worker chunk.
+ * Worker-safe kernel surface: the deterministic parts of the simulator that
+ * carry no dependency on `@breadboard-studio/core`, `catalog` or `snapshot.ts`.
+ * Importing this never drags core + ajv into the worker chunk.
  *
- * `packages/sim/test/imports.test.ts` enforces that boundary by scanning the
- * source, so this is not a convention you can quietly break.
+ * `test/imports.test.ts` enforces that boundary by scanning the source, so it
+ * is not a convention that can be quietly broken.
  */
 export * from './types.js';
 export * from './contracts.js';
+export * from './scheduler.js';
+export * from './digital-net.js';
+export * from './power.js';
+export * from './devices/registry.js';
+export * from './devices/paint.js';
+export * from './devices/esp32s3.js';
