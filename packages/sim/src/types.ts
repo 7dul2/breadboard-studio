@@ -196,6 +196,13 @@ export interface SimDeviceSpec {
   pinChannels: Record<string, string | number>;
   /** Instance `config` merged over catalog `simulation.properties`. */
   properties: Record<string, unknown>;
+  /**
+   * Resolved instance `params`. Separate from `properties` because they mean
+   * different things: `config` is how the part is wired up or addressed, `params`
+   * is what the part physically *is* — a resistor's value, an LED's colour. The
+   * LED driver is the first thing that needs the distinction.
+   */
+  params?: Record<string, unknown>;
   /** Electrical metadata per pin. Optional so hand-built snapshots stay valid. */
   pinMeta?: Record<string, SimPinMeta>;
   /** Allowed supply range from `core.supplyRange()`; null means unknown. */

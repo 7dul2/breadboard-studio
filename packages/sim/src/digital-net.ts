@@ -33,6 +33,13 @@ export interface DigitalNetOptions {
   onDiagnostic: (diagnostic: SimDiagnostic) => void;
   /** Current virtual time in µs. The kernel never advances it. */
   now: () => number;
+  /**
+   * Nets tied to 0 V. They resolve to a strong `0` with no driver of their own,
+   * because that is what a ground net *is* — every part connected to it reads low.
+   * Without this a grounded input reads `Z`: an LED whose cathode is on GND would
+   * never light, and `digitalRead` of a grounded pin would warn about floating.
+   */
+  groundNets?: readonly string[];
   maxSettleRounds?: number;
 }
 
@@ -99,9 +106,16 @@ export class DigitalNetKernel implements DigitalNet {
   private readonly dirty = new Set<string>();
   private settling = false;
 
+  private readonly groundNets: ReadonlySet<string>;
+
   constructor(options: DigitalNetOptions) {
     this.options = options;
     this.maxSettleRounds = options.maxSettleRounds ?? DEFAULT_MAX_SETTLE_ROUNDS;
+    this.groundNets = new Set(options.groundNets ?? []);
+    // Seed them: a net is only re-solved when something drives it, and nothing
+    // ever drives ground. Without this the value stays `Z` until an unrelated
+    // change happens to touch the net, and a grounded cathode reads floating.
+    for (const netId of this.groundNets) this.netValue.set(netId, 0);
     for (const net of options.nets) if (net.name) this.netNames.set(net.id, net.name);
   }
 
@@ -297,6 +311,10 @@ export class DigitalNetKernel implements DigitalNet {
   private settleNet(netId: string): void {
     const endpoints = this.netEndpoints.get(netId) ?? [];
     const drivers = endpoints.map((endpoint) => ({ value: this.effectiveValue(endpoint), strength: endpoint.strength }));
+    // Ground is a driver nobody owns. It joins the resolution rather than the
+    // endpoint list so it cannot be released, and so it still contends properly
+    // with a pin that drives the same net high — which is a real fault.
+    if (this.groundNets.has(netId)) drivers.push({ value: 0, strength: 'strong' });
     const { value, contention } = resolveNet(drivers);
     const previous = this.netValue.get(netId) ?? 'Z';
     this.netValue.set(netId, value);

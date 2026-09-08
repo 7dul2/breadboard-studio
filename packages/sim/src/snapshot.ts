@@ -103,6 +103,7 @@ export function buildSnapshot(design: DesignDocument, catalog: Catalog = builtin
       properties: properties as Record<string, JsonValue>
     };
     if (pc) {
+      spec.params = { ...(pc.resolved.params ?? {}) };
       spec.pinMeta = pinMeta;
       spec.supply = supplyRange(pc);
       const i2c = i2cSpecOf(pc, pinToNet);

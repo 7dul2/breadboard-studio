@@ -374,7 +374,10 @@ export class SessionRuntime {
       nets: snapshot.nets,
       pinToNet: snapshot.pinToNet,
       onDiagnostic: (diagnostic) => this.emitDiagnostic(diagnostic),
-      now: () => this.scheduler.nowUs
+      now: () => this.scheduler.nowUs,
+      // A ground net is 0 V, so it reads low. Nothing else drives it: the three
+      // supply roles are skipped as endpoints because they carry volts, not levels.
+      groundNets: snapshot.power?.groundNets ?? []
     });
 
     this.power = new PowerDomain(powerInputFromSnapshot(snapshot));

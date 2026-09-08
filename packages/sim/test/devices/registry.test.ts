@@ -5,6 +5,7 @@ import { BUILTIN_DRIVERS, builtinDrivers } from '../../src/devices/registry.js';
 import { ESP32S3_DRIVER_ID, Esp32S3Driver } from '../../src/devices/esp32s3.js';
 import { TTP223_DRIVER_ID } from '../../src/devices/ttp223.js';
 import { SSD1315_DRIVER_ID } from '../../src/devices/ssd1315.js';
+import { LED_DRIVER_ID } from '../../src/devices/led.js';
 import { createDeviceHarness, fixtureSpec } from './harness.js';
 
 /** Every key `DeviceContext` documents — and nothing that reaches another device. */
@@ -87,14 +88,14 @@ describe('driver registry', () => {
     expect(() => ctx.drive('GPIO4', 0)).not.toThrow();
   });
 
-  it('R6 keeps room for the drivers that land in M-S2/M-S3', () => {
+  it('R6 lists every built-in driver, and an override replaces one without adding to the table', () => {
     const created: string[] = [];
     const stub = (id: string) => (ctx: DeviceContext): DeviceDriver => {
       created.push(`${id}:${ctx.componentId}`);
       return { driverId: id };
     };
     const registry = builtinDrivers({ 'input.ttp223@1': stub('input.ttp223@1'), 'display.ssd1315@1': stub('display.ssd1315@1') });
-    expect(registry.ids()).toEqual(['display.ssd1315@1', 'input.ttp223@1', 'mcu.esp32s3.behavioral@1']);
+    expect(registry.ids()).toEqual(['display.ssd1315@1', 'input.ttp223@1', 'mcu.esp32s3.behavioral@1', 'output.led@1']);
 
     const touch = createDeviceHarness({ spec: fixtureSpec('touch') });
     const oled = createDeviceHarness({ spec: fixtureSpec('oled') });
@@ -102,8 +103,8 @@ describe('driver registry', () => {
     expect(registry.create(oled.ctx)?.driverId).toBe('display.ssd1315@1');
     expect(created).toEqual(['input.ttp223@1:touch', 'display.ssd1315@1:oled']);
     // The built-in table itself is untouched by the extras, and now holds all three
-    // v0.2 drivers: the MCU (M-S1), the TTP223 (M-S2) and the OLED (M-S3).
-    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID, SSD1315_DRIVER_ID]);
+    // v0.2 drivers: the MCU (M-S1), the TTP223 (M-S2), the OLED (M-S3) and the LED.
+    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID, SSD1315_DRIVER_ID, LED_DRIVER_ID]);
   });
 
   it('R7 exposes net ids as opaque strings, equal only when the pins really share a net', () => {

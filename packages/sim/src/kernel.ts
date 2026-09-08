@@ -16,4 +16,5 @@ export * from './devices/paint.js';
 export * from './devices/esp32s3.js';
 export * from './devices/ttp223.js';
 export * from './devices/ssd1315.js';
+export * from './devices/led.js';
 export * from './i2c.js';

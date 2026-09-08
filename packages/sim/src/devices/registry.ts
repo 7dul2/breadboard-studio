@@ -7,17 +7,20 @@
  * passive electrical endpoint, and the caller reports it once with
  * `unsupported_device` (info) instead of failing the whole session.
  *
- * All three v0.2 drivers are registered here: the MCU, the TTP223 and the OLED.
+ * All four v0.2 drivers are registered here: the MCU, the TTP223, the OLED and
+ * the discrete LED.
  */
 import type { DeviceContext, DeviceDriver, DeviceFactory, DriverRegistry } from '../contracts.js';
 import { ESP32S3_DRIVER_ID, createEsp32S3Driver } from './esp32s3.js';
+import { LED_DRIVER_ID, createLedDriver } from './led.js';
 import { SSD1315_DRIVER_ID, createSsd1315Driver } from './ssd1315.js';
 import { TTP223_DRIVER_ID, createTtp223Driver } from './ttp223.js';
 
 export const BUILTIN_DRIVERS: Readonly<Record<string, DeviceFactory>> = Object.freeze({
   [ESP32S3_DRIVER_ID]: createEsp32S3Driver,
   [TTP223_DRIVER_ID]: createTtp223Driver,
-  [SSD1315_DRIVER_ID]: createSsd1315Driver
+  [SSD1315_DRIVER_ID]: createSsd1315Driver,
+  [LED_DRIVER_ID]: createLedDriver
 });
 
 /**
