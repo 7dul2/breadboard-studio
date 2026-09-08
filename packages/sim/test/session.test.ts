@@ -343,6 +343,53 @@ describe('SessionRuntime', () => {
     });
   });
 
+  describe('an unpowered board', () => {
+    it('still runs the program — it just cannot affect anything', () => {
+      // The diagnostic used to say "程序不会执行", which the serial output below
+      // disproves. A program on a dead board runs, prints, and changes nothing.
+      const base = fixtureSnapshot();
+      const snapshot = { ...base, config: { ...base.config, usb_powered_components: [] } };
+      const source = `import { Wire, Serial, gpio, sleep, INPUT, OUTPUT, HIGH, I2C_OK } from '@bbs/runtime';
+
+export async function setup() {
+  Serial.begin(115200);
+  gpio.pinMode(4, INPUT);
+  gpio.pinMode(48, OUTPUT);
+  Serial.println('setup ran');
+  Serial.println('begin=' + Wire.begin());
+}
+
+export async function loop() {
+  gpio.digitalWrite(48, HIGH);
+  await sleep(50);
+}
+`;
+      const harness = new Harness();
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, source) });
+      harness.send({ type: 'run' });
+      harness.run(300, () => harness.serialText().join('\n').includes('begin='));
+      // setup() prints at virtual time 0; let a few loop() sleeps go by as well.
+      harness.run(50, () => harness.lastNowUs() > 100_000);
+
+      const serial = harness.serialText().join('\n');
+      expect(serial, 'the program really executed').toContain('setup ran');
+      expect(serial, 'and I²C refused, with the status the guest can test').toContain('begin=' + 4);
+      expect(harness.lastNowUs(), 'virtual time moved').toBeGreaterThan(0);
+      expect(harness.statuses().at(-1)).toBe('running');
+
+      const unpowered = harness.diagnostics().filter((d) => d.code === 'device_unpowered');
+      expect(unpowered.length).toBeGreaterThan(0);
+      for (const d of unpowered) expect(d.message, 'never claim the program did not run').not.toContain('程序不会执行');
+      expect(unpowered.some((d) => d.message.includes('照常执行'))).toBe(true);
+
+      // and the output pin it wrote to is still floating, which is the real damage
+      const nets = harness.lastIoSnapshot();
+      const driven = nets.flatMap((n) => n.drivers).filter((d) => d.componentId === 'mcu');
+      expect(driven.every((d) => d.value === 'Z'), 'every MCU pin stayed high-impedance').toBe(true);
+      harness.send({ type: 'dispose' });
+    });
+  });
+
   describe('I²C through the session', () => {
     const PROBE = `import { Wire, Serial, sleep } from '@bbs/runtime';
 

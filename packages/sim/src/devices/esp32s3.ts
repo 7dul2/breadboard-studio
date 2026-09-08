@@ -364,7 +364,10 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
     this.ctx.diagnoseOnce('power:unpowered', {
       code: 'device_unpowered',
       severity: SIM_DIAGNOSTIC_SEVERITY.device_unpowered,
-      message: '开发板未上电：程序不会执行，所有引脚保持高阻。请在仿真面板勾选 USB 供电，或检查供电接线。'
+      // Not "the program will not run" — it does run, and its own serial output is
+      // the proof. What is dead is every effect it could have: the pins stay Z and
+      // `Wire.begin()` refuses, so a program can look busy and change nothing.
+      message: '开发板未上电：程序照常执行，但所有引脚保持高阻、I²C 不可用，任何输出都不会生效。请在“仿真”面板勾选 USB 供电，或检查供电接线。'
     });
   }
 
