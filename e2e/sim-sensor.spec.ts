@@ -33,6 +33,66 @@ async function lastTemperature(page: import('@playwright/test').Page): Promise<n
 }
 
 test.describe('阶段 4 · 传感器滑杆', () => {
+  test('the BMP390 slider reaches a program that runs the datasheet compensation', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'environment_node');
+
+    // A guest that does the whole job: read the NVM, parse it, compensate.
+    const READ_BMP = `import { Wire, Serial, sleep } from '@bbs/runtime';
+const BMP = 0x77;
+function s8(v) { return v > 127 ? v - 256 : v; }
+function s16(v) { return v > 32767 ? v - 65536 : v; }
+function u16(b, i) { return (b[i + 1] << 8) | b[i]; }
+async function reg(a, n) { await Wire.write(BMP, [a]); return Wire.read(BMP, n); }
+export async function setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  await Wire.write(BMP, [0x1b, 0x33]);
+  await sleep(10);
+  Serial.println('ready');
+}
+export async function loop() {
+  const n = await reg(0x31, 21);
+  const t1 = u16(n, 0) / 0.00390625, t2 = u16(n, 2) / 1073741824.0, t3 = s8(n[4]) / 281474976710656.0;
+  const p1 = (s16(u16(n, 5)) - 16384) / 1048576.0, p5 = u16(n, 11) / 0.125;
+  const d = await reg(0x04, 6);
+  const rp = d[0] | (d[1] << 8) | (d[2] << 16);
+  const rt = d[3] | (d[4] << 8) | (d[5] << 16);
+  const pd1 = rt - t1;
+  const t = pd1 * t2 + pd1 * pd1 * t3;
+  Serial.println('P=' + ((p5 + rp * p1) / 100).toFixed(1));
+  await sleep(50);
+}
+`;
+    const ok = await page.evaluate(
+      (src) =>
+        (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+          { op: 'add_program', program: { id: 'program_main', name: '读气压', target_component_id: 'mcu', source: src } },
+          { op: 'set_simulation_config', patch: { active_program_id: 'program_main', usb_powered_components: ['mcu'] } }
+        ]),
+      READ_BMP
+    );
+    expect(ok.ok).toBe(true);
+
+    await enterSim(page);
+    const slider = page.getByTestId('sim-slider-input-bmp390:pressure');
+    await expect(slider).toBeVisible();
+
+    await page.getByTestId('sim-run').click();
+    await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');
+
+    const lastPressure = async (): Promise<number | null> => {
+      const line = (await simulator(page)).serial.map((l) => l.text).filter((t) => t.startsWith('P=')).at(-1);
+      return line ? Number(line.slice(2)) : null;
+    };
+    await expect.poll(lastPressure, FIRST_RUN).toBeCloseTo(1013.2, 0);
+
+    await slider.fill('880.5');
+    await expect.poll(lastPressure, FIRST_RUN).toBeCloseTo(880.5, 0);
+    expect((await simulator(page)).diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+  });
+
+
   test('the slider moves the temperature the program reads', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'environment_node');

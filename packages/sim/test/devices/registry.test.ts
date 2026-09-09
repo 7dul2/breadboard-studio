@@ -9,6 +9,7 @@ import { LED_DRIVER_ID } from '../../src/devices/led.js';
 import { SHT4X_DRIVER_ID } from '../../src/devices/sht4x.js';
 import { LTR390_DRIVER_ID } from '../../src/devices/ltr390.js';
 import { SEN6X_DRIVER_ID } from '../../src/devices/sen6x.js';
+import { BMP390_DRIVER_ID } from '../../src/devices/bmp390.js';
 import { createDeviceHarness, fixtureSpec } from './harness.js';
 
 /** Every key `DeviceContext` documents — and nothing that reaches another device. */
@@ -98,7 +99,7 @@ describe('driver registry', () => {
       return { driverId: id };
     };
     const registry = builtinDrivers({ 'input.ttp223@1': stub('input.ttp223@1'), 'display.ssd1315@1': stub('display.ssd1315@1') });
-    expect(registry.ids()).toEqual(['display.ssd1315@1', 'input.ttp223@1', 'mcu.esp32s3.behavioral@1', 'output.led@1', 'sensor.ltr390@1', 'sensor.sen6x@1', 'sensor.sht4x@1']);
+    expect(registry.ids()).toEqual(['display.ssd1315@1', 'input.ttp223@1', 'mcu.esp32s3.behavioral@1', 'output.led@1', 'sensor.bmp390@1', 'sensor.ltr390@1', 'sensor.sen6x@1', 'sensor.sht4x@1']);
 
     const touch = createDeviceHarness({ spec: fixtureSpec('touch') });
     const oled = createDeviceHarness({ spec: fixtureSpec('oled') });
@@ -107,7 +108,7 @@ describe('driver registry', () => {
     expect(created).toEqual(['input.ttp223@1:touch', 'display.ssd1315@1:oled']);
     // The built-in table itself is untouched by the extras, and now holds all three
     // v0.2 drivers: the MCU (M-S1), the TTP223 (M-S2), the OLED (M-S3) and the LED.
-    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID, SSD1315_DRIVER_ID, LED_DRIVER_ID, SHT4X_DRIVER_ID, LTR390_DRIVER_ID, SEN6X_DRIVER_ID]);
+    expect(Object.keys(BUILTIN_DRIVERS)).toEqual([ESP32S3_DRIVER_ID, TTP223_DRIVER_ID, SSD1315_DRIVER_ID, LED_DRIVER_ID, SHT4X_DRIVER_ID, LTR390_DRIVER_ID, SEN6X_DRIVER_ID, BMP390_DRIVER_ID]);
   });
 
   it('R7 exposes net ids as opaque strings, equal only when the pins really share a net', () => {

@@ -202,7 +202,7 @@ describe('program ops · hand-written patches and normalization', () => {
     const d = build([
       ...oneBoard,
       { op: 'add_component', component: { id: 'led', model: 'led_5mm@1', placement: { kind: 'off_board', position_um: [0, 0], rotation_deg: 0 } } },
-      { op: 'add_component', component: { id: 'sen', model: 'bmp390_breakout@1', placement: { kind: 'off_board', position_um: [60000, 0], rotation_deg: 0 } } },
+      { op: 'add_component', component: { id: 'sen', model: 'power_module_3v3@1', placement: { kind: 'off_board', position_um: [60000, 0], rotation_deg: 0 } } },
       { op: 'add_program', program: { id: 'p_led', name: 'led', target_component_id: 'led', source: '' } },
       { op: 'add_program', program: { id: 'p_sen', name: 'sen', target_component_id: 'sen', source: '' } }
     ]);
@@ -211,7 +211,7 @@ describe('program ops · hand-written patches and normalization', () => {
     // led_5mm has a driver but is not a controller
     expect(codesFor('p_led')).toContain('program_target_not_controller');
     expect(codesFor('p_led')).not.toContain('program_target_unsupported');
-    // bmp390 has neither a driver nor controller status: both warnings apply
+    // the power module has neither a driver nor controller status: both warnings apply
     expect(codesFor('p_sen')).toContain('program_target_unsupported');
     expect(codesFor('p_sen')).toContain('program_target_not_controller');
     expect(results.filter((r) => r.code.startsWith('program_target')).every((r) => r.severity === 'warning' && !r.blocking)).toBe(true);

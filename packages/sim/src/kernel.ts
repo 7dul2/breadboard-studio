@@ -20,4 +20,5 @@ export * from './devices/led.js';
 export * from './devices/sht4x.js';
 export * from './devices/ltr390.js';
 export * from './devices/sen6x.js';
+export * from './devices/bmp390.js';
 export * from './i2c.js';

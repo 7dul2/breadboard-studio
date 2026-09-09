@@ -8,12 +8,13 @@
  * `unsupported_device` (info) instead of failing the whole session.
  *
  * The built-in drivers: the MCU, the TTP223, the OLED, the discrete LED and the
- * SHT4x / LTR390 / SEN6x sensors.
+ * SHT4x / LTR390 / SEN6x / BMP390 sensors.
  */
 import type { DeviceContext, DeviceDriver, DeviceFactory, DriverRegistry } from '../contracts.js';
 import { ESP32S3_DRIVER_ID, createEsp32S3Driver } from './esp32s3.js';
 import { LED_DRIVER_ID, createLedDriver } from './led.js';
 import { LTR390_DRIVER_ID, createLtr390Driver } from './ltr390.js';
+import { BMP390_DRIVER_ID, createBmp390Driver } from './bmp390.js';
 import { SEN6X_DRIVER_ID, createSen6xDriver } from './sen6x.js';
 import { SHT4X_DRIVER_ID, createSht4xDriver } from './sht4x.js';
 import { SSD1315_DRIVER_ID, createSsd1315Driver } from './ssd1315.js';
@@ -26,7 +27,8 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, DeviceFactory>> = Object.f
   [LED_DRIVER_ID]: createLedDriver,
   [SHT4X_DRIVER_ID]: createSht4xDriver,
   [LTR390_DRIVER_ID]: createLtr390Driver,
-  [SEN6X_DRIVER_ID]: createSen6xDriver
+  [SEN6X_DRIVER_ID]: createSen6xDriver,
+  [BMP390_DRIVER_ID]: createBmp390Driver
 });
 
 /**
