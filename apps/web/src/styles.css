@@ -206,6 +206,12 @@ table.pins td { padding: 2px 4px; border-top: 1px solid #eef0f4; vertical-align:
   .sim-controls .sim-label { display: none; }
   .sim-controls button { padding: 4px 6px; min-width: 28px; }
 }
+/* 实机 borrows the 仿真 panel's layout; only the console is taller — reading a real
+   board's log is the whole panel, where in 仿真 the serial view is one section of many. */
+.hardware { overflow: auto; }
+.hardware p { margin: 0; }
+.hardware-console { max-height: 40vh; }
+
 /* Net timeline: one strip per net, the name on the left and the waveform filling the rest. */
 .sim-timeline { padding: 0 10px 4px; }
 .sim-timeline-scale { padding: 0 0 2px; }

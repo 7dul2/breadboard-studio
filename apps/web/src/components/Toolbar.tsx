@@ -37,6 +37,15 @@ function ModeSwitch({ mode }: { mode: AppMode }) {
       >
         仿真
       </button>
+      <button
+        className={mode === 'hardware' ? 'active' : ''}
+        aria-pressed={mode === 'hardware'}
+        onClick={() => set('hardware')}
+        title="实机：用串口连接一块真板，看它的输出。不是仿真——真板的引脚接的是桌上的真元件"
+        data-testid="mode-hardware"
+      >
+        实机
+      </button>
     </div>
   );
 }
@@ -149,8 +158,10 @@ export function Toolbar() {
         <button onClick={st.copySelection} disabled={!selectedCount} title="复制选中的元件/面包板 (⌘C)" data-testid="copy">复制</button>
         <button onClick={() => st.pasteClipboard(null)} disabled={!hasClipboard} title="粘贴 (⌘V 粘到指针所在的孔位；按钮粘到原位右下方)" data-testid="paste">粘贴</button>
         </>
-      ) : (
+      ) : mode === 'sim' ? (
         <SimulatorToolbar />
+      ) : (
+        <span className="muted small" data-testid="hardware-hint">实机：连接一块真板看它的输出，画布只读</span>
       )}
       <span className="sep" />
       <button onClick={() => canvasApi()?.zoomBy(1.25)} title="放大">＋</button>

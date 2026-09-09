@@ -11,7 +11,7 @@ import stressExample from '../../../examples/stress_test.breadboard.json';
 import touchExample from '../../../examples/touch_display.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
-export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation';
+export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation' | 'hardware';
 /**
  * The two things this app does, and the line between them: `build` changes the
  * document (place, wire, edit, undo), `sim` only observes and drives a session.
@@ -21,7 +21,14 @@ export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation';
  * reachable in both because the write-run loop needs it; saving source ends the
  * session (stale snapshot) instead of pretending the run still matches the code.
  */
-export type AppMode = 'build' | 'sim';
+export type AppMode = 'build' | 'sim' | 'hardware';
+
+/**
+ * 实机 is a third thing, not a third simulator. It has a cable and a wall clock; it
+ * has no virtual time, no determinism and no modelled devices, and the RFC that
+ * declined phase 5 (docs/PHASE5_RFC.md) is explicit that it must never be dressed
+ * up as a simulation backend. Keeping it out of 仿真 is how that stays true.
+ */
 
 /**
  * One copied object plus where it sat, in absolute µm. Positions travel with the
@@ -336,8 +343,9 @@ export const useStore = create<State>((set, get) => {
       // points that way, so this module still knows nothing about the runtime.
       get().cancelInteraction();
       const tab = get().rightTab;
-      const rightTab: RightTab = m === 'sim' ? 'simulation' : tab === 'simulation' ? 'properties' : tab;
-      set({ mode: m, rightTab, ...(m === 'sim' ? { tool: 'select' as Tool } : {}) });
+      const away: RightTab = tab === 'simulation' || tab === 'hardware' ? 'properties' : tab;
+      const rightTab: RightTab = m === 'sim' ? 'simulation' : m === 'hardware' ? 'hardware' : away;
+      set({ mode: m, rightTab, ...(m === 'build' ? {} : { tool: 'select' as Tool }) });
     },
     setBuildStep(i) {
       set({ buildStep: i });

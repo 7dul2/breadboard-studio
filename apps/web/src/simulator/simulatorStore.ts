@@ -200,7 +200,9 @@ setTopologyGuard(() => controller.getState().canEditTopology);
  * the boundary because the design store must not know the runtime exists.
  */
 useStore.subscribe((state, previous) => {
-  if (state.mode === previous.mode || state.mode !== 'build') return;
+  // *Leaving* 仿真 is the trigger, not arriving in 搭建: a session left running while
+  // the user is in 实机 would keep the design frozen with nothing on screen saying so.
+  if (state.mode === previous.mode || previous.mode !== 'sim') return;
   if (controller.getState().status !== 'idle') void useSimulatorStore.getState().stop();
 });
 

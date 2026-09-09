@@ -7,6 +7,7 @@ import { Validation } from './components/Validation';
 import { DslPanel } from './components/DslPanel';
 import { WiringGuide } from './components/WiringGuide';
 import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
+import { HardwarePanel } from './hardware/HardwarePanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
 import { useStore } from './store';
 
@@ -44,7 +45,9 @@ export function App() {
       // 仿真 offers no editing affordance, so the editing shortcuts do not fire there
       // either. Staying silent is the point: nothing was on screen to press, so a
       // refusal toast would be reporting a rule the user never bumped into.
-      if (s.mode === 'sim') {
+      // Neither 仿真 nor 实机 offers an editing affordance, so the editing shortcuts
+      // stay silent there too — nothing was on screen to press.
+      if (s.mode !== 'build') {
         if (e.key === 'Escape') s.select([]);
         else if (!mod && (e.key === 'f' || e.key === 'F')) (window as unknown as { __bbsCanvas?: { fit: () => void } }).__bbsCanvas?.fit();
         return;
@@ -150,9 +153,9 @@ export function App() {
             </div>
           )}
           <div className="tab-body">
-            {mode === 'sim' ? (
-              <SimulatorPanel />
-            ) : (
+            {mode === 'sim' && <SimulatorPanel />}
+            {mode === 'hardware' && <HardwarePanel />}
+            {mode === 'build' && (
               <>
                 {rightTab === 'properties' && <Properties />}
                 {rightTab === 'dsl' && <DslPanel />}

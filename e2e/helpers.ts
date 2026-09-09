@@ -123,3 +123,85 @@ export async function enterBuild(page: Page): Promise<void> {
   await page.getByTestId('mode-build').click();
   await expect(page.getByTestId('tool-select')).toBeVisible();
 }
+
+/** Switch to 实机: the cable panel appears, and nothing that writes the design stays. */
+export async function enterHardware(page: Page): Promise<void> {
+  await page.getByTestId('mode-hardware').click();
+  await expect(page.getByTestId('hardware-panel')).toBeVisible();
+}
+
+/** What the fake port recorded, so a test can check the wire and not just the screen. */
+export interface FakeSerialState {
+  opened: number[];
+  signals: { dataTerminalReady?: boolean; requestToSend?: boolean }[];
+  closes: number;
+}
+
+/**
+ * Install a fake `navigator.serial` before the app loads.
+ *
+ * A headless browser has no board, but the code under test is the real one:
+ * `browserSerialLink` opens this port, reads its stream and pulses its signals, so
+ * the test covers the adapter and the line decoder, not a stand-in for them. Call
+ * this before `fresh()` — support is detected when the module first evaluates.
+ */
+export async function fakeSerial(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    interface Fake {
+      cancelPicker?: boolean;
+      failOpen?: string;
+      emit(text: string): void;
+      drop(reason: string): void;
+      state(): { opened: number[]; signals: unknown[]; closes: number };
+    }
+    const recorded = { opened: [] as number[], signals: [] as unknown[], closes: 0 };
+    let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let stream: ReadableStream<Uint8Array> | null = null;
+    const fake: Fake = {
+      emit: (text) => controller?.enqueue(new TextEncoder().encode(text)),
+      drop: (reason) => controller?.error(new Error(reason)),
+      state: () => ({ opened: [...recorded.opened], signals: [...recorded.signals], closes: recorded.closes })
+    };
+    const port = {
+      async open(options: { baudRate: number }) {
+        if (fake.failOpen) throw new Error(fake.failOpen);
+        recorded.opened.push(options.baudRate);
+      },
+      async close() {
+        recorded.closes += 1;
+        stream = null;
+        controller = null;
+      },
+      async setSignals(signals: unknown) {
+        recorded.signals.push(signals);
+      },
+      get readable() {
+        stream ??= new ReadableStream<Uint8Array>({
+          start(c) {
+            controller = c;
+          }
+        });
+        return stream;
+      }
+    };
+    (window as unknown as { __fakeSerial: Fake }).__fakeSerial = fake;
+    Object.defineProperty(navigator, 'serial', {
+      configurable: true,
+      value: {
+        async requestPort() {
+          if (fake.cancelPicker) throw new Error('No port selected by the user.');
+          return port;
+        }
+      }
+    });
+  });
+}
+
+/** Push one chunk of bytes out of the fake board. Newlines are the caller's business. */
+export function emitSerial(page: Page, text: string): Promise<void> {
+  return page.evaluate((t) => (window as unknown as { __fakeSerial: { emit: (s: string) => void } }).__fakeSerial.emit(t), text);
+}
+
+export function fakeSerialState(page: Page): Promise<FakeSerialState> {
+  return page.evaluate(() => (window as unknown as { __fakeSerial: { state: () => FakeSerialState } }).__fakeSerial.state());
+}

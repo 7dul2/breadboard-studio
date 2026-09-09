@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { design, enterBuild, enterSim, fit, fresh, loadExample, simulator, state } from './helpers';
+import { design, enterBuild, enterHardware, enterSim, fit, fresh, loadExample, simulator, state } from './helpers';
 
 /**
  * The 搭建/仿真 switch. The rule it enforces: 搭建 changes the circuit, 仿真 runs it.
@@ -98,6 +98,31 @@ test.describe('mode switch · 搭建 edits, 仿真 runs', () => {
     expect((await design(page)).components.map((c) => c.id)).toContain('touch');
     expect((await design(page)).metadata.revision).toBe(revisionBefore);
     await expect(page.getByTestId('toast-error')).toHaveCount(0);
+  });
+
+  test('⑤ 实机 is the third mode, and leaving 仿真 for it still ends the session', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'touch_display');
+    await enterSim(page);
+    await page.getByTestId('sim-run').click();
+    await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');
+
+    // the fix this asserts: the session ends on *leaving* 仿真, whatever the destination
+    await enterHardware(page);
+    const sim = await simulator(page);
+    expect(sim.status).toBe('idle');
+    expect(sim.sessionId).toBeNull();
+
+    // 实机 borrows neither half's controls: it does not edit, and it does not simulate
+    for (const id of ['tool-select', 'tool-wire', 'undo', 'tab-properties', 'tab-dsl', 'tab-wiring', 'lib-esp32s3_n16r8_dual_usb', 'sim-run', 'sim-status', 'sim-panel']) {
+      await expect(page.getByTestId(id), `${id} 不属于实机`).toHaveCount(0);
+    }
+    await expect(page.getByTestId('hardware-panel')).toContainText('这不是仿真');
+
+    // and back to 搭建: the 仿真/实机 tabs were never real tabs, so 属性 is what returns
+    await enterBuild(page);
+    expect((await state(page)).rightTab).toBe('properties');
+    await expect(page.getByTestId('hardware-panel')).toHaveCount(0);
   });
 
   test('④ the wiring guide is a 搭建 panel and highlights the wire it is on', async ({ page }) => {

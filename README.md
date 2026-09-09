@@ -72,17 +72,19 @@ N16R8 板载 RGB 灯支持输入 RGB 值，OLED 支持白色或蓝色显示外�
 
 ![接线向导：逐根查看导线两端并勾选完成](docs/screenshots/build-mode.png)
 
-### 搭建与仿真
+### 搭建、仿真与实机
 
-顶栏右侧的开关把界面分成两半，两边的职责不重叠：
+顶栏右侧的开关把界面分成三块，各自的职责不重叠：
 
-| | 搭建 | 仿真 |
-| --- | --- | --- |
-| 做什么 | 改电路：放元件、接线、移动、撤销 | 跑程序：运行、暂停、单步、按控件、看串口与引脚 |
-| 有什么 | 元件库、工具、撤销/重做、DSL、接线向导 | 运行控件、诊断、串口、网络监视、画布上的按键 |
-| 电路 | 可编辑 | 冻结 |
+| | 搭建 | 仿真 | 实机 |
+| --- | --- | --- | --- |
+| 做什么 | 改电路：放元件、接线、移动、撤销 | 跑程序：运行、暂停、单步、按控件、看串口与引脚 | 用串口连一块真板，看它打印什么 |
+| 有什么 | 元件库、工具、撤销/重做、DSL、接线向导 | 运行控件、诊断、串口、网络监视、画布上的按键 | 波特率、连接/断开、复位、串口输出 |
+| 电路 | 可编辑 | 冻结 | 与它无关 |
 
-从「仿真」切回「搭建」会结束当前会话——这正是开关的承诺：在搭建里设计总是可改的，在仿真里总是冻结的。会话进行中仍可改的，只有引擎本来就允许的那些：程序源码与仿真参数（改源码会让会话因快照过期而停止）。
+从「仿真」切走会结束当前会话——这正是开关的承诺：在搭建里设计总是可改的，在仿真里总是冻结的。会话进行中仍可改的，只有引擎本来就允许的那些：程序源码与仿真参数（改源码会让会话因快照过期而停止）。
+
+「实机」**不是仿真**，也没有注册成仿真后端：真板的引脚接的是你桌上的真元件，画布上模拟的 OLED 与传感器不在那个电路里，一颗真实 MCU 也没法暂停、单步或回放。它只做两件小而真的事——把串口的字节按行显示出来，以及按自动复位电路的时序拉一下 EN（走原生 USB 口的板子没有这条电路，所以按钮说的是「复位脉冲」而不是「已重启」）。烧录固件还没有做。需要 Chromium 系浏览器的 Web Serial 与 https/localhost；不满足时面板会写明原因，而不是给一个按了没反应的按钮。离开「实机」会挂断串口。
 
 ## 快速开始
 
@@ -116,7 +118,7 @@ pnpm dev
 | 撤销 / 重做 | `⌘Z` / `⇧⌘Z` |
 | 平移 / 适应全部 | 空格拖动 / `F` |
 | 编辑设计文件 | 右侧「DSL」编辑草稿，校验后应用 |
-| 切换搭建 / 仿真 | 顶栏右上角的开关；编辑类快捷键只在「搭建」下生效 |
+| 切换搭建 / 仿真 / 实机 | 顶栏右上角的开关；编辑类快捷键只在「搭建」下生效 |
 
 </details>
 
@@ -177,7 +179,7 @@ pnpm bb export design.breadboard.json --format svg --out layout.svg
 - 自动排线依赖型号数据，复杂布局可能需要手动整理；大网络的优化包含启发式搜索。
 - 设计数据保存在浏览器本地，暂无云同步和多人协作；建议定期导出 JSON。
 
-后续重点是补充并实测元件、改进布线体验，以及把交互式仿真做完整。仿真器已完成[阶段 1 到阶段 3](docs/SIMULATOR_RUNTIME_PLAN.md)：用户代码在 QuickJS 沙箱里真实执行，可驱动 ESP32-S3 的 GPIO 与板载 RGB，支持暂停、单步、复位与倍速；触摸键与 BOOT/RST 可以直接在画布上按；I²C 是控制器级的真实总线，SSD1315 OLED 的画面由程序一字节一字节写进去——断线、错地址、没供电各自报出不同的诊断，而不是屏幕默默不亮。分立 LED 也能点亮了：电阻在导通图里是真正的二端元件，`GPIO → 电阻 → LED → GND` 会按预期发光，而电源与地之间的电阻会报出估算电流而不是被误判成短路。SHT4x 温湿度传感器可以读了：在仿真面板拖动温度滑杆，程序下一次测量就会读到新值——命令、转换延时、CRC 一样不少，忘记等待转换完成会像实物一样收到 NACK。LTR390 光照/紫外与 SEN66 空气质量模块也能读了，三种 I²C 寻址形态（命令字、寄存器指针、16 位命令 + 每字 CRC）都建了模。BMP390 还没有驱动。仿真面板下方多了一条时间线：每条网络的电平跳变都画成方波，点一下网络名就在它下次跳变时暂停。操作还会被录下来：每一次按键或拖动都带着它生效的虚拟时刻，点「回放本次」就能从头重跑同一场景，也可以导出成文件复现问题。BMP390 气压传感器也做完了，阶段 4 至此完成：它报的是原始 ADC 值，程序得自己读标定块、跑数据手册的补偿多项式才能得到压强——照真实库写的代码在这里算出来的就是滑杆上的那个数。接下来是阶段 5：真实固件后端（先出 RFC 与技术验证）。
+后续重点是补充并实测元件、改进布线体验，以及把交互式仿真做完整。仿真器已完成[阶段 1 到阶段 3](docs/SIMULATOR_RUNTIME_PLAN.md)：用户代码在 QuickJS 沙箱里真实执行，可驱动 ESP32-S3 的 GPIO 与板载 RGB，支持暂停、单步、复位与倍速；触摸键与 BOOT/RST 可以直接在画布上按；I²C 是控制器级的真实总线，SSD1315 OLED 的画面由程序一字节一字节写进去——断线、错地址、没供电各自报出不同的诊断，而不是屏幕默默不亮。分立 LED 也能点亮了：电阻在导通图里是真正的二端元件，`GPIO → 电阻 → LED → GND` 会按预期发光，而电源与地之间的电阻会报出估算电流而不是被误判成短路。SHT4x 温湿度传感器可以读了：在仿真面板拖动温度滑杆，程序下一次测量就会读到新值——命令、转换延时、CRC 一样不少，忘记等待转换完成会像实物一样收到 NACK。LTR390 光照/紫外与 SEN66 空气质量模块也能读了，三种 I²C 寻址形态（命令字、寄存器指针、16 位命令 + 每字 CRC）都建了模。BMP390 还没有驱动。仿真面板下方多了一条时间线：每条网络的电平跳变都画成方波，点一下网络名就在它下次跳变时暂停。操作还会被录下来：每一次按键或拖动都带着它生效的虚拟时刻，点「回放本次」就能从头重跑同一场景，也可以导出成文件复现问题。BMP390 气压传感器也做完了，阶段 4 至此完成：它报的是原始 ADC 值，程序得自己读标定块、跑数据手册的补偿多项式才能得到压强——照真实库写的代码在这里算出来的就是滑杆上的那个数。阶段 5「真实固件后端」按计划先做了 RFC 与技术验证，结论是**已调查并谢绝**：浏览器里没有任何东西能编译 Xtensa，ESP32-S3 的 QEMU 模型恰好缺 GPIO 与 I²C，理由与证据见 [`docs/PHASE5_RFC.md`](docs/PHASE5_RFC.md)。这次调查里唯一站得住的那部分被改名做成了独立功能「实机」：用 Web Serial 连一块真板看它的串口输出，并按自动复位电路的时序拉一下 EN——它不冒充仿真，也没有注册成仿真后端。
 
 ## 一起完善它
 
@@ -200,7 +202,7 @@ MIT 许可证，见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES
 
 **Plan your breadboard circuit in the browser, route its wires, and follow the layout at your workbench.**
 
-Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, copy/paste that drops parts into the holes under your pointer, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in two: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other. Export your project as JSON, SVG, or PNG.
+Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, copy/paste that drops parts into the holes under your pointer, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in three: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other — and 实机 (real board) opens a Web Serial connection to actual hardware to read its log, which is deliberately not a simulation backend. Export your project as JSON, SVG, or PNG.
 
 Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an account. Load an example from the Project menu to explore a complete design. Projects are saved locally in your browser; JSON export lets you back them up or share them.
 
