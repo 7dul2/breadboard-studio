@@ -18,6 +18,7 @@ import {
   SimBackendError,
   acceptsMessage,
   type ControlEvent,
+  type RecordedControl,
   type HostCommand,
   type RuntimeMessage,
   type SimDiagnostic,
@@ -114,6 +115,10 @@ export class WorkerBackend implements SimulationBackend {
 
   setBreakpoints(netIds: readonly string[]): void {
     this.post({ type: 'set-breakpoints', netIds: [...netIds] });
+  }
+
+  loadReplay(entries: readonly RecordedControl[]): void {
+    this.post({ type: 'load-replay', entries: [...entries] });
   }
 
   onMessage(listener: (message: RuntimeMessage) => void): () => void {

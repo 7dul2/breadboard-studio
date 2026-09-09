@@ -1,5 +1,5 @@
 import type { ProgramAsset, SimulationSpeed } from '@breadboard-studio/schema';
-import type { ControlEvent, RuntimeMessage, SimDiagnostic, SimulationSnapshot } from '../types.js';
+import type { ControlEvent, RecordedControl, RuntimeMessage, SimDiagnostic, SimulationSnapshot } from '../types.js';
 
 /**
  * A backend executes one program against a snapshot and reports through
@@ -16,6 +16,8 @@ export interface SimulationBackend {
   sendControl(event: ControlEvent): void;
   /** Optional: nets to pause on. A backend without breakpoints simply runs on. */
   setBreakpoints?(netIds: readonly string[]): void;
+  /** Optional: controls to re-deliver at their recorded instants when the run starts. */
+  loadReplay?(entries: readonly RecordedControl[]): void;
   /** Optional: change the virtual-time multiplier while running. */
   setSpeed?(speed: SimulationSpeed): void;
   onMessage(listener: (message: RuntimeMessage) => void): () => void;

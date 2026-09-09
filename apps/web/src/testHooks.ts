@@ -25,6 +25,7 @@ export interface SimulatorHookState {
   canEditTopology: boolean;
   trace: { netId: string; atUs: number; value: string | number }[];
   traceDropped: number;
+  recording: { atUs: number; componentId: string; controlId: string; value: boolean | number }[];
   allowed: string[];
   droppedMessages: number;
   diagnostics: {
@@ -106,6 +107,7 @@ export function installTestHooks(): void {
         canEditTopology: s.canEditTopology,
         trace: s.trace.map((t) => ({ netId: t.netId, atUs: t.atUs, value: t.value })),
         traceDropped: s.traceDropped,
+        recording: s.recording.map((r) => ({ atUs: r.atUs, componentId: r.event.componentId, controlId: r.event.controlId, value: r.event.value })),
         allowed: [...s.allowed],
         droppedMessages: s.droppedMessages,
         diagnostics: s.diagnostics.map((d) => ({

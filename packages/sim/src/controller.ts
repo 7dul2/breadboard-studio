@@ -9,7 +9,7 @@ import { activeProgram, analyzeDesign, designHash, type RuleResult } from '@brea
 import { SimBackendError, type BackendFactory, type SimulationBackend } from './runtime/backend.js';
 import { buildSnapshot } from './snapshot.js';
 import { SimulatorStateMachine, allowedCommands, canEditTopology, type SimCommand, type SimEvent, type Transition } from './state-machine.js';
-import { acceptsMessage, type ControlEvent, type DeviceVisualState, type NetRuntimeView, type NetTransition, type RuntimeMessage, type SerialLine, type SimDiagnostic, type SimStatus } from './types.js';
+import { acceptsMessage, type ControlEvent, type DeviceVisualState, type NetRuntimeView, type NetTransition, type RecordedControl, type RuntimeMessage, type SerialLine, type SimDiagnostic, type SimStatus } from './types.js';
 
 /** How many edges the panel keeps. Roughly a minute of a 500 µs blink. */
 export const TRACE_HISTORY = 4000;
@@ -36,6 +36,14 @@ export interface SimulatorState {
   traceDropped: number;
   /** Net ids the run pauses on, sorted. */
   breakpoints: string[];
+  /**
+   * Every control the session accepted **this run**, in order, stamped with the
+   * virtual time it took effect. Cleared when a session starts: a recording documents
+   * one run, and accumulating across them would make a replay feed itself back. Replaying these into a fresh session of the same design and
+   * program reproduces the run — that is the guarantee the recording exists to make
+   * usable, and `integration-replay.test.ts` is what holds it.
+   */
+  recording: RecordedControl[];
   /** Commands the state machine accepts right now (toolbar enablement). */
   allowed: SimCommand[];
   canEditTopology: boolean;
@@ -62,6 +70,12 @@ export interface SimulatorRunOptions {
    * design document — the UI keeps this flag in localStorage only.
    */
   forceStart?: boolean;
+  /**
+   * Deliver these recorded controls at their original virtual instants. Loaded
+   * between `prepare` and `start`, because the worker arms them when the run begins
+   * and anything sent afterwards would arrive too late to be armed.
+   */
+  replay?: readonly RecordedControl[];
 }
 
 /**
@@ -99,6 +113,7 @@ const INITIAL: SimulatorState = {
   trace: [],
   traceDropped: 0,
   breakpoints: [],
+  recording: [],
   allowed: allowedCommands('idle'),
   canEditTopology: true,
   droppedMessages: 0,
@@ -212,7 +227,7 @@ export class SimulatorController {
     const t = this.dispatch('reset');
     if (!t.ok) return t;
     const session = this.state.sessionId;
-    this.emit({ nowUs: 0, serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, diagnostics: this.state.diagnostics.filter((d) => d.atUs === undefined) });
+    this.emit({ nowUs: 0, serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, recording: [], diagnostics: this.state.diagnostics.filter((d) => d.atUs === undefined) });
     try {
       await this.backend?.reset();
     } catch (e) {
@@ -253,6 +268,17 @@ export class SimulatorController {
    * are armed even across a pause, and re-sent on every change rather than diffed —
    * the set is tiny and a lost toggle would be worse than a redundant message.
    */
+  /**
+   * Re-run the design with a recorded event sequence. The session is reset first, so
+   * the replay starts from virtual time zero exactly as the original did; the entries
+   * are loaded before `run` because arming them earlier would fire everything whose
+   * instant is already in the past.
+   */
+  async replay(design: DesignDocument, entries: readonly RecordedControl[]): Promise<CommandResult> {
+    if (this.machine.status !== 'idle') await this.stop();
+    return this.run(design, { replay: entries });
+  }
+
   setBreakpoints(netIds: readonly string[]): void {
     const unique = [...new Set(netIds)].sort();
     this.emit({ breakpoints: unique });
@@ -325,7 +351,7 @@ export class SimulatorController {
     this.launchOptions = opts;
     this.forcedDiagnostic = forced;
     this.staleKey = staleKeyOf(design);
-    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: forced ? [forced] : [], serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, droppedMessages: 0, forceStarted: forced !== null });
+    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: forced ? [forced] : [], serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, recording: [], droppedMessages: 0, forceStarted: forced !== null });
 
     const backend = this.options.backend();
     if (!backend) {
@@ -339,6 +365,7 @@ export class SimulatorController {
       // A fresh backend knows nothing about the breakpoints the panel still shows,
       // so they are re-sent rather than silently forgotten on every reset.
       if (this.state.breakpoints.length) backend.setBreakpoints?.(this.state.breakpoints);
+      if (opts.replay?.length) backend.loadReplay?.([...opts.replay]);
     } catch (e) {
       if (this.state.sessionId === sessionId) this.fault(diagnosticOf(e, program));
       return t;
@@ -407,6 +434,9 @@ export class SimulatorController {
         return;
       case 'io-snapshot':
         this.emit({ nets: message.nets });
+        return;
+      case 'control-log':
+        this.emit({ recording: [...this.state.recording, message.entry] });
         return;
       case 'net-trace': {
         const merged = [...this.state.trace, ...message.transitions];

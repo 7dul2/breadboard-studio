@@ -44,13 +44,14 @@ export const OUTBOX_INTERVALS_MS: Readonly<Record<OutboxChannel, number>> = {
   status: 100,
   'io-snapshot': 200,
   'net-trace': 100,
+  'control-log': 0,
   profile: 500,
   // Diagnostics are queued, never coalesced and never delayed.
   diagnostic: 0
 };
 
 /** Emission order inside one batch: payload first, then the status that describes it. */
-export const OUTBOX_ORDER: readonly OutboxChannel[] = ['serial', 'diagnostic', 'visual-diff', 'net-trace', 'io-snapshot', 'status', 'profile'];
+export const OUTBOX_ORDER: readonly OutboxChannel[] = ['serial', 'diagnostic', 'visual-diff', 'control-log', 'net-trace', 'io-snapshot', 'status', 'profile'];
 
 export interface OutboxOptions {
   clock: WallClock;
@@ -75,6 +76,7 @@ export class Outbox {
   private status: Bare<'status'> | null = null;
   private io: Bare<'io-snapshot'> | null = null;
   private traceQueue: NetTransition[] = [];
+  private controlQueue: Bare<'control-log'>[] = [];
   private traceDropped = 0;
   private profile: Bare<'profile'> | null = null;
   private revision = 0;
@@ -85,7 +87,7 @@ export class Outbox {
     this.emitBatch = options.emit;
     this.intervals = { ...OUTBOX_INTERVALS_MS, ...options.intervalsMs };
     // -Infinity so every channel is due on the very first tick.
-    this.lastSentMs = { 'visual-diff': -Infinity, serial: -Infinity, status: -Infinity, 'io-snapshot': -Infinity, 'net-trace': -Infinity, profile: -Infinity, diagnostic: -Infinity };
+    this.lastSentMs = { 'visual-diff': -Infinity, serial: -Infinity, status: -Infinity, 'io-snapshot': -Infinity, 'net-trace': -Infinity, 'control-log': -Infinity, profile: -Infinity, diagnostic: -Infinity };
   }
 
   /** Number of messages that would go out on a `flush()` right now. */
@@ -122,6 +124,10 @@ export class Outbox {
         // the timeline, and the whole point of the timeline is that it has none.
         this.traceQueue.push(...message.transitions);
         this.traceDropped += message.dropped;
+        return;
+      case 'control-log':
+        // Human-rate and load-bearing for replay: queued, never coalesced.
+        this.controlQueue.push(message);
         return;
       case 'profile':
         this.profile = message;
@@ -195,6 +201,12 @@ export class Outbox {
         if (this.io === null) return false;
         batch.push(this.stamp(this.io));
         this.io = null;
+        return true;
+      }
+      case 'control-log': {
+        if (this.controlQueue.length === 0) return false;
+        for (const message of this.controlQueue) batch.push(this.stamp(message));
+        this.controlQueue = [];
         return true;
       }
       case 'net-trace': {

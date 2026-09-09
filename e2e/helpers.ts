@@ -40,6 +40,7 @@ export interface SimulatorHookState {
   canEditTopology: boolean;
   trace: { netId: string; atUs: number; value: string | number }[];
   traceDropped: number;
+  recording: { atUs: number; componentId: string; controlId: string; value: boolean | number }[];
   allowed: string[];
   droppedMessages: number;
   diagnostics: {

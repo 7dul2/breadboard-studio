@@ -199,6 +199,6 @@ describe('Outbox', () => {
   });
 
   it('pins the per-channel intervals from plan §4.6', () => {
-    expect(OUTBOX_INTERVALS_MS).toEqual({ 'visual-diff': 33, serial: 50, status: 100, 'io-snapshot': 200, 'net-trace': 100, profile: 500, diagnostic: 0 });
+    expect(OUTBOX_INTERVALS_MS).toEqual({ 'visual-diff': 33, serial: 50, status: 100, 'io-snapshot': 200, 'net-trace': 100, 'control-log': 0, profile: 500, diagnostic: 0 });
   });
 });

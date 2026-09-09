@@ -13,7 +13,7 @@
  */
 import { create } from 'zustand';
 import type { SimulationSpeed } from '@breadboard-studio/schema';
-import { SimulatorController, type CommandResult, type SimulatorState } from '@breadboard-studio/sim';
+import { SimulatorController, type CommandResult, type RecordedControl, type SimulatorState } from '@breadboard-studio/sim';
 import { analysisOf, setTopologyGuard, useStore } from '../store';
 import { WorkerBackend } from './runtime/WorkerBackend';
 
@@ -41,6 +41,8 @@ export interface SimulatorUiState extends SimulatorState {
    * both go through here (plan §9.3, §9.9).
    */
   sendControl: (componentId: string, controlId: string, value: boolean | number) => boolean;
+  /** Re-run the design feeding these controls back at their recorded instants. */
+  replay: (entries: readonly RecordedControl[]) => Promise<void>;
   /** Arm or disarm a breakpoint on one net; the run pauses at the next edge on it. */
   toggleBreakpoint: (netId: string) => void;
   /** Drop the diagnostics shown so far (pre-flight and last-session ones). */
@@ -103,6 +105,9 @@ export const useSimulatorStore = create<SimulatorUiState>((set, get) => ({
     if (!control) return false;
     // `controller.sendControl` itself refuses anything outside running/paused/stepping.
     return controller.sendControl({ componentId, controlId, action: control.action, value });
+  },
+  async replay(entries) {
+    report(await controller.replay(useStore.getState().design, entries), '回放');
   },
   toggleBreakpoint(netId) {
     const current = get().breakpoints;

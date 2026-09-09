@@ -36,6 +36,7 @@ import {
   type DigitalValue,
   type DriveStrength,
   type HostCommand,
+  type RecordedControl,
   type RuntimeMessage,
   type SimControlBinding,
   type SimDeviceSpec,
@@ -214,6 +215,8 @@ export class SessionRuntime {
   private resetHeld = false;
   /** Nets the user asked to stop on; empty means run freely. */
   private breakpoints = new Set<string>();
+  /** Events loaded for replay, sorted by instant; consumed when the run starts. */
+  private replay: RecordedControl[] = [];
   private cancelTick: CancelTick | null = null;
   private timerHandles = 0;
   private readonly onceKeys = new Set<string>();
@@ -280,6 +283,11 @@ export class SessionRuntime {
           return;
         case 'set-breakpoints':
         this.breakpoints = new Set(command.netIds);
+        return;
+      case 'load-replay':
+        // Held until the next `run`: scheduling them now would fire everything
+        // whose instant is already past before the program has even started.
+        this.replay = [...command.entries].sort((a, b) => a.atUs - b.atUs);
         return;
       case 'control':
           this.control(command.event);
@@ -723,6 +731,7 @@ export class SessionRuntime {
       this.outbox?.flush();
       return;
     }
+    this.armReplay();
     this.running = true;
     this.loop.reanchor();
     this.emitStatus('running');
@@ -730,6 +739,23 @@ export class SessionRuntime {
     // A macrotask, not a microtask: the worker must stay able to receive
     // `pause` and `control` between slices (plan §6.9).
     this.scheduleTick(0);
+  }
+
+  /**
+   * Put the loaded recording on the scheduler. Each event lands on the same virtual
+   * instant it was recorded at, which is what makes a replay reproduce the original
+   * run rather than merely resemble it. An entry whose instant has already passed
+   * fires at once — that only happens when a replay is started mid-run, and dropping
+   * it silently would be worse than delivering it late.
+   */
+  private armReplay(): void {
+    if (!this.replay.length) return;
+    const entries = this.replay;
+    this.replay = [];
+    for (const entry of entries) {
+      const delayUs = Math.max(0, entry.atUs - this.scheduler.nowUs);
+      this.scheduler.after(delayUs, 'replay', 'control', null, () => this.control(entry.event));
+    }
   }
 
   private pause(): void {
@@ -798,6 +824,9 @@ export class SessionRuntime {
     const device = this.devices.get(event.componentId);
     if (!device?.driver?.onControl) return;
     device.driver.onControl(channel, event.action as SimulationControlAction, event.value);
+    // Stamped here, where the virtual clock is authoritative. A recording made from
+    // the main thread would be a frame out, and would not replay to the same result.
+    this.outbox?.post({ type: 'control-log', entry: { atUs: this.scheduler.nowUs, event } });
     this.postIoSnapshot();
     this.outbox?.tick();
   }

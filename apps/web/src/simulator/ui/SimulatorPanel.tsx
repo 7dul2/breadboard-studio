@@ -9,6 +9,7 @@ import { SerialConsole } from './SerialConsole';
 import { IoInspector } from './IoInspector';
 import { SensorSliders } from './SensorSliders';
 import { NetTimeline } from './NetTimeline';
+import { RecordingPanel } from './RecordingPanel';
 
 const SEVERITY_LABEL: Record<SimDiagnostic['severity'], string> = { error: '错误', warning: '警告', info: '信息' };
 type SimulationPatch = Extract<Op, { op: 'set_simulation_config' }>['patch'];
@@ -225,6 +226,8 @@ export function SimulatorPanel() {
         <div className="sim-section-title">时间线</div>
         <NetTimeline />
       </section>
+
+      <RecordingPanel />
     </div>
   );
 }

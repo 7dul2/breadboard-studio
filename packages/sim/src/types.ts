@@ -251,6 +251,18 @@ export interface NetTransition {
   value: DigitalValue;
 }
 
+/**
+ * One user action, stamped with the virtual time it landed at.
+ *
+ * The stamp comes from the worker, not the main thread: the store's mirror lags a
+ * frame, and a recording whose timestamps are a frame out would not replay to the
+ * same result — which is the only thing a recording is for.
+ */
+export interface RecordedControl {
+  atUs: number;
+  event: ControlEvent;
+}
+
 export interface NetRuntimeView {
   netId: string;
   name?: string;
@@ -306,6 +318,8 @@ export type HostCommand = SimEnvelope &
     | { type: 'control'; event: ControlEvent }
     /** Nets to stop on: the session pauses at the next drain after any of them moves. */
     | { type: 'set-breakpoints'; netIds: string[] }
+    /** Events to re-deliver at their recorded virtual times on the next `run`. */
+    | { type: 'load-replay'; entries: RecordedControl[] }
     | { type: 'dispose' }
   );
 
@@ -318,6 +332,8 @@ export type RuntimeMessage = SimEnvelope &
     | { type: 'io-snapshot'; nets: NetRuntimeView[] }
     /** `dropped` counts edges the worker's bounded buffer had to discard, so a gap is never silent. */
     | { type: 'net-trace'; transitions: NetTransition[]; dropped: number }
+    /** Echo of a control the session accepted, with the instant it took effect. */
+    | { type: 'control-log'; entry: RecordedControl }
     | { type: 'profile'; eventsPerSecond: number; queueDepth: number }
   );
 
