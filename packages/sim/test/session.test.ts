@@ -390,6 +390,74 @@ export async function loop() {
     });
   });
 
+  describe('net breakpoints', () => {
+    it('pauses on the next edge of an armed net, and names the edge', () => {
+      const snapshot = fixtureSnapshot();
+      const touchNet = snapshot.pinToNet['touch.IO'];
+      expect(touchNet, 'the fixture wires the pad to a net').toBeDefined();
+
+      const source = `import { gpio, Serial, sleep, INPUT } from '@bbs/runtime';
+
+export async function setup() {
+  Serial.begin(115200);
+  gpio.pinMode(4, INPUT);
+  Serial.println('ready');
+}
+
+export async function loop() {
+  await sleep(10);
+}
+`;
+      const harness = new Harness();
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, source) });
+      harness.send({ type: 'run' });
+      harness.run(200, () => harness.serialText().join('\n').includes('ready'));
+      // start-up settles the net, so arm only after the session is going
+      harness.send({ type: 'set-breakpoints', netIds: [touchNet!] });
+      expect(harness.statuses().at(-1)).toBe('running');
+
+      harness.send({ type: 'control', event: { componentId: 'touch', controlId: 'touch', action: 'touch', value: true } });
+      harness.run(50, () => harness.statuses().at(-1) === 'paused');
+
+      expect(harness.statuses().at(-1), 'the run stopped').toBe('paused');
+      const hit = harness.diagnostics().filter((d) => d.code === 'breakpoint_hit');
+      expect(hit).toHaveLength(1);
+      expect(hit[0]!.severity).toBe('info');
+      expect(hit[0]!.netIds).toEqual([touchNet]);
+      expect(hit[0]!.message).toContain('断点命中');
+      harness.send({ type: 'dispose' });
+    });
+
+    it('runs freely once the breakpoint is cleared', () => {
+      const snapshot = fixtureSnapshot();
+      const touchNet = snapshot.pinToNet['touch.IO']!;
+      const source = `import { gpio, Serial, sleep, INPUT } from '@bbs/runtime';
+
+export async function setup() {
+  Serial.begin(115200);
+  gpio.pinMode(4, INPUT);
+  Serial.println('ready');
+}
+
+export async function loop() {
+  await sleep(10);
+}
+`;
+      const harness = new Harness();
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, source) });
+      harness.send({ type: 'run' });
+      harness.run(200, () => harness.serialText().join('\n').includes('ready'));
+      harness.send({ type: 'set-breakpoints', netIds: [touchNet] });
+      harness.send({ type: 'set-breakpoints', netIds: [] });
+
+      harness.send({ type: 'control', event: { componentId: 'touch', controlId: 'touch', action: 'touch', value: true } });
+      harness.run(50, () => false);
+      expect(harness.diagnostics().filter((d) => d.code === 'breakpoint_hit')).toEqual([]);
+      expect(harness.statuses().at(-1)).toBe('running');
+      harness.send({ type: 'dispose' });
+    });
+  });
+
   describe('I²C through the session', () => {
     const PROBE = `import { Wire, Serial, sleep } from '@bbs/runtime';
 

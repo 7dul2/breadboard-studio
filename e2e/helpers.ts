@@ -38,6 +38,8 @@ export interface SimulatorHookState {
   nowUs: number;
   speed: number;
   canEditTopology: boolean;
+  trace: { netId: string; atUs: number; value: string | number }[];
+  traceDropped: number;
   allowed: string[];
   droppedMessages: number;
   diagnostics: {

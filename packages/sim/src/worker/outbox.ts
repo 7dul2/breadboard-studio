@@ -23,7 +23,7 @@
  * flush at every step end, pause, fault and program end.
  */
 import type { WallClock } from '../contracts.js';
-import type { DeviceVisualState, RuntimeMessage, SimEnvelope } from '../types.js';
+import type { DeviceVisualState, NetTransition, RuntimeMessage, SimEnvelope } from '../types.js';
 import { SIM_PROTOCOL_VERSION } from '../types.js';
 
 export type OutboxChannel = RuntimeMessage['type'];
@@ -43,13 +43,14 @@ export const OUTBOX_INTERVALS_MS: Readonly<Record<OutboxChannel, number>> = {
   serial: 50,
   status: 100,
   'io-snapshot': 200,
+  'net-trace': 100,
   profile: 500,
   // Diagnostics are queued, never coalesced and never delayed.
   diagnostic: 0
 };
 
 /** Emission order inside one batch: payload first, then the status that describes it. */
-export const OUTBOX_ORDER: readonly OutboxChannel[] = ['serial', 'diagnostic', 'visual-diff', 'io-snapshot', 'status', 'profile'];
+export const OUTBOX_ORDER: readonly OutboxChannel[] = ['serial', 'diagnostic', 'visual-diff', 'net-trace', 'io-snapshot', 'status', 'profile'];
 
 export interface OutboxOptions {
   clock: WallClock;
@@ -73,6 +74,8 @@ export class Outbox {
   private readonly diagnosticQueue: Bare<'diagnostic'>[] = [];
   private status: Bare<'status'> | null = null;
   private io: Bare<'io-snapshot'> | null = null;
+  private traceQueue: NetTransition[] = [];
+  private traceDropped = 0;
   private profile: Bare<'profile'> | null = null;
   private revision = 0;
 
@@ -82,7 +85,7 @@ export class Outbox {
     this.emitBatch = options.emit;
     this.intervals = { ...OUTBOX_INTERVALS_MS, ...options.intervalsMs };
     // -Infinity so every channel is due on the very first tick.
-    this.lastSentMs = { 'visual-diff': -Infinity, serial: -Infinity, status: -Infinity, 'io-snapshot': -Infinity, profile: -Infinity, diagnostic: -Infinity };
+    this.lastSentMs = { 'visual-diff': -Infinity, serial: -Infinity, status: -Infinity, 'io-snapshot': -Infinity, 'net-trace': -Infinity, profile: -Infinity, diagnostic: -Infinity };
   }
 
   /** Number of messages that would go out on a `flush()` right now. */
@@ -113,6 +116,12 @@ export class Outbox {
         return;
       case 'io-snapshot':
         this.io = message;
+        return;
+      case 'net-trace':
+        // Concatenated, never replaced: an edge that is dropped here is a hole in
+        // the timeline, and the whole point of the timeline is that it has none.
+        this.traceQueue.push(...message.transitions);
+        this.traceDropped += message.dropped;
         return;
       case 'profile':
         this.profile = message;
@@ -186,6 +195,13 @@ export class Outbox {
         if (this.io === null) return false;
         batch.push(this.stamp(this.io));
         this.io = null;
+        return true;
+      }
+      case 'net-trace': {
+        if (this.traceQueue.length === 0 && this.traceDropped === 0) return false;
+        batch.push(this.stamp({ type: 'net-trace', transitions: this.traceQueue, dropped: this.traceDropped }));
+        this.traceQueue = [];
+        this.traceDropped = 0;
         return true;
       }
       case 'profile': {

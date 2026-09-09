@@ -41,6 +41,8 @@ export interface SimulatorUiState extends SimulatorState {
    * both go through here (plan §9.3, §9.9).
    */
   sendControl: (componentId: string, controlId: string, value: boolean | number) => boolean;
+  /** Arm or disarm a breakpoint on one net; the run pauses at the next edge on it. */
+  toggleBreakpoint: (netId: string) => void;
   /** Drop the diagnostics shown so far (pre-flight and last-session ones). */
   clearDiagnostics: () => void;
   openEditor: (programId: string) => void;
@@ -101,6 +103,10 @@ export const useSimulatorStore = create<SimulatorUiState>((set, get) => ({
     if (!control) return false;
     // `controller.sendControl` itself refuses anything outside running/paused/stepping.
     return controller.sendControl({ componentId, controlId, action: control.action, value });
+  },
+  toggleBreakpoint(netId) {
+    const current = get().breakpoints;
+    controller.setBreakpoints(current.includes(netId) ? current.filter((id) => id !== netId) : [...current, netId]);
   },
   clearDiagnostics() {
     controller.clearDiagnostics();

@@ -112,6 +112,10 @@ export class WorkerBackend implements SimulationBackend {
     this.post({ type: 'control', event });
   }
 
+  setBreakpoints(netIds: readonly string[]): void {
+    this.post({ type: 'set-breakpoints', netIds: [...netIds] });
+  }
+
   onMessage(listener: (message: RuntimeMessage) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

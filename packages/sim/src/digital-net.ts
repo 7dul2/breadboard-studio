@@ -14,13 +14,21 @@
  * schedules its own event.
  */
 import type { DigitalNet, DriverKey, NetChange } from './contracts.js';
-import type { DigitalValue, DriveStrength, NetDriverView, NetRuntimeView, SimDiagnostic, SimNet } from './types.js';
+import type { DigitalValue, DriveStrength, NetDriverView, NetRuntimeView, NetTransition, SimDiagnostic, SimNet } from './types.js';
 
 /** `strong > pull > weak`. Only the highest tier that is driving decides the value. */
 const STRENGTH_RANK: Readonly<Record<DriveStrength, number>> = { weak: 0, pull: 1, strong: 2 };
 
 /** Oscillation guard: more settle rounds than this is a feedback loop, not a design. */
 export const DEFAULT_MAX_SETTLE_ROUNDS = 64;
+
+/**
+ * How many edges the kernel holds between drains. A 500 µs blink at 10× makes a few
+ * thousand a second, so the buffer is generous — but it is bounded, and an overflow
+ * is *counted* rather than silently forgotten: a timeline with an unmarked hole in
+ * it would be worse than no timeline at all.
+ */
+export const DEFAULT_TRACE_CAPACITY = 8192;
 
 /** Prefix of the private single-point net synthesised for an unwired pin. */
 export const UNCONNECTED_NET_PREFIX = 'unconnected:';
@@ -40,6 +48,8 @@ export interface DigitalNetOptions {
    * never light, and `digitalRead` of a grounded pin would warn about floating.
    */
   groundNets?: readonly string[];
+  /** Edges to keep between drains; see `DEFAULT_TRACE_CAPACITY`. */
+  traceCapacity?: number;
   maxSettleRounds?: number;
 }
 
@@ -107,11 +117,15 @@ export class DigitalNetKernel implements DigitalNet {
   private settling = false;
 
   private readonly groundNets: ReadonlySet<string>;
+  private readonly traceCapacity: number;
+  private trace: NetTransition[] = [];
+  private traceDropped = 0;
 
   constructor(options: DigitalNetOptions) {
     this.options = options;
     this.maxSettleRounds = options.maxSettleRounds ?? DEFAULT_MAX_SETTLE_ROUNDS;
     this.groundNets = new Set(options.groundNets ?? []);
+    this.traceCapacity = options.traceCapacity ?? DEFAULT_TRACE_CAPACITY;
     // Seed them: a net is only re-solved when something drives it, and nothing
     // ever drives ground. Without this the value stays `Z` until an unrelated
     // change happens to touch the net, and a grounded cathode reads floating.
@@ -201,6 +215,27 @@ export class DigitalNetKernel implements DigitalNet {
    * Four-valued read. Never throws: an unknown level has to stay survivable, so
    * the caller gets `Z`/`X` back plus (with `diagnose`) one warning per edge.
    */
+  /**
+   * Every edge since the last drain, oldest first, plus how many were lost to the
+   * capacity limit. Draining is destructive, so only the session may call it.
+   */
+  drainTransitions(): { transitions: NetTransition[]; dropped: number } {
+    const transitions = this.trace;
+    const dropped = this.traceDropped;
+    this.trace = [];
+    this.traceDropped = 0;
+    return { transitions, dropped };
+  }
+
+  private record(netId: string, value: DigitalValue): void {
+    if (this.trace.length >= this.traceCapacity) {
+      // Drop the oldest: a timeline is about what just happened.
+      this.trace.shift();
+      this.traceDropped++;
+    }
+    this.trace.push({ netId, atUs: this.options.now(), value });
+  }
+
   readPin(key: DriverKey, opts?: { diagnose?: boolean }): DigitalValue {
     const endpoint = this.endpointFor(key);
     const value = this.valueOf(endpoint.netId);
@@ -321,7 +356,10 @@ export class DigitalNetKernel implements DigitalNet {
 
     // Edge-triggered: a value change re-arms every diagnostic scoped to this
     // net, so "conflict → recovery → conflict" reports twice.
-    if (value !== previous) this.rearmNet(netId);
+    if (value !== previous) {
+      this.rearmNet(netId);
+      this.record(netId, value);
+    }
 
     if (contention) {
       const top = topTierEndpoints(endpoints, (endpoint) => this.effectiveValue(endpoint));

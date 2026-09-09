@@ -212,6 +212,8 @@ export class SessionRuntime {
   private running = false;
   private stopped = false;
   private resetHeld = false;
+  /** Nets the user asked to stop on; empty means run freely. */
+  private breakpoints = new Set<string>();
   private cancelTick: CancelTick | null = null;
   private timerHandles = 0;
   private readonly onceKeys = new Set<string>();
@@ -276,7 +278,10 @@ export class SessionRuntime {
         case 'set-speed':
           this.loop?.setSpeed(speedOf(command.speed));
           return;
-        case 'control':
+        case 'set-breakpoints':
+        this.breakpoints = new Set(command.netIds);
+        return;
+      case 'control':
           this.control(command.event);
           return;
         case 'dispose':
@@ -1017,6 +1022,33 @@ export class SessionRuntime {
   private postIoSnapshot(): void {
     const nets = this.digitalNet?.view();
     if (nets) this.outbox?.post({ type: 'io-snapshot', nets });
+    this.postNetTrace();
+  }
+
+  /**
+   * Ship the edges the kernel recorded since the last drain. Draining here rather
+   * than on a timer means the buffer is emptied exactly as often as the panel is
+   * updated, so its capacity bounds one refresh interval rather than a whole run.
+   */
+  private postNetTrace(): void {
+    const drained = this.digitalNet?.drainTransitions();
+    if (!drained || (drained.transitions.length === 0 && drained.dropped === 0)) return;
+    this.outbox?.post({ type: 'net-trace', transitions: drained.transitions, dropped: drained.dropped });
+
+    // Breakpoints are checked here rather than inside the kernel: pausing in the
+    // middle of a settle would leave the net half-solved. The cost is that the run
+    // stops at the end of the tick that contained the edge, not exactly on it — the
+    // timeline still shows the edge at its true instant, which is what you look at.
+    if (!this.running || this.breakpoints.size === 0) return;
+    const hit = drained.transitions.find((t) => this.breakpoints.has(t.netId));
+    if (!hit) return;
+    this.emitDiagnostic(
+      this.diagnostic('breakpoint_hit', `断点命中：网络 ${hit.netId} 在 ${(hit.atUs / 1000).toFixed(3)} ms 变为 ${hit.value}，仿真已暂停。`, {
+        atUs: hit.atUs,
+        netIds: [hit.netId]
+      })
+    );
+    this.pause();
   }
 
   private diagnostic(code: SimDiagnosticCode, message: string, extra: Partial<SimDiagnostic> = {}): SimDiagnostic {

@@ -14,6 +14,8 @@ export interface SimulationBackend {
   step(): Promise<void>;
   reset(): Promise<void>;
   sendControl(event: ControlEvent): void;
+  /** Optional: nets to pause on. A backend without breakpoints simply runs on. */
+  setBreakpoints?(netIds: readonly string[]): void;
   /** Optional: change the virtual-time multiplier while running. */
   setSpeed?(speed: SimulationSpeed): void;
   onMessage(listener: (message: RuntimeMessage) => void): () => void;

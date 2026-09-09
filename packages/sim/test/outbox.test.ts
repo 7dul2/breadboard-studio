@@ -180,7 +180,25 @@ describe('Outbox', () => {
     expect(batches).toHaveLength(0);
   });
 
+  it('concatenates net-trace instead of coalescing it, and carries the drop count', () => {
+    const { clock, outbox, batches } = harness();
+    outbox.post({ type: 'net-trace', transitions: [{ netId: 'n1', atUs: 10, value: 1 }], dropped: 0 });
+    outbox.post({ type: 'net-trace', transitions: [{ netId: 'n1', atUs: 20, value: 0 }], dropped: 3 });
+    clock.advance(1000);
+    outbox.tick();
+
+    const trace = messagesOf(batches, 'net-trace');
+    expect(trace, 'both posts left in one message').toHaveLength(1);
+    // An edge dropped here would be a hole in the timeline, which is the one thing
+    // it must not have; only an explicitly counted drop is acceptable.
+    expect(trace[0]!.transitions).toEqual([
+      { netId: 'n1', atUs: 10, value: 1 },
+      { netId: 'n1', atUs: 20, value: 0 }
+    ]);
+    expect(trace[0]!.dropped).toBe(3);
+  });
+
   it('pins the per-channel intervals from plan §4.6', () => {
-    expect(OUTBOX_INTERVALS_MS).toEqual({ 'visual-diff': 33, serial: 50, status: 100, 'io-snapshot': 200, profile: 500, diagnostic: 0 });
+    expect(OUTBOX_INTERVALS_MS).toEqual({ 'visual-diff': 33, serial: 50, status: 100, 'io-snapshot': 200, 'net-trace': 100, profile: 500, diagnostic: 0 });
   });
 });

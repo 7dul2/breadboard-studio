@@ -48,6 +48,7 @@ export interface SimDiagnostic {
 export const SIM_DIAGNOSTIC_CODES = [
   'simulation_blocked_by_design',
   'simulation_forced_start',
+  'breakpoint_hit',
   'program_missing',
   'program_target_missing',
   'runtime_unavailable',
@@ -79,6 +80,7 @@ export type SimDiagnosticCode = (typeof SIM_DIAGNOSTIC_CODES)[number];
 export const SIM_DIAGNOSTIC_SEVERITY: Readonly<Record<SimDiagnosticCode, SimSeverity>> = {
   simulation_blocked_by_design: 'error',
   simulation_forced_start: 'warning',
+  breakpoint_hit: 'info',
   program_missing: 'error',
   program_target_missing: 'error',
   runtime_unavailable: 'error',
@@ -238,6 +240,17 @@ export interface NetDriverView {
   strength: DriveStrength;
 }
 
+/**
+ * One edge on a net, in virtual time. The timeline is built from these: the net
+ * monitor only ever shows the *current* value, which cannot answer "did that pulse
+ * happen" — the question a program that misbehaves once per second actually raises.
+ */
+export interface NetTransition {
+  netId: string;
+  atUs: number;
+  value: DigitalValue;
+}
+
 export interface NetRuntimeView {
   netId: string;
   name?: string;
@@ -291,6 +304,8 @@ export type HostCommand = SimEnvelope &
     | { type: 'reset' }
     | { type: 'set-speed'; speed: SimulationSpeed }
     | { type: 'control'; event: ControlEvent }
+    /** Nets to stop on: the session pauses at the next drain after any of them moves. */
+    | { type: 'set-breakpoints'; netIds: string[] }
     | { type: 'dispose' }
   );
 
@@ -301,6 +316,8 @@ export type RuntimeMessage = SimEnvelope &
     | { type: 'serial'; componentId: string; stream: 'stdout' | 'stderr'; text: string; atUs: number }
     | { type: 'diagnostic'; diagnostic: SimDiagnostic }
     | { type: 'io-snapshot'; nets: NetRuntimeView[] }
+    /** `dropped` counts edges the worker's bounded buffer had to discard, so a gap is never silent. */
+    | { type: 'net-trace'; transitions: NetTransition[]; dropped: number }
     | { type: 'profile'; eventsPerSecond: number; queueDepth: number }
   );
 

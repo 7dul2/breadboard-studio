@@ -23,6 +23,8 @@ export interface SimulatorHookState {
   nowUs: number;
   speed: number;
   canEditTopology: boolean;
+  trace: { netId: string; atUs: number; value: string | number }[];
+  traceDropped: number;
   allowed: string[];
   droppedMessages: number;
   diagnostics: {
@@ -102,6 +104,8 @@ export function installTestHooks(): void {
         nowUs: s.nowUs,
         speed: s.speed,
         canEditTopology: s.canEditTopology,
+        trace: s.trace.map((t) => ({ netId: t.netId, atUs: t.atUs, value: t.value })),
+        traceDropped: s.traceDropped,
         allowed: [...s.allowed],
         droppedMessages: s.droppedMessages,
         diagnostics: s.diagnostics.map((d) => ({

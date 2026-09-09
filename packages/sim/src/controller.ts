@@ -9,7 +9,10 @@ import { activeProgram, analyzeDesign, designHash, type RuleResult } from '@brea
 import { SimBackendError, type BackendFactory, type SimulationBackend } from './runtime/backend.js';
 import { buildSnapshot } from './snapshot.js';
 import { SimulatorStateMachine, allowedCommands, canEditTopology, type SimCommand, type SimEvent, type Transition } from './state-machine.js';
-import { acceptsMessage, type ControlEvent, type DeviceVisualState, type NetRuntimeView, type RuntimeMessage, type SerialLine, type SimDiagnostic, type SimStatus } from './types.js';
+import { acceptsMessage, type ControlEvent, type DeviceVisualState, type NetRuntimeView, type NetTransition, type RuntimeMessage, type SerialLine, type SimDiagnostic, type SimStatus } from './types.js';
+
+/** How many edges the panel keeps. Roughly a minute of a 500 µs blink. */
+export const TRACE_HISTORY = 4000;
 
 export interface SimulatorState {
   status: SimStatus;
@@ -23,6 +26,16 @@ export interface SimulatorState {
   serial: SerialLine[];
   visuals: Record<string, DeviceVisualState[]>;
   nets: NetRuntimeView[];
+  /**
+   * Recent edges on every net, oldest first — what the timeline draws. Bounded by
+   * `TRACE_HISTORY`: a session can run for hours and the panel only ever shows the
+   * recent past, so keeping all of it would be a leak with no reader.
+   */
+  trace: NetTransition[];
+  /** Edges the worker's buffer or this one had to discard; a gap is never silent. */
+  traceDropped: number;
+  /** Net ids the run pauses on, sorted. */
+  breakpoints: string[];
   /** Commands the state machine accepts right now (toolbar enablement). */
   allowed: SimCommand[];
   canEditTopology: boolean;
@@ -83,6 +96,9 @@ const INITIAL: SimulatorState = {
   serial: [],
   visuals: {},
   nets: [],
+  trace: [],
+  traceDropped: 0,
+  breakpoints: [],
   allowed: allowedCommands('idle'),
   canEditTopology: true,
   droppedMessages: 0,
@@ -196,7 +212,7 @@ export class SimulatorController {
     const t = this.dispatch('reset');
     if (!t.ok) return t;
     const session = this.state.sessionId;
-    this.emit({ nowUs: 0, serial: [], visuals: {}, nets: [], diagnostics: this.state.diagnostics.filter((d) => d.atUs === undefined) });
+    this.emit({ nowUs: 0, serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, diagnostics: this.state.diagnostics.filter((d) => d.atUs === undefined) });
     try {
       await this.backend?.reset();
     } catch (e) {
@@ -230,6 +246,17 @@ export class SimulatorController {
    */
   clearDiagnostics(): void {
     this.emit({ diagnostics: this.forcedDiagnostic ? [this.forcedDiagnostic] : [] });
+  }
+
+  /**
+   * Nets to pause on. Kept in controller state so the panel can show which strips
+   * are armed even across a pause, and re-sent on every change rather than diffed —
+   * the set is tiny and a lost toggle would be worse than a redundant message.
+   */
+  setBreakpoints(netIds: readonly string[]): void {
+    const unique = [...new Set(netIds)].sort();
+    this.emit({ breakpoints: unique });
+    this.backend?.setBreakpoints?.(unique);
   }
 
   sendControl(event: ControlEvent): boolean {
@@ -298,7 +325,7 @@ export class SimulatorController {
     this.launchOptions = opts;
     this.forcedDiagnostic = forced;
     this.staleKey = staleKeyOf(design);
-    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: forced ? [forced] : [], serial: [], visuals: {}, nets: [], droppedMessages: 0, forceStarted: forced !== null });
+    this.emit({ sessionId, designHash: designHash(design), programId: program.id, speed: design.simulation?.speed ?? this.state.speed, nowUs: 0, diagnostics: forced ? [forced] : [], serial: [], visuals: {}, nets: [], trace: [], traceDropped: 0, droppedMessages: 0, forceStarted: forced !== null });
 
     const backend = this.options.backend();
     if (!backend) {
@@ -309,6 +336,9 @@ export class SimulatorController {
     this.unsubscribeBackend = backend.onMessage((message) => this.handleMessage(message));
     try {
       await backend.prepare(buildSnapshot(design, this.options.catalog, analysis), program);
+      // A fresh backend knows nothing about the breakpoints the panel still shows,
+      // so they are re-sent rather than silently forgotten on every reset.
+      if (this.state.breakpoints.length) backend.setBreakpoints?.(this.state.breakpoints);
     } catch (e) {
       if (this.state.sessionId === sessionId) this.fault(diagnosticOf(e, program));
       return t;
@@ -378,6 +408,12 @@ export class SimulatorController {
       case 'io-snapshot':
         this.emit({ nets: message.nets });
         return;
+      case 'net-trace': {
+        const merged = [...this.state.trace, ...message.transitions];
+        const overflow = Math.max(0, merged.length - TRACE_HISTORY);
+        this.emit({ trace: overflow ? merged.slice(overflow) : merged, traceDropped: this.state.traceDropped + message.dropped + overflow });
+        return;
+      }
       case 'profile':
         return;
     }

@@ -8,6 +8,7 @@ import { useSimulatorStore } from '../simulatorStore';
 import { SerialConsole } from './SerialConsole';
 import { IoInspector } from './IoInspector';
 import { SensorSliders } from './SensorSliders';
+import { NetTimeline } from './NetTimeline';
 
 const SEVERITY_LABEL: Record<SimDiagnostic['severity'], string> = { error: '错误', warning: '警告', info: '信息' };
 type SimulationPatch = Extract<Op, { op: 'set_simulation_config' }>['patch'];
@@ -218,6 +219,11 @@ export function SimulatorPanel() {
       <section className="sim-section">
         <div className="sim-section-title">网络监视</div>
         <IoInspector />
+      </section>
+
+      <section className="sim-section">
+        <div className="sim-section-title">时间线</div>
+        <NetTimeline />
       </section>
     </div>
   );

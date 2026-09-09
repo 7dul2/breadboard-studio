@@ -381,3 +381,53 @@ describe('DigitalNetKernel', () => {
     expect(diagnostics).toEqual([]);
   });
 });
+
+describe('edge trace', () => {
+  it('records only real changes, and draining empties it', () => {
+    const kernel = new DigitalNetKernel({
+      nets: [{ id: 'n1', members: [], pins: [] }],
+      pinToNet: { 'a.P': 'n1', 'b.P': 'n1' },
+      onDiagnostic: () => {},
+      now: () => clock
+    });
+    let clock = 0;
+    kernel.attach({ componentId: 'a', pin: 'P' });
+    kernel.attach({ componentId: 'b', pin: 'P' });
+
+    clock = 100;
+    kernel.drive({ componentId: 'a', pin: 'P' }, 1);
+    clock = 200;
+    kernel.drive({ componentId: 'a', pin: 'P' }, 1); // same value: not an edge
+    clock = 300;
+    kernel.drive({ componentId: 'a', pin: 'P' }, 0);
+
+    const first = kernel.drainTransitions();
+    expect(first.transitions).toEqual([
+      { netId: 'n1', atUs: 100, value: 1 },
+      { netId: 'n1', atUs: 300, value: 0 }
+    ]);
+    expect(first.dropped).toBe(0);
+    expect(kernel.drainTransitions().transitions, 'draining is destructive').toEqual([]);
+  });
+
+  it('drops the oldest edge when the buffer fills, and counts what it dropped', () => {
+    let clock = 0;
+    const kernel = new DigitalNetKernel({
+      nets: [{ id: 'n1', members: [], pins: [] }],
+      pinToNet: { 'a.P': 'n1' },
+      onDiagnostic: () => {},
+      now: () => clock,
+      traceCapacity: 3
+    });
+    kernel.attach({ componentId: 'a', pin: 'P' });
+    for (let i = 1; i <= 6; i++) {
+      clock = i * 10;
+      kernel.drive({ componentId: 'a', pin: 'P' }, i % 2 === 1 ? 1 : 0);
+    }
+
+    const drained = kernel.drainTransitions();
+    // A hole in the timeline must never be silent, so the count is part of the result.
+    expect(drained.transitions.map((t) => t.atUs)).toEqual([40, 50, 60]);
+    expect(drained.dropped).toBe(3);
+  });
+});
