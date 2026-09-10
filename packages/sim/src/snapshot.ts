@@ -33,6 +33,7 @@ function pinMetaOf(meta: PinMeta): SimPinMeta {
   if (meta.voltage_v !== undefined) out.voltageV = meta.voltage_v;
   if (meta.io_voltage_v !== undefined) out.ioVoltageV = meta.io_voltage_v;
   if (meta.max_source_ma !== undefined) out.maxSourceMa = meta.max_source_ma;
+  if (meta.reserved !== undefined) out.reserved = meta.reserved;
   return out;
 }
 

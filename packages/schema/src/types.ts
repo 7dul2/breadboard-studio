@@ -300,6 +300,20 @@ export interface PinMeta {
    * to the host's GND / supply instead of a GPIO (e.g. an interface-select pin).
    */
   auto_wire?: 'default' | 'avoid' | 'skip' | 'to_ground' | 'to_power';
+  /**
+   * The pin is on the header but already committed by this board *variant*, so
+   * it is not available as an external GPIO at all — an ESP32-S3 module with
+   * octal PSRAM (the R8 in N16R8) owns GPIO35–37, which are broken out on the
+   * 44-pin boards anyway. The value names what holds the pin; `notes` should say
+   * what happens to a program that drives it regardless. Absent means free.
+   *
+   * Stronger than `auto_wire: 'skip'`, which only asks the planner to stay away:
+   * a reserved pin is never auto-wired *and* the simulator refuses to model it
+   * as a GPIO, so a design that uses it fails in the tool the way it fails on the
+   * bench. Set it only from the variant's own datasheet — the same footprint
+   * without octal PSRAM has these pins free.
+   */
+  reserved?: 'flash' | 'psram';
   notes?: string;
 }
 

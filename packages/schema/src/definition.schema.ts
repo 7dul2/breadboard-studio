@@ -114,6 +114,7 @@ const pinMeta = {
     max_source_ma: { type: ['number', 'null'] },
     aliases: { type: 'array', items: { type: 'string' } },
     auto_wire: { type: 'string', enum: ['default', 'avoid', 'skip', 'to_ground', 'to_power'] },
+    reserved: { type: 'string', enum: ['flash', 'psram'] },
     notes: { type: 'string' }
   }
 } as const;

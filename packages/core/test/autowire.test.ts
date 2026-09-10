@@ -199,6 +199,52 @@ describe('auto wire', () => {
     if (!strict.ok) expect(strict.error.code).toBe('op_failed');
   });
 
+  it('never spends a pin the board variant has already committed, not even as a last resort', () => {
+    const custom = JSON.parse(readFileSync(join(examplesDir, 'custom_definition_example.json'), 'utf8')) as Record<string, unknown>;
+    // Two hosts identical but for one field: a single GPIO, free in one and held
+    // by the octal PSRAM in the other. `avoid` would still be spent when nothing
+    // else is left; `reserved` must not be.
+    const pinMeta = {
+      VCC: { role: 'power_out', voltage_v: 3.3 },
+      OUT: { role: 'gpio', io_voltage_v: 3.3, direction: 'bidir', drive: 'push_pull' },
+      GND: { role: 'ground' }
+    };
+    const freeHost = { ...custom, id: 'free_host', category: 'mcu', pin_meta: pinMeta };
+    const psramHost = {
+      ...custom,
+      id: 'psram_host',
+      category: 'mcu',
+      pin_meta: { ...pinMeta, OUT: { ...pinMeta.OUT, reserved: 'psram', notes: '八线 PSRAM 占用' } }
+    };
+    const stage = (host: Record<string, unknown>) =>
+      build([
+        ...oneBoard,
+        { op: 'add_definition', definition: host },
+        { op: 'add_component', component: { id: 'mcu', model: `${host.id as string}@1`, placement: { kind: 'board', board_id: 'bb', anchor_hole: 'b3', anchor_pin: 'VCC', rotation_deg: 0 } } },
+        { op: 'add_component', component: { id: 't1', model: 'ttp223_module@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'j14', anchor_pin: 'VCC', rotation_deg: 0 } } }
+      ]);
+
+    // Control: with the pin free, this is the one GPIO the planner picks.
+    const free = autoWire(stage(freeHost), 'mcu', ['t1']);
+    expect(free.plan.connections.find((c) => c.pin === 'IO')?.host_pin).toBe('OUT');
+
+    // Same design, same last free pin, now reserved: the signal is reported as
+    // unwirable instead, while power and ground are still wired.
+    const reserved = autoWire(stage(psramHost), 'mcu', ['t1']);
+    expect(reserved.plan.connections.some((c) => c.host_pin === 'OUT')).toBe(false);
+    expect(reserved.plan.unresolved.some((u) => u.code === 'host_no_free_gpio' && u.pin === 'IO')).toBe(true);
+    expect(reserved.plan.connections.map((c) => c.pin).sort()).toEqual(['GND', 'VCC']);
+
+    // And an explicit request cannot override a fact about the board: the wire
+    // would be buildable and still not work, so the whole op fails loudly.
+    const n16r8 = bare(loadExample('touch_display.breadboard.json'));
+    const forced = applyOps(n16r8, [{ op: 'auto_wire', host: 'mcu', components: ['touch'], options: { signal_pins: { 'touch.IO': 'GPIO35' } } }], { catalog: builtinCatalog() });
+    expect(forced.ok).toBe(false);
+    if (!forced.ok) expect(forced.error.code).toBe('op_failed');
+    // And a normal run on that board leaves the three pins alone.
+    expect(autoWire(n16r8, 'mcu', ['touch', 'oled']).plan.connections.every((c) => !['GPIO35', 'GPIO36', 'GPIO37'].includes(c.host_pin ?? ''))).toBe(true);
+  });
+
   it('picks a supply the peripheral accepts and flags an assumed voltage when the range is unknown', () => {
     const custom = JSON.parse(readFileSync(join(examplesDir, 'custom_definition_example.json'), 'utf8')) as Record<string, unknown>;
     const fiveVolt = { ...custom, id: 'five_volt_only', electrical: { ...(custom.electrical as object), supply_voltage_v: { min: 4.5, max: 5.5 } } };

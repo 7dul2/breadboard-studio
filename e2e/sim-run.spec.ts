@@ -29,6 +29,30 @@ export async function loop() {
 }
 `;
 
+/**
+ * Drives a PSRAM-owned pin and an ordinary one exactly alike, then reads both
+ * back. On an N16R8 board GPIO35 is not a GPIO at all, so the readback is the
+ * whole point: the two lines must not agree.
+ */
+const RESERVED_PIN = `import { gpio, Serial, sleep, OUTPUT } from '@bbs/runtime';
+
+const PSRAM = 35;
+const FREE = 38;
+
+export async function setup() {
+  Serial.begin(115200);
+  gpio.pinMode(PSRAM, OUTPUT);
+  gpio.pinMode(FREE, OUTPUT);
+}
+
+export async function loop() {
+  gpio.digitalWrite(PSRAM, 1);
+  gpio.digitalWrite(FREE, 1);
+  Serial.println('psram=' + gpio.digitalRead(PSRAM) + ' free=' + gpio.digitalRead(FREE));
+  await sleep(200);
+}
+`;
+
 /** Replace the fixture's program through the same op the editor uses. */
 async function setProgram(page: Page, source: string): Promise<void> {
   const r = await page.evaluate(
@@ -160,6 +184,35 @@ test.describe('M-S1 · the program actually runs', () => {
     // background-tab throttling both move the real numbers around.
     expect(atOnce).toBeGreaterThan(0);
     expect(atTen).toBeGreaterThan(atOnce * 3);
+  });
+
+  test('⑧ a pin the board committed to its PSRAM is reported and stops behaving like a GPIO', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'touch_display');
+    await setProgram(page, RESERVED_PIN);
+    await enterSim(page);
+
+    await page.getByTestId('sim-run').click();
+    await expect.poll(async () => (await simulator(page)).status, FIRST_RUN).toBe('running');
+
+    // The program keeps running — that is what makes this a warning and not a
+    // fault — and its own readback is the proof the pin did not follow it.
+    await expect.poll(async () => (await simulator(page)).serial.map((l) => l.text).join('\n'), FIRST_RUN).toContain('psram=0 free=1');
+
+    const row = page.getByTestId('sim-diagnostic-reserved_pin_used');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('PSRAM');
+    await expect(row).toContainText('警告');
+
+    // A loop that repeats the mistake every 200 ms must not repeat the line.
+    const before = (await simulator(page)).nowUs;
+    await expect.poll(async () => (await simulator(page)).nowUs, FIRST_RUN).toBeGreaterThan(before + 1_000_000);
+    const sim = await simulator(page);
+    expect(sim.status).toBe('running');
+    const raised = sim.diagnostics.filter((d) => d.code === 'reserved_pin_used');
+    expect(raised).toHaveLength(1);
+    expect(raised[0]!.severity).toBe('warning');
+    expect(raised[0]!.pinAddresses).toEqual(['mcu.GPIO35']);
   });
 
   test('⑦ an electrical blocker refuses the run until 强制启动 is ticked', async ({ page }) => {

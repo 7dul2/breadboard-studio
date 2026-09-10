@@ -436,24 +436,24 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "auto_wire": "avoid",
-      "notes": "N16R8 八线 PSRAM 占用"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO"
     },
     "GPIO36": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "auto_wire": "avoid",
-      "notes": "N16R8 八线 PSRAM 占用"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO"
     },
     "GPIO37": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "auto_wire": "avoid",
-      "notes": "N16R8 八线 PSRAM 占用"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO"
     },
     "GPIO38": {
       "role": "gpio",

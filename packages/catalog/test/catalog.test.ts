@@ -24,6 +24,34 @@ describe('built-in catalog', () => {
     expect(xiao.geometry_status).toBe('approximate');
   });
 
+  it('reserves the octal-PSRAM lines on exactly the variants that have them', () => {
+    const c = builtinCatalog();
+    const reservedOf = (ref: string) =>
+      Object.entries(c.getComponent(ref)!.pin_meta)
+        .filter(([, meta]) => meta.reserved !== undefined)
+        .map(([pin]) => pin)
+        .sort();
+
+    // Both 44-pin boards are N16R8 by their own `model` field: the 8 MB octal
+    // PSRAM owns GPIO35–37 and they are broken out on the header anyway.
+    expect(reservedOf('esp32s3_n16r8_dual_usb@1')).toEqual(['GPIO35', 'GPIO36', 'GPIO37']);
+    expect(reservedOf('esp32s3_devkit_generic@1')).toEqual(['GPIO35', 'GPIO36', 'GPIO37']);
+
+    // The XIAO has an R8 module too, but its 14-pin header does not bring those
+    // lines out — there is nothing to reserve and nothing to address.
+    const xiao = c.getComponent('xiao_esp32s3_sense@1')!;
+    expect(reservedOf('xiao_esp32s3_sense@1')).toEqual([]);
+    expect(Object.values(xiao.simulation!.pins ?? {}).filter((gpio) => typeof gpio === 'number' && gpio >= 35 && gpio <= 37)).toEqual([]);
+
+    // A reserved pin must say why: both the planner and the simulator quote `notes`.
+    for (const def of c.listComponents()) {
+      for (const [pin, meta] of Object.entries(def.pin_meta)) {
+        if (meta.reserved === undefined) continue;
+        expect(meta.notes, `${def.id}.${pin}`).toBeTruthy();
+      }
+    }
+  });
+
   it('parses model references', () => {
     expect(parseModelRef('breadboard_400@1')).toEqual({ id: 'breadboard_400', version: 1 });
     expect(parseModelRef('breadboard_400')).toBeNull();

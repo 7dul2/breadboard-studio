@@ -371,24 +371,24 @@
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "N16R8（八线 PSRAM）型号上 GPIO35–37 被 PSRAM 占用",
-      "auto_wire": "avoid"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO（本定义默认按 N16R8 建模，见 model/status_notes）"
     },
     "GPIO36": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "八线 PSRAM 占用",
-      "auto_wire": "avoid"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO（本定义默认按 N16R8 建模，见 model/status_notes）"
     },
     "GPIO37": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
       "drive": "push_pull",
-      "notes": "八线 PSRAM 占用",
-      "auto_wire": "avoid"
+      "reserved": "psram",
+      "notes": "N16R8 的 8 MB 八线 PSRAM 占用；驱动它会破坏 PSRAM 总线，不能作为普通外接 GPIO（本定义默认按 N16R8 建模，见 model/status_notes）"
     },
     "GPIO38": {
       "role": "gpio",
@@ -693,7 +693,7 @@
   ],
   "geometry_status": "approximate",
   "electrical_status": "approximate",
-  "status_notes": "通用模板：默认 44 针、排距 22.86 mm、外形 25.5×63 mm 均为近似值，并未按用户手里的双 USB-C N16R8 板实测。请用卡尺量出排距与外形后修改 params，再依赖布局结果。",
+  "status_notes": "通用模板：默认 44 针、排距 22.86 mm、外形 25.5×63 mm 均为近似值，并未按用户手里的双 USB-C N16R8 板实测。请用卡尺量出排距与外形后修改 params，再依赖布局结果。引脚表按 model 里写的 N16R8 建模，因此 GPIO35–37 标记为 reserved: psram；若你手里是 N8R2 等没有八线 PSRAM 的型号，这三根引脚是自由的，请复制一份定义去掉该标记。",
   "sources": [
     {
       "title": "Espressif ESP32-S3-DevKitC-1 User Guide (pin layout)",

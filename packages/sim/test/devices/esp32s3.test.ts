@@ -297,6 +297,70 @@ describe('mcu.esp32s3.behavioral@1', () => {
     expect(harness.serial.map((line) => line.text)).toEqual(['a=2 done', 'one', 'two', 'tail']);
   });
 
+  it('E15 refuses to model a pin the board committed to its octal PSRAM, and says so once per pin', () => {
+    // The fact travels catalog `pin_meta.reserved` → snapshot → driver; nothing
+    // here knows the string "N16R8".
+    expect(N16R8.pinMeta?.GPIO35?.reserved).toBe('psram');
+    const { driver, harness } = mcu();
+
+    driver.pinMode(35, PIN_MODE.OUTPUT);
+    driver.digitalWrite(35, 1);
+    // The call is accepted (a real board does not reject it either) but has no
+    // effect: no end is driven, so the pin stays high-impedance.
+    expect(harness.drives).toEqual([]);
+    expect(harness.heldDrive('GPIO35')).toBeNull();
+    expect(driver.digitalReadRaw(35)).toBe('Z');
+    expect(driver.digitalRead(35)).toBe(0);
+
+    const first = harness.diagnostics[0]!;
+    expect(first.code).toBe('reserved_pin_used');
+    expect(first.severity).toBe('warning');
+    expect(first.pinAddresses).toEqual(['mcu.GPIO35']);
+    // The message has to name the consequence, not just the prohibition.
+    expect(first.message).toContain('PSRAM');
+    expect(first.message).toContain('高阻');
+    expect(first.message).toContain('崩溃');
+    // Reads never reach the net, so the pin does not also collect a floating_input.
+    expect(harness.codes()).toEqual(['reserved_pin_used']);
+
+    // A loop that keeps doing it does not flood the panel; a second reserved pin
+    // still gets its own line.
+    driver.pinMode(35, PIN_MODE.INPUT_PULLUP);
+    driver.digitalWrite(35, 0);
+    driver.digitalRead(35);
+    expect(harness.codes()).toEqual(['reserved_pin_used']);
+    driver.digitalWrite(36, 1);
+    expect(harness.codes()).toEqual(['reserved_pin_used', 'reserved_pin_used']);
+    expect(harness.diagnostics[1]!.pinAddresses).toEqual(['mcu.GPIO36']);
+
+    // Its free neighbour is untouched by all this.
+    driver.pinMode(38, PIN_MODE.OUTPUT);
+    driver.digitalWrite(38, 1);
+    expect(harness.heldDrive('GPIO38')).toEqual({ value: 1, strength: 'strong' });
+  });
+
+  it('E16 restricts exactly the boards whose catalog entry says so, and no others', () => {
+    // Second definition, same driver: the generic DevKit is modelled as N16R8 too.
+    const devkit = mcu(fixtureSpec('mcu', 'desk_device.breadboard.json'));
+    devkit.driver.pinMode(37, PIN_MODE.OUTPUT);
+    expect(devkit.harness.heldDrive('GPIO37')).toBeNull();
+    expect(devkit.harness.codes()).toEqual(['reserved_pin_used']);
+
+    // The XIAO carries an R8 module as well, but does not break those lines out:
+    // GPIO35 is simply not a pin, which is a different (and older) failure.
+    const xiao = mcu(fixtureSpec('mcu', 'environment_node.breadboard.json'));
+    expect(() => xiao.driver.pinMode(35, PIN_MODE.OUTPUT)).toThrow(/GPIO 35 does not exist/);
+    expect(xiao.harness.codes()).toEqual([]);
+
+    // A spec that carries no pinMeta at all restricts nothing: a driver that
+    // hard-coded the GPIO numbers instead of reading the snapshot would fail here.
+    const anonymous = mcu({ ...N16R8, pinMeta: undefined });
+    anonymous.driver.pinMode(35, PIN_MODE.OUTPUT);
+    anonymous.driver.digitalWrite(35, 1);
+    expect(anonymous.harness.heldDrive('GPIO35')).toEqual({ value: 1, strength: 'strong' });
+    expect(anonymous.harness.codes()).toEqual([]);
+  });
+
   it('E14 stamps its timers with virtual time only, and fires them in order', () => {
     const { driver, harness } = mcu();
     const fired: number[] = [];

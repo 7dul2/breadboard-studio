@@ -4,7 +4,10 @@
  * The driver owns three things and nothing else: the GPIO registers (`mode` +
  * `out`) and how they resolve onto the nets, the BOOT button, and the on-board
  * RGB LED plus the UART line buffer. It does not model the two cores, the
- * flash/PSRAM sizes, Wi-Fi, or the WS2812 wire protocol of the RGB LED.
+ * flash/PSRAM sizes, Wi-Fi, or the WS2812 wire protocol of the RGB LED. It does
+ * respect `pin_meta.reserved` from the catalog, which is how a variant says a
+ * header pin is already committed (the octal PSRAM of an N16R8 owns GPIO35–37);
+ * the driver never knows which board that is, only what the snapshot says.
  *
  * Everything reaches the outside world through `DeviceContext`: there is no way
  * from here to another device, and `netId` is only ever compared for equality
@@ -30,6 +33,9 @@ export type PinMode = (typeof PIN_MODE)[keyof typeof PIN_MODE];
  * `pressed` visual without any `visuals[]` binding (plan §7.1).
  */
 export const MCU_FEATURES = { rgb: 'RGB', boot: 'BOOT', reset: 'RST' } as const;
+
+/** How `pin_meta.reserved` reads in a diagnostic aimed at someone holding the board. */
+const RESERVED_OWNER: Readonly<Record<'flash' | 'psram', string>> = { flash: '板载 Flash', psram: '板载八线 PSRAM' };
 
 const RGB_ON: Rgb = [255, 255, 255];
 const RGB_OFF: Rgb = [0, 0, 0];
@@ -89,6 +95,8 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
   private readonly indeterminate = new Set<string>();
   /** Pins with a contention diagnostic already reported (edge triggered). */
   private readonly reportedContention = new Set<string>();
+  /** Pin name → what the board committed it to, from catalog `pin_meta.reserved`. */
+  private readonly reserved = new Map<string, 'flash' | 'psram'>();
   /** Timer handle → token, so `onReset` can cancel every timer we armed. */
   private readonly timers = new Map<number, number>();
 
@@ -109,6 +117,9 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
       const gpio = asGpioNumber(channel);
       if (gpio === null || this.byGpio.has(gpio)) continue;
       this.byGpio.set(gpio, pin);
+    }
+    for (const [pin, meta] of Object.entries(ctx.spec.pinMeta ?? {})) {
+      if (meta.reserved !== undefined) this.reserved.set(pin, meta.reserved);
     }
     this.bootGpio = asGpioNumber(ctx.spec.properties.boot_gpio);
     this.bootPin = this.bootGpio === null ? null : (this.byGpio.get(this.bootGpio) ?? null);
@@ -141,12 +152,14 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
     if (mode !== PIN_MODE.INPUT && mode !== PIN_MODE.OUTPUT && mode !== PIN_MODE.INPUT_PULLUP) {
       throw new Error(`pinMode: unknown mode ${mode} (expected INPUT, OUTPUT or INPUT_PULLUP)`);
     }
+    if (this.refuseReserved(pin)) return;
     this.modes.set(pin, mode);
     this.apply(pin);
   }
 
   digitalWrite(gpio: number, value: number | boolean): void {
     const pin = this.pinNameOf(gpio);
+    if (this.refuseReserved(pin)) return;
     const level: 0 | 1 = value === true || value === 1 ? 1 : 0;
     this.outs.set(pin, level);
     this.apply(pin);
@@ -164,6 +177,9 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
 
   digitalReadRaw(gpio: number): DigitalValue {
     const pin = this.pinNameOf(gpio);
+    // Before the power check: "this pin is not a GPIO on this board" explains a
+    // dead read better than "the board is off", and it stays true either way.
+    if (this.refuseReserved(pin)) return 'Z';
     if (!this.powered) return 'Z';
     if (this.indeterminate.has(pin)) return 'X';
     return this.ctx.read(pin);
@@ -358,6 +374,33 @@ export class Esp32S3Driver implements DeviceDriver, McuHostApi {
     }
     this.ctx.drive(pin, resolved.value, resolved.strength);
     this.driven.add(pin);
+  }
+
+  /**
+   * True when the board has already committed this pin to something else, in
+   * which case the call that got here is dropped and the pin keeps its high-Z
+   * end. Nothing throws: a real board does not reject `pinMode(35, OUTPUT)`
+   * either — it accepts it and quietly loses its memory bus — so refusing the
+   * *effect* rather than the *call* is what keeps the model honest. Choosing to
+   * keep running (rather than faulting the session) is deliberate: the crash on
+   * hardware is near-certain but its timing is not, and a simulator that invents
+   * an instant for it would be guessing.
+   */
+  private refuseReserved(pin: string): boolean {
+    const owner = this.reserved.get(pin);
+    if (owner === undefined) return false;
+    const what = RESERVED_OWNER[owner];
+    this.ctx.diagnoseOnce(`reserved:${pin}`, {
+      code: 'reserved_pin_used',
+      severity: SIM_DIAGNOSTIC_SEVERITY.reserved_pin_used,
+      message:
+        `${pin} 被${what}占用，在这块板子上不是可以外接的 GPIO：程序照常执行，但它对这根引脚的 pinMode / digitalWrite / digitalRead 全部不生效，引脚保持高阻、读回 0。` +
+        `真板上改这根引脚的方向或电平会切断${what}的总线，后果不是「引脚不听话」而是内存访问出错——通常是 Guru Meditation 崩溃或反复重启。` +
+        `请把这根线换到普通 GPIO；如果你手里的板子确实没有这颗存储器，请改用对应型号的元件定义。`,
+      pinAddresses: [`${this.ctx.componentId}.${pin}`],
+      ...(this.ctx.spec.pinNets[pin] ? { netIds: [this.ctx.netIdOf(pin)] } : {})
+    });
+    return true;
   }
 
   private reportUnpowered(): void {

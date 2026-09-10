@@ -35,6 +35,19 @@
 
 来源链接写在各定义的 `sources` 字段中，可用 `pnpm bb catalog inspect <ref> --json` 查看。
 
+## 引脚元数据 `pin_meta`
+
+每根引脚除 `role`、`direction`、`drive`、电压等字段外，还有两个决定工具行为的字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `auto_wire` | 给自动排线的**偏好**：`avoid` 只在没有别的空闲引脚时才用（strapping、USB），`skip` 从不自动接，`to_ground` / `to_power` 表示这是应当接到地/电源的配置脚。 |
+| `reserved` | 关于板子的**事实**：这根引脚虽然引到了排针上，但已被板载存储器占用（`flash` / `psram`），根本不能当作外接 GPIO 使用。 |
+
+两者强度不同。`reserved` 比 `auto_wire: "skip"` 更硬：自动排线不但不会选它，用 `signal_pins` 指名它也会直接报错（线接得上，但不会工作）；仿真器还会拒绝把它当 GPIO 建模——程序对它的 `pinMode` / `digitalWrite` / `digitalRead` 一律不生效，引脚保持高阻、读回 0，并报出一条 `reserved_pin_used`（warning）。请在 `notes` 里写清后果，诊断与排线报告都会引用它。
+
+`reserved` 是**型号**属性而不是芯片属性：ESP32-S3 只有配八线 PSRAM（N16R8 里的 R8）的模组才占用 GPIO35–37，同样封装的 N8R2 这三根是自由的。内置定义里 `esp32s3_n16r8_dual_usb@1` 与 `esp32s3_devkit_generic@1` 按各自 `model` 字段声明的 N16R8 标了 `"reserved": "psram"`；`xiao_esp32s3_sense@1` 虽然也带 8 MB PSRAM，但 14 针排针根本没有把这三根线引出来，因此没有可标的引脚。手里的板子若不是八线 PSRAM 型号，复制一份定义去掉该标记即可。
+
 ## 参数化生成器
 
 | `generator.type` | params | 结果 |

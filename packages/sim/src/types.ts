@@ -57,6 +57,7 @@ export const SIM_DIAGNOSTIC_CODES = [
   'missing_common_ground',
   'digital_contention',
   'floating_input',
+  'reserved_pin_used',
   'unsupported_device',
   'i2c_nack',
   'i2c_address_collision',
@@ -93,6 +94,11 @@ export const SIM_DIAGNOSTIC_SEVERITY: Readonly<Record<SimDiagnosticCode, SimSeve
   missing_common_ground: 'warning',
   digital_contention: 'warning',
   floating_input: 'warning',
+  // The board keeps running — that is why this is not an `error`. What a real
+  // N16R8 does after its PSRAM bus is repurposed is undefined and usually a
+  // reboot, but *when* is not something this model can predict, so the session
+  // stays alive and the pin simply stops behaving like a GPIO.
+  reserved_pin_used: 'warning',
   i2c_nack: 'warning',
   i2c_address_collision: 'warning',
   i2c_bus_unavailable: 'warning',
@@ -137,6 +143,13 @@ export interface SimPinMeta {
   voltageV?: number | null;
   ioVoltageV?: number | null;
   maxSourceMa?: number | null;
+  /**
+   * Catalog `pin_meta.reserved`: the board variant has already committed this
+   * pin, so it is not a usable GPIO. Drivers refuse to model it and raise
+   * `reserved_pin_used` — the restriction is data, never a board id hard-coded
+   * in a driver.
+   */
+  reserved?: 'flash' | 'psram';
 }
 
 /** A feature the user can operate while the session runs, from the catalog binding. */

@@ -54,7 +54,10 @@ describe('configured component rendering', () => {
     expect(off.pins.find((pin) => pin.name === '3V3_1')?.local_um).toEqual([26670, 55245]);
     expect(def.pin_meta.GPIO8?.role).toBe('i2c_sda');
     expect(def.pin_meta.GPIO9?.role).toBe('i2c_scl');
-    expect(def.pin_meta.GPIO35?.auto_wire).toBe('avoid');
+    // The octal PSRAM of an N16R8 owns these three; `reserved` (not merely an
+    // `avoid` hint) is what keeps the planner and the simulator off them.
+    for (const pin of ['GPIO35', 'GPIO36', 'GPIO37']) expect(def.pin_meta[pin]?.reserved, pin).toBe('psram');
+    expect(def.pin_meta.GPIO38?.reserved).toBeUndefined();
     expect(def.pin_render).toEqual(expect.objectContaining({ shape: 'circle', show_labels: false }));
     expect(off.render.length).toBeGreaterThanOrEqual(260);
     for (const label of ['CH343', '1117', 'RGB', 'BOOT', 'RST', 'ESP32-S3-N16R8']) {

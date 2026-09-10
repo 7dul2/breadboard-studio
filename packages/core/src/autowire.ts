@@ -1,4 +1,4 @@
-import type { DesignDocument, JsonValue, PinRole, PointUm, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
+import type { DesignDocument, JsonValue, PinMeta, PinRole, PointUm, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
 import { Catalog } from '@breadboard-studio/catalog';
 import { holeAddress, parseAddress, terminalAddress } from './address.js';
 import { buildConnectivity, conductiveSet, pinKey, voltageName, type Connectivity } from './connectivity.js';
@@ -710,6 +710,16 @@ function hostPinsByRole(host: PlacedComponent, roles: PinRole[]): PlacedPin[] {
   return host.pins.filter((p) => roles.includes(p.meta.role));
 }
 
+/**
+ * Pins the planner must never wire: an explicit `skip` hint, or a pin the board
+ * variant has already committed (`reserved`, e.g. the octal PSRAM bus of an
+ * N16R8). `avoid` is deliberately not here — that one is only a preference and
+ * the fallback pool still uses it when nothing else is free.
+ */
+function neverWire(meta: PinMeta): boolean {
+  return meta.auto_wire === 'skip' || meta.reserved !== undefined;
+}
+
 function hostPinInUse(ctx: Ctx, pin: PlacedPin): boolean {
   const key = pinKey(ctx.host.instance.id, pin.name);
   if (ctx.plannedGpios.has(key)) return true;
@@ -725,12 +735,17 @@ function allocateGpio(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): { pin: Pla
     const hp = pinOf(ctx.host, explicit);
     if (!hp) throw new AutoWireError(`signal_pins：主板 ${ctx.host.instance.id} 没有引脚 "${explicit}"`);
     if (!['gpio', 'analog', 'signal_in', 'signal_out', 'i2c_sda', 'i2c_scl'].includes(hp.meta.role)) throw new AutoWireError(`signal_pins：${ctx.host.instance.id}.${explicit} 的角色是 ${hp.meta.role}，不能作为信号引脚`);
+    // `reserved` is a fact about the board, not a preference, so an explicit
+    // request cannot override it: the wire would be buildable and still not work.
+    if (hp.meta.reserved !== undefined) {
+      throw new AutoWireError(`signal_pins：${ctx.host.instance.id}.${explicit} 被板上的 ${hp.meta.reserved === 'psram' ? 'PSRAM' : 'Flash'} 占用，不能作为外接 GPIO${hp.meta.notes ? `（${hp.meta.notes}）` : ''}`);
+    }
     ctx.plannedGpios.add(pinKey(ctx.host.instance.id, hp.name));
     return { pin: hp, avoided: false };
   }
   const preferAnalog = pin.meta.role === 'analog';
   const pool = [...hostPinsByRole(ctx.host, preferAnalog ? ['analog'] : ['gpio']), ...hostPinsByRole(ctx.host, preferAnalog ? ['gpio'] : ['analog'])];
-  const usable = pool.filter((p) => p.meta.auto_wire !== 'skip' && !hostPinInUse(ctx, p));
+  const usable = pool.filter((p) => !neverWire(p.meta) && !hostPinInUse(ctx, p));
   // Among equally usable pins prefer one whose group still has a free hole, and one close to the peripheral.
   const rank = (p: PlacedPin) => {
     const free = p.hole ? accessibleHolesForPin(ctx.model, ctx.host.instance.id, p.name).some((h) => !ctx.reserved.has(h)) : true;
@@ -846,7 +861,7 @@ function hex(n: number): string {
 
 /** Free host GPIOs for a new bus: ordinary pins before `avoid` ones, nearest to `near` first. */
 function pickFreeGpios(ctx: Ctx, count: number, near: PointUm): PlacedPin[] {
-  const pool = hostPinsByRole(ctx.host, ['gpio']).filter((p) => p.meta.auto_wire !== 'skip' && !hostPinInUse(ctx, p));
+  const pool = hostPinsByRole(ctx.host, ['gpio']).filter((p) => !neverWire(p.meta) && !hostPinInUse(ctx, p));
   const byDistance = (a: PlacedPin, b: PlacedPin) => manhattan(a.global_um, near) - manhattan(b.global_um, near);
   const ordered = [...pool.filter((p) => p.meta.auto_wire !== 'avoid').sort(byDistance), ...pool.filter((p) => p.meta.auto_wire === 'avoid').sort(byDistance)];
   const picked = ordered.slice(0, count);
@@ -994,6 +1009,7 @@ function classifyPin(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): Member | nu
     return null;
   };
   if (pin.kind === 'pad') return skip('pin_pad', `${key} 是焊盘，不自动接线`);
+  if (meta.reserved !== undefined) return skip('pin_reserved', `${key} 被板上的 ${meta.reserved === 'psram' ? 'PSRAM' : 'Flash'} 占用，不能作为外接 GPIO${meta.notes ? `（${meta.notes}）` : ''}`, '换一根普通 GPIO；确认你的板子没有这颗存储器时，请改用对应型号的元件定义。');
   if (meta.auto_wire === 'skip') return skip('pin_skip_hint', `${key} 在目录中标记为不自动接线${meta.notes ? `（${meta.notes}）` : ''}`);
   if (meta.role === 'nc') return skip('pin_nc', `${key} 为 NC（不连接）`);
   if (meta.role === 'passive') return skip('pin_passive', `${key} 是无源元件引脚，自动布线不知道它应接到哪个网络`, '手动接线，或在 net_intents 里声明后用普通 add_wire。');

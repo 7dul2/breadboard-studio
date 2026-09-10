@@ -27,7 +27,7 @@ describe('diagnostic code registry', () => {
   it('keeps every code the session must survive out of the error tier', () => {
     // The controller faults the session on any error diagnostic, so a NACK, a
     // floating pin or an unpowered device must never be one.
-    for (const code of ['device_unpowered', 'missing_common_ground', 'digital_contention', 'floating_input', 'i2c_nack', 'i2c_address_collision', 'i2c_bus_unavailable', 'i2c_unknown_command'] as const) {
+    for (const code of ['device_unpowered', 'missing_common_ground', 'digital_contention', 'floating_input', 'reserved_pin_used', 'i2c_nack', 'i2c_address_collision', 'i2c_bus_unavailable', 'i2c_unknown_command'] as const) {
       expect(SIM_DIAGNOSTIC_SEVERITY[code], code).toBe('warning');
     }
     for (const code of ['unsupported_device', 'supply_range_unknown', 'waiting_for_input', 'stale_simulation_snapshot'] as const) {
