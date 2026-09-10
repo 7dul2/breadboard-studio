@@ -1,6 +1,6 @@
 # 进度与验证状态
 
-最后更新：2026-09-09。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
+最后更新：2026-09-10。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
 
 ## 里程碑
 
@@ -12,7 +12,7 @@
 | M3 手工连线与校验闭环 | 完成 | 接线、拐点编辑、颜色/线号、导通图、规则面板点击定位、网络高亮；e2e 制造电源对地短路 → 修复 → 警告消失；撤销/重做。 |
 | M4 保存、导出、DSL、接线向导 | 完成 | localStorage 自动保存 + 上一项目恢复 + 保存失败提示；JSON 导入/导出往返哈希一致；SVG/PNG 导出含图例与徽标、无裁切（CLI 测试检查 viewBox）；DSL 面板非法草稿不污染画布；接线向导勾选状态刷新后保留。 |
 | M5 示例、性能、体验 | 完成 | 两个可编辑示例 + 压力样本；元件 JSON 导入（内嵌到设计）；性能数据见下。 |
-| M6 开源准备与发布 | 进行中 | README/CONTRIBUTING/SECURITY/LICENSE/THIRD_PARTY_NOTICES/issue 模板/CI/Pages 工作流已写；发布结果见文末。 |
+| M6 开源准备与发布 | 完成 | README/CONTRIBUTING/SECURITY/LICENSE/THIRD_PARTY_NOTICES/issue 模板/CI/Pages 工作流已写；发布结果见文末。v0.1.0 Release 已发布，GitHub Pages 自动部署成功（https://7dul2.github.io/breadboard-studio/ ），最近一次 push 的 CI 与 Pages 工作流均为 success。 |
 | M7 多选自动排线 | 完成 | UI 多选主板 + 外设；电源/GND/I²C/GPIO 角色规划；杜邦线允许重叠/跨越；硬质跳线正交且不共用线段；CLI `autowire`；整批事务撤销；单元 + e2e。 |
 | M8 外观编辑器 | 完成 | 属性面板“编辑外观绘图…”：`render` 图元自动分部件（重叠合并、大面积独立、`g` 标签持久化），点选/框选、拖动、方向键微调、复制、删除、旋转、坐标输入、撤销重做；实物照片底图（缩放/旋转/透明度/拖动对位）；保存即 `add_definition` 内嵌到项目（可撤销），或导出定义 JSON 写回元件库。绘图相关的两个测试原先把真实 N16R8 绘图当夹具（钉死描边色 `#e4e7e3`、`bootLabel - 4` 这样的索引偏移、部件 id `s1`），一次正常重画就会失败——现在几何合并规则改用测试自备的合成绘图断言，真实定义只断言与画法无关的不变量（每个图元恰属一组、底板独立且 large、打标签后重分组一致），e2e 则从定义文件里挑一个「含多个图元的部件」再点。N16R8 板按用户照片二次校准（状态灯间距、稳压器朝向、Type-C 位置，补 16 颗小电容电阻）。 |
 | M7.3 自动排线 I²C 地址冲突处理 | 完成 | 目录新增 `electrical.i2c.controllers/mappable`、主控 `config.i2c_buses`；规则引擎按每条总线检查地址；规划器接线前分配总线，冲突时开第 2 条总线（自动选最近空闲 GPIO）或改用 `address_options` 中的地址，均列为待审核；三块同地址 SSD1315 场景从 1 个 error 变为 0 error + 2 待审核。 |
