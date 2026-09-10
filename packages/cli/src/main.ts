@@ -1,56 +1,32 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { builtinCatalog, CATALOG_VERSION } from '@breadboard-studio/catalog';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { CATALOG_VERSION } from '@breadboard-studio/catalog';
 import { designSchema } from '@breadboard-studio/schema';
-import type { DesignDocument } from '@breadboard-studio/schema';
-import { activeProgram, analyzeDesign, applyOps, buildSteps, catalogForDesign, conductiveSet, createEmptyDesign, designHash, groupHoles, loadDesign, netOfAddress, parsePatch, serializeDesign, summarize, type AutoWireOptions, type AutoWirePlan, type Op, type RuleResult } from '@breadboard-studio/core';
-import { exportSvg } from '@breadboard-studio/render';
-
-export const EXIT = { OK: 0, PROBLEMS: 1, USAGE: 2, CONFLICT: 3 } as const;
-
-class CliError extends Error {
-  constructor(
-    message: string,
-    public code: number = EXIT.USAGE,
-    public extra: Record<string, unknown> = {}
-  ) {
-    super(message);
-  }
-}
-
-function readDesign(file: string): DesignDocument {
-  const path = resolve(file);
-  if (!existsSync(path)) throw new CliError(`文件不存在：${file}`, EXIT.USAGE);
-  const r = loadDesign(readFileSync(path, 'utf8'));
-  if (!r.ok || !r.design) throw new CliError(`设计文件无效：${file}`, EXIT.PROBLEMS, { issues: r.errors });
-  return r.design;
-}
-
-/** Write atomically: temp file + rename, so a failure never leaves a half-written design. */
-function writeAtomic(file: string, content: string): void {
-  const path = resolve(file);
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, content);
-  renameSync(tmp, path);
-}
+import { applyOps, createEmptyDesign, designHash, serializeDesign, summarize, type AutoWirePlan, type Op, type RuleResult } from '@breadboard-studio/core';
+import { EXIT, CliError, applyPatchData, autowireData, catalogInspectData, catalogListData, connectivityData, exportDesignData, inspectData, opsData, programsData, readDesign, resultsJson, stepsData, validateData, writeAtomic, type FailOn } from './queries.js';
 
 function out(json: boolean, data: Record<string, unknown>, text: () => string): void {
   if (json) process.stdout.write(JSON.stringify(data, null, 2) + '\n');
   else process.stdout.write(text() + '\n');
 }
 
-function fmtResult(r: RuleResult): string {
+/** Shape of both a live `RuleResult` and its serialized form (`resultsJson`). */
+interface ResultLike {
+  severity: RuleResult['severity'];
+  code: string;
+  blocking: boolean;
+  message: string;
+  endpoints?: string[];
+  suggestion?: string | null;
+}
+
+function fmtResult(r: ResultLike): string {
   const tag = { error: 'ERROR', warning: 'WARN ', info: 'INFO ', needs_review: 'REVIEW' }[r.severity];
   const eps = r.endpoints?.length ? `  @ ${r.endpoints.join(', ')}` : '';
   const sug = r.suggestion ? `\n      → ${r.suggestion}` : '';
   return `  [${tag}] ${r.code}${r.blocking ? ' (blocking)' : ''}: ${r.message}${eps}${sug}`;
-}
-
-function planJson(plan: AutoWirePlan) {
-  return { host: plan.host, components: plan.components, optimization: plan.optimization, i2c_buses: plan.i2c_buses, config_changes: plan.config_changes, connections: plan.connections, bridges: plan.bridges, skipped: plan.skipped, unresolved: plan.unresolved, ops: plan.ops.length };
 }
 
 function fmtI2c(plan: AutoWirePlan): string[] {
@@ -85,17 +61,8 @@ function fmtPlan(plan: AutoWirePlan): string[] {
   return lines;
 }
 
-function resultsJson(results: RuleResult[]) {
-  return results.map((r) => ({ severity: r.severity, code: r.code, category: r.category, blocking: r.blocking, message: r.message, objects: r.objects, endpoints: r.endpoints ?? [], suggestion: r.suggestion ?? null }));
-}
-
-/** Program list without the source text (use `program export` for that). */
-function programsJson(design: DesignDocument) {
-  return (design.programs ?? []).map((p) => ({ id: p.id, name: p.name, target_component_id: p.target_component_id, language: p.language, entry: p.entry ?? null, source_lines: p.source.length ? p.source.split('\n').length : 0 }));
-}
-
-function fmtProgramsLine(design: DesignDocument): string {
-  return `程序：${design.programs?.length ?? 0} 个（启动程序：${activeProgram(design)?.id ?? '无'}）`;
+function fmtProgramsLine(programs: { id: string }[], activeId: string | null): string {
+  return `程序：${programs.length} 个（启动程序：${activeId ?? '无'}）`;
 }
 
 export function buildProgram(): Command {
@@ -110,20 +77,9 @@ export function buildProgram(): Command {
     .option('--design <file>', '同时列出该设计 embedded_catalog 中的定义')
     .option('--json', 'JSON 输出')
     .action((opts: { json?: boolean; design?: string }) => {
-      const c = opts.design ? catalogForDesign(readDesign(opts.design), builtinCatalog()) : builtinCatalog();
-      const items = c.list().map((d) => ({
-        ref: `${d.id}@${d.version}`,
-        kind: d.kind,
-        name: d.name,
-        category: d.kind === 'component' ? d.category : 'board',
-        mount: d.kind === 'component' ? d.mount : null,
-        geometry_status: d.geometry_status,
-        electrical_status: d.electrical_status,
-        pins: d.kind === 'component' ? (d.pins.length ? d.pins.map((p) => p.name) : Object.keys(d.pin_meta)) : null,
-        parametric: d.kind === 'component' && !!d.generator
-      }));
-      out({ json: !!opts.json }.json, { ok: true, command: 'catalog.list', catalog_version: CATALOG_VERSION, items }, () =>
-        items.map((i) => `${i.ref.padEnd(28)} ${i.kind.padEnd(9)} geo=${i.geometry_status.padEnd(11)} elec=${i.electrical_status.padEnd(11)} ${i.name}`).join('\n')
+      const data = catalogListData(opts.design ? readDesign(opts.design) : null);
+      out(!!opts.json, data, () =>
+        data.items.map((i) => `${i.ref.padEnd(28)} ${i.kind.padEnd(9)} geo=${i.geometry_status.padEnd(11)} elec=${i.electrical_status.padEnd(11)} ${i.name}`).join('\n')
       );
     });
   catalog
@@ -132,9 +88,8 @@ export function buildProgram(): Command {
     .option('--design <file>', '同时查找该设计内嵌的定义')
     .option('--json', 'JSON 输出')
     .action((ref: string, opts: { json?: boolean; design?: string }) => {
-      const d = (opts.design ? catalogForDesign(readDesign(opts.design), builtinCatalog()) : builtinCatalog()).get(ref);
-      if (!d) throw new CliError(`目录中没有 ${ref}（使用 bb catalog list 查看）`);
-      out(!!opts.json, { ok: true, command: 'catalog.inspect', definition: d }, () => JSON.stringify(d, null, 2));
+      const data = catalogInspectData(ref, opts.design ? readDesign(opts.design) : null);
+      out(!!opts.json, data, () => JSON.stringify(data.definition, null, 2));
     });
 
   program
@@ -160,35 +115,8 @@ export function buildProgram(): Command {
     .description('列出 apply 支持的操作类型')
     .option('--json', 'JSON 输出')
     .action((opts: { json?: boolean }) => {
-      const ops = [
-        { op: 'add_board', fields: 'board{id, model, name?, position_um?, rotation_deg?, attach_to?{board_id, side, gap_um?, grid_align?}}' },
-        { op: 'remove_board', fields: 'id, cascade?' },
-        { op: 'move_board', fields: 'id, position_um' },
-        { op: 'rotate_board', fields: 'id, rotation_deg? | by_deg?' },
-        { op: 'add_component', fields: 'component{id, model, name?, placement?, params?, config?, notes?}' },
-        { op: 'remove_component', fields: 'id, cascade?' },
-        { op: 'move_component', fields: 'id, placement{kind: board|off_board, ...}' },
-        { op: 'rotate_component', fields: 'id, rotation_deg? | by_deg?' },
-        { op: 'add_wire', fields: 'wire{id?, from{hole|terminal|pin}, to?{hole|terminal|pin}, color?, route?, path_mode?, waypoints_um?, name?}' },
-        { op: 'remove_wire', fields: 'id' },
-        { op: 'update_wire', fields: 'id, patch{name?, color?, route?, path_mode?, waypoints_um?, from?, to?, notes?, locked?}' },
-        { op: 'update_property', fields: 'id, path (name|notes|locked|color|params.*|config.*|position_um|rotation_deg|route|path_mode|waypoints_um|endpoints), value' },
-        { op: 'add_net_intent', fields: 'net_intent{id, name, endpoints[]}' },
-        { op: 'remove_net_intent', fields: 'id' },
-        { op: 'update_net_intent', fields: 'id, patch{name?, endpoints?, notes?}' },
-        { op: 'add_constraint', fields: 'constraint{id, type: isolate|wire_length_max_um|note, ...}' },
-        { op: 'remove_constraint', fields: 'id' },
-        { op: 'set_metadata', fields: 'patch{name?, description?, author?, tags?, notes?}' },
-        { op: 'replace_design', fields: 'design (完整设计文档)' },
-        { op: 'add_definition', fields: 'definition (板/元件定义 JSON，内嵌到 embedded_catalog)' },
-        { op: 'remove_definition', fields: 'ref (id@version)' },
-        { op: 'auto_wire', fields: 'host, components[], options?{supply_voltage_v?, power_distribution?: auto|rail|direct, signal_pins?{"comp.pin": "hostPin"}, net_intents?, route?: auto|flat|elevated, optimize?: global|greedy, time_budget_ms?, i2c_conflicts?: bus_first|address_first|report, require_all?}' },
-        { op: 'add_program', fields: 'program{id, name, target_component_id (必须是现有元件), source, language?: studio-ts, entry?}' },
-        { op: 'update_program', fields: 'id, patch{name?, target_component_id?, source?, entry?, language?}' },
-        { op: 'remove_program', fields: 'id（同时清除 simulation.active_program_id）' },
-        { op: 'set_simulation_config', fields: 'patch{active_program_id?, speed?: 0.1|0.25|0.5|1|2|5|10, random_seed?, usb_powered_components?[]}（值为 null 表示清除该键；引用必须存在）' }
-      ];
-      out(!!opts.json, { ok: true, command: 'ops', ops }, () => ops.map((o) => `${o.op.padEnd(22)} ${o.fields}`).join('\n'));
+      const data = opsData();
+      out(!!opts.json, data, () => data.ops.map((o) => `${o.op.padEnd(22)} ${o.fields}`).join('\n'));
     });
 
   program
@@ -196,31 +124,15 @@ export function buildProgram(): Command {
     .description('汇总设计：元数据、面包板、元件引脚落孔、导线、网络')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { json?: boolean }) => {
-      const design = readDesign(file);
-      const a = analyzeDesign(design);
-      const boards = [...a.model.boards.values()].map((b) => ({ id: b.instance.id, name: b.instance.name ?? null, model: b.instance.model, position_um: b.instance.position_um, rotation_deg: b.instance.rotation_deg, holes: b.resolved.holes.size }));
-      const components = [...a.model.components.values()].map((c) => ({
-        id: c.instance.id,
-        name: c.instance.name ?? null,
-        model: c.instance.model,
-        placement: c.instance.placement,
-        on_board: c.onBoard,
-        geometry_status: c.def.geometry_status,
-        electrical_status: c.def.electrical_status,
-        pins: c.pins.map((p) => ({ name: p.name, role: p.meta.role, hole: p.hole ? `${p.hole.board_id}.${p.hole.hole}` : null })),
-        blocked_holes: c.blockedHoles.map((h) => `${h.board_id}.${h.hole}`)
-      }));
-      const wires = [...a.model.wires.values()].map((w) => ({ id: w.instance.id, name: w.instance.name ?? null, from: w.from?.address ?? null, to: w.to?.address ?? null, color: w.instance.color, route: w.instance.route, length_um: w.length_um, conducts: w.conducts }));
-      const nets = a.connectivity.nets.map((n) => ({ id: n.id, name: n.name, intents: n.intent_ids, pins: n.pins, wires: n.wires, holes: n.holes.length }));
-      const data = { ok: true, command: 'inspect', file, metadata: design.metadata, revision: design.metadata.revision, hash: designHash(design), catalog_versions: design.catalog_versions, boards, components, wires, nets, programs: programsJson(design), simulation: design.simulation ?? null, summary: a.summary };
+      const data = inspectData(file);
       out(!!opts.json, data, () => {
-        const lines = [`${design.metadata.name}  (revision ${design.metadata.revision}, hash ${designHash(design).slice(0, 12)})`, `面包板 ${boards.length}，元件 ${components.length}，导线 ${wires.length}，网络 ${nets.length}`];
-        for (const b of boards) lines.push(`  board ${b.id} ${b.model} @ (${b.position_um.join(', ')}) rot ${b.rotation_deg}`);
-        for (const c of components) lines.push(`  component ${c.id} ${c.model} ${c.on_board ? '' : '(板外)'}: ${c.pins.map((p) => `${p.name}${p.hole ? '=' + p.hole : ''}`).join(' ')}`);
-        for (const w of wires) lines.push(`  wire ${w.id} ${w.color} ${w.from} → ${w.to ?? '(草稿)'} ${(w.length_um / 1000).toFixed(1)}mm`);
-        for (const n of nets) lines.push(`  net ${n.name}: ${n.pins.join(', ')}`);
-        lines.push(fmtProgramsLine(design));
-        lines.push(`结果：error ${a.summary.error}, warning ${a.summary.warning}, needs_review ${a.summary.needs_review}, info ${a.summary.info}`);
+        const lines = [`${data.metadata.name}  (revision ${data.revision}, hash ${data.hash.slice(0, 12)})`, `面包板 ${data.boards.length}，元件 ${data.components.length}，导线 ${data.wires.length}，网络 ${data.nets.length}`];
+        for (const b of data.boards) lines.push(`  board ${b.id} ${b.model} @ (${b.position_um.join(', ')}) rot ${b.rotation_deg}`);
+        for (const c of data.components) lines.push(`  component ${c.id} ${c.model} ${c.on_board ? '' : '(板外)'}: ${c.pins.map((p) => `${p.name}${p.hole ? '=' + p.hole : ''}`).join(' ')}`);
+        for (const w of data.wires) lines.push(`  wire ${w.id} ${w.color} ${w.from} → ${w.to ?? '(草稿)'} ${(w.length_um / 1000).toFixed(1)}mm`);
+        for (const n of data.nets) lines.push(`  net ${n.name}: ${n.pins.join(', ')}`);
+        lines.push(fmtProgramsLine(data.programs, data.active_program_id));
+        lines.push(`结果：error ${data.summary.error}, warning ${data.summary.warning}, needs_review ${data.summary.needs_review}, info ${data.summary.info}`);
         return lines.join('\n');
       });
     });
@@ -231,17 +143,15 @@ export function buildProgram(): Command {
     .option('--json', 'JSON 输出')
     .option('--fail-on <level>', 'error|warning|never', 'error')
     .action((file: string, opts: { json?: boolean; failOn: string }) => {
-      const design = readDesign(file);
-      const a = analyzeDesign(design);
-      const s = a.summary;
-      const failed = opts.failOn === 'never' ? false : opts.failOn === 'warning' ? s.error + s.warning > 0 : s.error > 0;
-      out(!!opts.json, { ok: !failed, command: 'validate', file, revision: design.metadata.revision, hash: designHash(design), summary: s, results: resultsJson(a.results) }, () => {
+      const data = validateData(file, opts.failOn as FailOn);
+      const s = data.summary;
+      out(!!opts.json, data, () => {
         const lines = [`${file}: ${s.error} error, ${s.warning} warning, ${s.needs_review} needs_review, ${s.info} info${s.blocking ? ` (${s.blocking} blocking)` : ''}`];
-        for (const r of a.results) lines.push(fmtResult(r));
-        lines.push(failed ? '未通过。' : '没有 error。注意：这不等于电路已验证；needs_review 项需人工核对。');
+        for (const r of data.results) lines.push(fmtResult(r));
+        lines.push(data.ok ? '没有 error。注意：这不等于电路已验证；needs_review 项需人工核对。' : '未通过。');
         return lines.join('\n');
       });
-      if (failed) process.exitCode = EXIT.PROBLEMS;
+      if (!data.ok) process.exitCode = EXIT.PROBLEMS;
     });
 
   program
@@ -250,19 +160,13 @@ export function buildProgram(): Command {
     .requiredOption('--from <address>', '孔地址 board.hole 或端子 component.pin')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { from: string; json?: boolean }) => {
-      const design = readDesign(file);
-      const a = analyzeDesign(design);
-      const group = groupHoles(a.model, opts.from);
-      const net = netOfAddress(a.model, a.connectivity, opts.from);
-      const set = conductiveSet(a.model, a.connectivity, opts.from);
-      if (!group.length && !set.holes.length && !set.pins.length) throw new CliError(`地址 ${opts.from} 不存在`, EXIT.USAGE);
-      const data = { ok: true, command: 'connectivity', file, from: opts.from, group, net: net ? { id: net.id, name: net.name, intents: net.intent_ids, pins: net.pins, wires: net.wires } : null, conductive: set };
+      const data = connectivityData(file, opts.from);
       out(!!opts.json, data, () => {
-        const lines = [`${opts.from}`];
-        lines.push(`  内部导通组：${group.join(', ') || '（端子，无板内组）'}`);
-        lines.push(`  导通集合：${set.holes.length} 孔，${set.pins.length} 引脚`);
-        if (set.pins.length) lines.push(`  引脚：${set.pins.join(', ')}`);
-        lines.push(`  网络：${net ? `${net.name} (${net.id})，导线 ${net.wires.join(', ') || '无'}` : '无（未接线）'}`);
+        const lines = [`${data.from}`];
+        lines.push(`  内部导通组：${data.group.join(', ') || '（端子，无板内组）'}`);
+        lines.push(`  导通集合：${data.conductive.holes.length} 孔，${data.conductive.pins.length} 引脚`);
+        if (data.conductive.pins.length) lines.push(`  引脚：${data.conductive.pins.join(', ')}`);
+        lines.push(`  网络：${data.net ? `${data.net.name} (${data.net.id})，导线 ${data.net.wires.join(', ') || '无'}` : '无（未接线）'}`);
         return lines.join('\n');
       });
     });
@@ -278,37 +182,24 @@ export function buildProgram(): Command {
     .option('--force', '即使存在 blocking 错误也写入')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { patch: string; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; force?: boolean; json?: boolean }) => {
-      const design = readDesign(file);
       let rawPatch: unknown;
       try {
         rawPatch = JSON.parse(readFileSync(resolve(opts.patch), 'utf8'));
       } catch (e) {
         throw new CliError(`补丁文件无法读取或不是 JSON：${(e as Error).message}`);
       }
-      const parsed = parsePatch(rawPatch);
-      if (!parsed.ok) throw new CliError(`补丁无效：${parsed.message}`);
-      const patch = parsed.patch;
-      const r = applyOps(design, patch.ops, {
-        expected_revision: opts.expectRevision ?? patch.expected_revision,
-        expected_hash: opts.expectHash ?? patch.expected_hash,
-        allow_blocking: !!opts.force
-      });
-      if (!r.ok) {
-        const code = r.error.code === 'revision_conflict' ? EXIT.CONFLICT : EXIT.PROBLEMS;
-        throw new CliError(r.error.message, code, { error: { ...r.error, results: r.error.results ? resultsJson(r.error.results) : undefined } });
-      }
-      const target = opts.out ?? file;
-      if (!opts.dryRun) writeAtomic(target, serializeDesign(r.design));
-      const s = summarize(r.results);
-      out(!!opts.json, { ok: true, command: 'apply', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, changed: r.changed, reports: r.reports.map((x) => ({ op: x.op, op_index: x.op_index, plan: planJson(x.plan) })), summary: s, results: resultsJson(r.results) }, () => {
-        const lines = [`${opts.dryRun ? '[dry-run] ' : ''}已应用 ${patch.ops.length} 个操作：revision ${design.metadata.revision} → ${r.revision}${opts.dryRun ? '' : `，写入 ${target}`}`];
-        lines.push(`变更对象：${r.changed.join(', ')}`);
-        for (const rep of r.reports) {
+      const opCount = (rawPatch as { ops?: unknown[] }).ops?.length ?? 0;
+      const data = applyPatchData(file, { patch: rawPatch, out: opts.out, dryRun: !!opts.dryRun, expectRevision: opts.expectRevision, expectHash: opts.expectHash, force: opts.force });
+      const s = data.summary;
+      out(!!opts.json, data, () => {
+        const lines = [`${data.dry_run ? '[dry-run] ' : ''}已应用 ${opCount} 个操作：revision ${data.previous_revision} → ${data.revision}${data.dry_run ? '' : `，写入 ${data.out}`}`];
+        lines.push(`变更对象：${data.changed.join(', ')}`);
+        for (const rep of data.reports) {
           lines.push(`自动布线（第 ${rep.op_index + 1} 个操作，主板 ${rep.plan.host}）：${rep.plan.connections.length} 根连接线、${rep.plan.bridges.length} 根馈线/桥线、${rep.plan.unresolved.length} 个未连接`);
-          lines.push(...fmtPlan(rep.plan));
+          lines.push(...fmtPlan(rep.plan as unknown as AutoWirePlan));
         }
         lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
-        for (const x of r.results.filter((x) => x.severity === 'error' || x.severity === 'warning')) lines.push(fmtResult(x));
+        for (const x of data.results.filter((x) => x.severity === 'error' || x.severity === 'warning')) lines.push(fmtResult(x));
         return lines.join('\n');
       });
     });
@@ -334,9 +225,8 @@ export function buildProgram(): Command {
     .option('--expect-hash <hash>', '期望的内容 hash')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { host: string; components?: string; all?: boolean; supply?: number; power: string; signal?: string[]; route: string; intents: boolean; optimize: string; i2cConflicts: string; timeBudget?: number; requireAll?: boolean; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; json?: boolean }) => {
-      const design = readDesign(file);
-      let components: string[];
-      if (opts.all) components = design.components.map((c) => c.id).filter((id) => id !== opts.host);
+      let components: string[] | undefined;
+      if (opts.all) components = undefined; // the data layer expands `all` from the design
       else if (opts.components) components = opts.components.split(',').map((x) => x.trim()).filter(Boolean);
       else throw new CliError('请用 --components a,b,c 或 --all 指定外设');
       if (!['auto', 'rail', 'direct'].includes(opts.power)) throw new CliError(`--power 只能是 auto|rail|direct（收到 ${opts.power}）`);
@@ -349,34 +239,34 @@ export function buildProgram(): Command {
         if (!k || !v) throw new CliError(`--signal 需要 comp.pin=hostPin 形式（收到 ${m}）`);
         signal_pins[k.trim()] = v.trim();
       }
-      const options: AutoWireOptions = {
-        power_distribution: opts.power as AutoWireOptions['power_distribution'],
-        route: opts.route as AutoWireOptions['route'],
-        net_intents: opts.intents,
-        optimize: opts.optimize as AutoWireOptions['optimize'],
-        i2c_conflicts: opts.i2cConflicts as AutoWireOptions['i2c_conflicts'],
-        ...(opts.timeBudget !== undefined ? { time_budget_ms: opts.timeBudget } : {}),
-        ...(opts.supply !== undefined ? { supply_voltage_v: opts.supply } : {}),
-        ...(Object.keys(signal_pins).length ? { signal_pins } : {}),
-        ...(opts.requireAll ? { require_all: true } : {})
-      };
-      const r = applyOps(design, [{ op: 'auto_wire', host: opts.host, components, options }], { expected_revision: opts.expectRevision, expected_hash: opts.expectHash });
-      if (!r.ok) {
-        const code = r.error.code === 'revision_conflict' ? EXIT.CONFLICT : EXIT.PROBLEMS;
-        throw new CliError(r.error.message, code, { error: { ...r.error, results: r.error.results ? resultsJson(r.error.results) : undefined } });
-      }
-      const plan = r.reports.find((x) => x.op === 'auto_wire')!.plan;
-      const target = opts.out ?? file;
-      if (!opts.dryRun) writeAtomic(target, serializeDesign(r.design));
-      const s = summarize(r.results);
-      out(!!opts.json, { ok: true, command: 'autowire', file, out: opts.dryRun ? null : target, dry_run: !!opts.dryRun, previous_revision: design.metadata.revision, revision: r.revision, previous_hash: r.previous_hash, hash: r.hash, plan: planJson(plan), changed: r.changed, summary: s, results: resultsJson(r.results), note: '按目录引脚角色生成导线，不是电气仿真；请核对 needs_review 项。' }, () => {
-        const lines = [`${opts.dryRun ? '[dry-run] ' : ''}自动布线（主板 ${plan.host}，外设 ${plan.components.join(', ')}）：生成 ${plan.connections.length} 根连接线、${plan.bridges.length} 根馈线/桥线；${plan.unresolved.length} 个引脚未能连接`];
+      const data = autowireData(file, {
+        host: opts.host,
+        ...(components ? { components } : {}),
+        ...(opts.all ? { all: true } : {}),
+        power: opts.power as 'auto' | 'rail' | 'direct',
+        route: opts.route as 'auto' | 'flat' | 'elevated',
+        intents: opts.intents,
+        optimize: opts.optimize as 'global' | 'greedy',
+        i2cConflicts: opts.i2cConflicts as 'bus_first' | 'address_first' | 'report',
+        ...(opts.timeBudget !== undefined ? { timeBudget: opts.timeBudget } : {}),
+        ...(opts.supply !== undefined ? { supply: opts.supply } : {}),
+        ...(Object.keys(signal_pins).length ? { signalPins: signal_pins } : {}),
+        ...(opts.requireAll ? { requireAll: true } : {}),
+        out: opts.out,
+        dryRun: !!opts.dryRun,
+        expectRevision: opts.expectRevision,
+        expectHash: opts.expectHash
+      });
+      const plan = data.plan as unknown as AutoWirePlan;
+      const s = data.summary;
+      out(!!opts.json, data, () => {
+        const lines = [`${data.dry_run ? '[dry-run] ' : ''}自动布线（主板 ${plan.host}，外设 ${plan.components.join(', ')}）：生成 ${plan.connections.length} 根连接线、${plan.bridges.length} 根馈线/桥线；${plan.unresolved.length} 个引脚未能连接`];
         lines.push(...fmtPlan(plan));
         lines.push(...fmtI2c(plan));
         lines.push(...fmtOptimization(plan.optimization));
-        lines.push(`revision ${design.metadata.revision} → ${r.revision}${opts.dryRun ? '（未写入）' : `，写入 ${target}`}`);
+        lines.push(`revision ${data.previous_revision} → ${data.revision}${data.dry_run ? '（未写入）' : `，写入 ${data.out}`}`);
         lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
-        for (const x of r.results.filter((x) => x.severity === 'error' || x.severity === 'warning' || (x.severity === 'needs_review' && x.code.startsWith('auto_wire')))) lines.push(fmtResult(x));
+        for (const x of data.results.filter((x) => x.severity === 'error' || x.severity === 'warning' || (x.severity === 'needs_review' && x.code.startsWith('auto_wire')))) lines.push(fmtResult(x));
         lines.push('说明：按目录引脚角色生成导线，不是电气仿真；needs_review 项需人工核对。');
         return lines.join('\n');
       });
@@ -393,18 +283,11 @@ export function buildProgram(): Command {
     .option('--title <title>', '标题')
     .option('--json', 'JSON 输出（仅报告）')
     .action((file: string, opts: { format: string; out?: string; legend: boolean; holeLabels?: boolean; pinLabels: boolean; title?: string; json?: boolean }) => {
-      const design = readDesign(file);
-      let content: string;
-      if (opts.format === 'svg') {
-        const a = analyzeDesign(design);
-        content = exportSvg(a.model, { legend: opts.legend, showHoleLabels: !!opts.holeLabels, showPinLabels: opts.pinLabels, title: opts.title ?? design.metadata.name });
-      } else if (opts.format === 'json') {
-        content = serializeDesign(design);
-      } else throw new CliError(`不支持的格式 ${opts.format}（svg|json）`);
+      const data = exportDesignData(file, { format: opts.format as 'svg' | 'json', legend: opts.legend, holeLabels: opts.holeLabels, pinLabels: opts.pinLabels, title: opts.title });
       if (opts.out) {
-        writeAtomic(opts.out, content);
-        out(!!opts.json, { ok: true, command: 'export', file, format: opts.format, out: opts.out, bytes: content.length }, () => `已导出 ${opts.out}（${content.length} 字节）`);
-      } else process.stdout.write(content);
+        writeAtomic(opts.out, data.content);
+        out(!!opts.json, { ok: true, command: 'export', file, format: data.format, out: opts.out, bytes: data.bytes }, () => `已导出 ${opts.out}（${data.bytes} 字节）`);
+      } else process.stdout.write(data.content);
     });
 
   program
@@ -412,11 +295,9 @@ export function buildProgram(): Command {
     .description('逐线搭建步骤（仅为指导，不代表实物已导通）')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { json?: boolean }) => {
-      const design = readDesign(file);
-      const a = analyzeDesign(design);
-      const steps = buildSteps(a.model, a.connectivity, design.view?.build_done ?? []);
-      out(!!opts.json, { ok: true, command: 'steps', file, count: steps.length, note: '搭建步骤只是指导，不代表实物已经导通；长度不含插入深度与弯折余量。', steps }, () =>
-        steps.map((s) => `${String(s.index).padStart(3)}. [${s.color}/${s.route === 'elevated' ? '杜邦线' : '硬质跳线'}] ${s.from_label}  →  ${s.to_label}${s.length_mm !== null ? `  (~${s.length_mm} mm)` : ''}${s.net ? `  net ${s.net}` : ''}${s.complete ? '  ✓' : ''}`).join('\n')
+      const data = stepsData(file);
+      out(!!opts.json, data, () =>
+        data.steps.map((s) => `${String(s.index).padStart(3)}. [${s.color}/${s.route === 'elevated' ? '杜邦线' : '硬质跳线'}] ${s.from_label}  →  ${s.to_label}${s.length_mm !== null ? `  (~${s.length_mm} mm)` : ''}${s.net ? `  net ${s.net}` : ''}${s.complete ? '  ✓' : ''}`).join('\n')
       );
     });
 
@@ -425,13 +306,11 @@ export function buildProgram(): Command {
     .description('列出设计中的程序与仿真配置（本版本只保存与校验程序，不执行）')
     .option('--json', 'JSON 输出')
     .action((file: string, opts: { json?: boolean }) => {
-      const design = readDesign(file);
-      const programs = programsJson(design);
-      const active = activeProgram(design);
-      out(!!opts.json, { ok: true, command: 'programs', file, revision: design.metadata.revision, hash: designHash(design), programs, simulation: design.simulation ?? null, active_program_id: active?.id ?? null }, () => {
-        const lines = [`${design.metadata.name}  ${fmtProgramsLine(design)}`];
-        for (const p of programs) lines.push(`  ${p.id.padEnd(16)} ${p.name}  → ${p.target_component_id}  [${p.language}${p.entry ? `, ${p.entry}` : ''}, ${p.source_lines} 行]${active?.id === p.id ? '  (启动)' : ''}`);
-        const sim = design.simulation;
+      const data = programsData(file);
+      out(!!opts.json, data, () => {
+        const lines = [`${data.name}  ${fmtProgramsLine(data.programs, data.active_program_id)}`];
+        for (const p of data.programs) lines.push(`  ${p.id.padEnd(16)} ${p.name}  → ${p.target_component_id}  [${p.language}${p.entry ? `, ${p.entry}` : ''}, ${p.source_lines} 行]${data.active_program_id === p.id ? '  (启动)' : ''}`);
+        const sim = data.simulation;
         lines.push(sim ? `仿真配置：${Object.entries(sim).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join('，')}` : '仿真配置：无');
         lines.push('说明：程序随项目保存并参与校验与 hash；本版本尚不执行代码。');
         return lines.join('\n');
@@ -495,6 +374,14 @@ export function buildProgram(): Command {
         lines.push('说明：程序随项目保存并参与校验与 hash；本版本尚不执行代码。');
         return lines.join('\n');
       });
+    });
+
+  program
+    .command('mcp')
+    .description('以 stdio 启动 MCP server（Agent 通道，与 CLI 共用同一引擎；见 docs/AGENT_GUIDE.md）')
+    .action(async () => {
+      const { startMcpServer } = await import('./mcp.js');
+      await startMcpServer();
     });
 
   return program;

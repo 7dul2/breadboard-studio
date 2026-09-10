@@ -1,6 +1,6 @@
 # 进度与验证状态
 
-最后更新：2026-09-10。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
+最后更新：2026-09-11。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
 
 ## 里程碑
 
@@ -13,6 +13,7 @@
 | M4 保存、导出、DSL、接线向导 | 完成 | localStorage 自动保存 + 上一项目恢复 + 保存失败提示；JSON 导入/导出往返哈希一致；SVG/PNG 导出含图例与徽标、无裁切（CLI 测试检查 viewBox）；DSL 面板非法草稿不污染画布；接线向导勾选状态刷新后保留。 |
 | M5 示例、性能、体验 | 完成 | 两个可编辑示例 + 压力样本；元件 JSON 导入（内嵌到设计）；性能数据见下。 |
 | M6 开源准备与发布 | 完成 | README/CONTRIBUTING/SECURITY/LICENSE/THIRD_PARTY_NOTICES/issue 模板/CI/Pages 工作流已写；发布结果见文末。v0.1.0 Release 已发布，GitHub Pages 自动部署成功（https://7dul2.github.io/breadboard-studio/ ），最近一次 push 的 CI 与 Pages 工作流均为 success。 |
+| MCP 封装（Agent 通道） | 完成 | `bb mcp` 在 stdio 上把同一个引擎暴露成 11 个 MCP 工具：9 个只读（`catalog_list` / `catalog_inspect`、`design_inspect`、`design_validate`、`connectivity`、`build_steps`、`list_programs`、`list_ops`、`export_design`）加 2 个默认 dry-run 的写工具（`autowire`、`apply_patch`）。**不重新实现任何东西**：新增 `packages/cli/src/queries.ts` 作为数据层，CLI 的 `--json` 载荷与工具返回体出自同一段代码，`main.ts` 改为调用它——shell 与 MCP 两条路因此不会漂移，这正是"人和 Agent 共用一套规则"落到协议上的样子。三条约定写进代码与测试：**默认只读**（不带 `write:true` 时文件一个字节都不动）、写操作显式 opt-in 且沿用 `expected_revision`/`expected_hash`（冲突仍是错误码 3）、**两种失败分清**——设计里有 error 是调用成功（`ok:false` + results 正是要拿走的东西），用法/事务错误才 `isError`，正文 `{ok:false,error:{code,message}}`，`code` 与 CLI 退出码同义。补丁在 MCP 里**内联传对象**，不必先写临时文件。stdout 只有协议流量：用 `StdioClientTransport` 起真进程验证过 11 个工具、一次 `design_validate` 与一次错误码 2 全部走通（任何横幅或日志都会让握手失败，而日志走 stderr）。单测 8（内存传输的 initialize 握手与 tools/list、只读注解、目录工具与 CLI 同形、规则失败不算 isError、dry-run 不落盘 / `write:true` 落盘 / 过期 revision 拒绝、autowire 先经事务拆线再规划），CLI 既有 13 例零回归；web 未动，入口 chunk 不变。**边界**：只暴露设计工具，没有 resources/prompts，也不能启动仿真或读串口——运行程序仍然只在浏览器里。 |
 | M7 多选自动排线 | 完成 | UI 多选主板 + 外设；电源/GND/I²C/GPIO 角色规划；杜邦线允许重叠/跨越；硬质跳线正交且不共用线段；CLI `autowire`；整批事务撤销；单元 + e2e。 |
 | M8 外观编辑器 | 完成 | 属性面板“编辑外观绘图…”：`render` 图元自动分部件（重叠合并、大面积独立、`g` 标签持久化），点选/框选、拖动、方向键微调、复制、删除、旋转、坐标输入、撤销重做；实物照片底图（缩放/旋转/透明度/拖动对位）；保存即 `add_definition` 内嵌到项目（可撤销），或导出定义 JSON 写回元件库。绘图相关的两个测试原先把真实 N16R8 绘图当夹具（钉死描边色 `#e4e7e3`、`bootLabel - 4` 这样的索引偏移、部件 id `s1`），一次正常重画就会失败——现在几何合并规则改用测试自备的合成绘图断言，真实定义只断言与画法无关的不变量（每个图元恰属一组、底板独立且 large、打标签后重分组一致），e2e 则从定义文件里挑一个「含多个图元的部件」再点。N16R8 板按用户照片二次校准（状态灯间距、稳压器朝向、Type-C 位置，补 16 颗小电容电阻）。 |
 | M7.3 自动排线 I²C 地址冲突处理 | 完成 | 目录新增 `electrical.i2c.controllers/mappable`、主控 `config.i2c_buses`；规则引擎按每条总线检查地址；规划器接线前分配总线，冲突时开第 2 条总线（自动选最近空闲 GPIO）或改用 `address_options` 中的地址，均列为待审核；三块同地址 SSD1315 场景从 1 个 error 变为 0 error + 2 待审核。 |
@@ -40,9 +41,9 @@
 | 套件 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 7 个包全部通过（新增 `packages/sim`） |
-| `pnpm test`（Vitest） | 498 通过：ESP32-S3 驱动 16（含被 PSRAM 占用的引脚 2）、目录 5（含 `reserved` 标记一致性）、自动排线 17（含永不动用 `reserved` 引脚）、BMP390 驱动 15、BMP390 整链路 3、录制回放 4、录制文件 3、时间线几何 6、边记录与断点 4、LTR390 驱动 8、SEN6x 驱动 7、SHT4x 驱动 8、传感器整链路 3、电阻导通与阻值解析 9、LED 驱动 5、LED 整链路 3、I²C 总线 12、SSD1315 驱动 11、触摸显示集成 7、放置吸附与剪贴板几何 6、TTP223 驱动 14、叠加层几何 21、定义写回 6、内嵌绘图丢弃判定 6、Studio TS 沙箱 36（隔离、模块白名单、确定性、预算、行号定位）、数字网络 28、仿真控制器 18（含启动前检查与强制启动）、Worker 会话 17（RGB 闪烁竖切、暂停/复位/RST、死循环、死锁、确定性重放）、自动排线 16、ESP32-S3 驱动 14、编译 14、CLI 13、放置 12、程序与仿真配置 12、泵 12、电源域 12、规则 11、事务/往返 11、调度器 9、outbox 8、面包板导通 7、驱动注册表 7、导线/避障 6、颜色 6、schema 迁移 5、导入边界 5、目录 4、内嵌定义 4、诊断码注册表 3、倍速 3、触摸显示示例 3、外观分组/变换 2、哈希 2（含 I²C 冲突三例）、CLI 13（含 autowire dry-run/写入/require-all/optimize 与 program import/export）、放置 12、程序与仿真配置 12（事务、级联、规则、迁移往返）、规则 11、事务/往返 11、仿真控制器 10（状态机 4 + 会话/快照/诊断）、面包板导通 7、导线/避障 6、schema 迁移 5、目录 4（含仿真绑定一致性）、内嵌定义 4、触摸显示示例 3、外观分组/变换 2、哈希 2 |
+| `pnpm test`（Vitest） | 506 通过：MCP 协议层 8（initialize 握手与 tools/list、只读注解、dry-run 与 write、revision 冲突、规则失败不算 isError）、ESP32-S3 驱动 16（含被 PSRAM 占用的引脚 2）、目录 5（含 `reserved` 标记一致性）、自动排线 17（含永不动用 `reserved` 引脚）、BMP390 驱动 15、BMP390 整链路 3、录制回放 4、录制文件 3、时间线几何 6、边记录与断点 4、LTR390 驱动 8、SEN6x 驱动 7、SHT4x 驱动 8、传感器整链路 3、电阻导通与阻值解析 9、LED 驱动 5、LED 整链路 3、I²C 总线 12、SSD1315 驱动 11、触摸显示集成 7、放置吸附与剪贴板几何 6、TTP223 驱动 14、叠加层几何 21、定义写回 6、内嵌绘图丢弃判定 6、Studio TS 沙箱 36（隔离、模块白名单、确定性、预算、行号定位）、数字网络 28、仿真控制器 18（含启动前检查与强制启动）、Worker 会话 17（RGB 闪烁竖切、暂停/复位/RST、死循环、死锁、确定性重放）、自动排线 16、ESP32-S3 驱动 14、编译 14、CLI 13、放置 12、程序与仿真配置 12、泵 12、电源域 12、规则 11、事务/往返 11、调度器 9、outbox 8、面包板导通 7、驱动注册表 7、导线/避障 6、颜色 6、schema 迁移 5、导入边界 5、目录 4、内嵌定义 4、诊断码注册表 3、倍速 3、触摸显示示例 3、外观分组/变换 2、哈希 2（含 I²C 冲突三例）、CLI 13（含 autowire dry-run/写入/require-all/optimize 与 program import/export）、放置 12、程序与仿真配置 12（事务、级联、规则、迁移往返）、规则 11、事务/往返 11、仿真控制器 10（状态机 4 + 会话/快照/诊断）、面包板导通 7、导线/避障 6、schema 迁移 5、目录 4（含仿真绑定一致性）、内嵌定义 4、触摸显示示例 3、外观分组/变换 2、哈希 2 |
 | `pnpm test:e2e`（Playwright） | 55 通过：M-S1 验收第 ⑧ 例（驱动 GPIO35 报 `reserved_pin_used`、程序照跑、读回 0 而相邻 GPIO38 读回 1）1、实机 5、BMP390 滑杆 1、录制回放 1、时间线与断点 2、传感器滑杆 1、M-S3 I²C 与 OLED 3、复制粘贴 5、外观写回元件库 1（按钮只在本地开发出现；端点对未知 id/穿目录/错 version/错 kind/非对象/GET 六种情况分别拒绝、一个字节都不写）、模式切换 4（各模式只显示自己的控件、运行中切回搭建后被拒的编辑生效、仿真里无会话也不可拖动且 Delete 无效、接线向导高亮随标签开合）、M-S2 验收 5（触摸经导线到达程序、断线后收不到且会话继续、RST 重跑 setup、idle 时叠加层不干扰编辑、深递归不打死 Worker）、M-S1 验收 5（板载 RGB 由程序驱动并交替、暂停冻结虚拟时间、复位归零、死循环被中断且定位到源码行且主线程仍可交互、死锁与预算超限可区分、10× 倍速的虚拟时间增量 > 1× 的 3 倍、短路拒启与强制启动横幅）、外观编辑器（选中部件、微调、复制、删除、保存内嵌、撤销）、关键流程、拼板、库与详细开发板、自动排线（默认自动线材：硬质 + 杜邦混合、馈线/桥线、意图闭合、整批撤销；再强制全杜邦线）、仿真外壳 5（程序列表与保存/撤销、无后端时如实报 `runtime_unavailable`、拓扑改动使快照过期、导出导入与 1.0 迁移后不自动运行、无程序时 `program_missing`、倍速不打断会话且草稿不跨项目） |
-| `pnpm build` + `pnpm check:dist` | 在 `/breadboard-studio/` 子路径下加载示例、24 根线、5 个网络、0 控制台错误；并真的启动一次仿真（`nowUs` 推进到 100,000）走通「子路径 + 生产构建 + Worker + wasm」。主 chunk 740,450 B（阈值 900,000）、不含 quickjs/sucrase 字样、`.wasm` 恰好 1 个 |
+| `pnpm build` + `pnpm check:dist` | 在 `/breadboard-studio/` 子路径下加载示例、24 根线、5 个网络、0 控制台错误；并真的启动一次仿真（`nowUs` 开始推进，本次 635 µs）走通「子路径 + 生产构建 + Worker + wasm」。主 chunk 747,932 B（阈值 900,000）、不含 quickjs/sucrase 字样、`.wasm` 恰好 1 个。**子路径来自 `VITE_BASE=/breadboard-studio/`**（CI 的 pages.yml 已设置）：裸 `pnpm build` 产出的是 base `/`，此时 `check:dist` 会因 `/assets/...` 404 而超时——本地复现发布构建要带上这个变量。 |
 | 浏览器实测（1400×800 / 1200×560） | 代码抽屉拖到极限时画布仍保留 ≥120 px、中间栏不溢出；运行→故障后改倍速仍是“故障”且写入文件，不产生过期诊断 |
 
 计划第 10 节的十类关键测试与用例对应：1 `board-connectivity`；2 `two boards`；3 `wires`；4 `placement`（旋转/脱格/同孔）；5 `rules`（短路、未知→needs_review）；6 `I2C rules`；7 `file round trip`；8 `transactions`+`cli`（原子、冲突、撤销、UI/CLI 一致）；9 `e2e`；10 `cli export`（viewBox 内无裁切、徽标与标签存在）。
@@ -69,6 +70,7 @@
 - 自动排线依赖目录的引脚角色，不会猜测无源/未知引脚；“全局优化”是在给定目标函数下的搜索：网络超过 7 个节点或电源轨超过 10 段时改用启发式，走线顺序是局部搜索，报告中的 `exhaustive` 会如实标注；密集线束仍可能需要手动整理拐点。
 - 只支持 2.54 mm 栅格与 90° 倍数旋转。
 - 数据仅存于浏览器 localStorage；无云端同步。
+- `bb mcp` 只暴露设计工具：没有 resources/prompts，也不能启动仿真或读串口——运行程序仍然只在浏览器里。它读写文件，所以同一份设计被两个 agent 同时改时靠 `expected_revision`/`expected_hash` 发现冲突，而不是靠锁。
 - 仿真做到阶段 4（阶段 5 已调查并谢绝，见上）：GPIO、板载 RGB、BOOT/RST、TTP223 触摸、控制器级 I²C 与 SSD1315 OLED、分立 LED 与电阻、SHT4x / LTR390 / SEN66 / BMP390、时间线断点、录制回放都可用。被板载八线 PSRAM 占用的引脚（N16R8 的 GPIO35–37）会被拒绝当作 GPIO 并报 `reserved_pin_used`。没有的是：真实固件（浏览器编译不了 Xtensa）、WS2812 时序、I²C 逐位波形与上拉/时钟拉伸、电流发热与器件损坏、类型检查。
 - 「实机」只连串口看输出并拉一下 EN，**不能烧录固件**，也不与仿真共享任何东西：真板的引脚接的是桌上的真元件。需要 Chromium 系浏览器与安全上下文；走原生 USB 口的板子没有自动复位电路，复位按钮对它无效。
 - Studio TS 只做语法转译，不做类型检查：写 `.ts` 不等于有类型保护，类型错误要到运行期才暴露为 `program_runtime_error`。
@@ -76,7 +78,7 @@
 
 ## 下一步
 
-第三期「可执行仿真」（规格书阶段 1–4）已全部交付，见 [`SIMULATOR_RUNTIME_PLAN.md`](SIMULATOR_RUNTIME_PLAN.md)；阶段 5「真实固件后端」按计划先做 RFC，结论是已调查并谢绝（[`PHASE5_RFC.md`](PHASE5_RFC.md)），其中站得住的那部分已作为「实机」模式交付。仿真方向接下来若要继续，值得做的是烧录固件（esptool-js，惰性加载）与更多器件建模。其它方向：实测校验并把核实过的定义改为 `verified`；终端条无轨面包板型号；I²C 上拉与 GPIO 复用规则；密集线束整理；可选 MCP 封装。
+第三期「可执行仿真」（规格书阶段 1–4）已全部交付，见 [`SIMULATOR_RUNTIME_PLAN.md`](SIMULATOR_RUNTIME_PLAN.md)；阶段 5「真实固件后端」按计划先做 RFC，结论是已调查并谢绝（[`PHASE5_RFC.md`](PHASE5_RFC.md)），其中站得住的那部分已作为「实机」模式交付。仿真方向接下来若要继续，值得做的是烧录固件（esptool-js，惰性加载）与更多器件建模（烧录短期不做）。**MCP 封装已交付**（见里程碑表），下一步按已建好的 GitHub milestone「可信度：实测与 verified」推进：定义证据等级与 `verified` 状态流转、I²C 上拉静态规则、GPIO 复用规则扩展（strapping / USB / JTAG，把 S4.7 的 `reserved` 机制铺开）、社区实测协作流程。其它方向：终端条无轨面包板型号；密集线束整理。
 
 ## 发布记录
 

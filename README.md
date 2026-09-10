@@ -157,6 +157,14 @@ pnpm bb export design.breadboard.json --format svg --out layout.svg
 
 补丁原子执行，结构错误会阻止整批应用；revision / hash 检查可避免并发覆盖。若由程序直接解析 JSON，使用 `node packages/cli/bin/bb.mjs` 入口，避免 pnpm 的错误日志混入输出。
 
+Agent 也可以用 MCP 直接调用同一个引擎，连 shell 都不需要：
+
+```bash
+claude mcp add breadboard -- node packages/cli/bin/bb.mjs mcp
+```
+
+`bb mcp` 在 stdio 上暴露十个只读工具加两个默认 dry-run 的写工具（`autowire`、`apply_patch`），返回体与 CLI 的 `--json` 完全一致；写文件必须显式 `write: true`。工具清单与错误约定见 [Agent 指南](docs/AGENT_GUIDE.md#mcp-server工具通道)。
+
 完整命令、补丁示例与自动排线规则见 [Agent 指南](docs/AGENT_GUIDE.md)和[设计文件格式](docs/DESIGN_FORMAT.md)。
 
 ## 示例项目
@@ -206,6 +214,6 @@ Breadboard Studio is an open-source layout editor for people and AI agents. It i
 
 Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an account. Load an example from the Project menu to explore a complete design. Projects are saved locally in your browser; JSON export lets you back them up or share them.
 
-The CLI and browser share the same geometry, connectivity graph, and transaction engine. Agents can inspect and edit `.breadboard.json` files directly. See the [Agent guide](docs/AGENT_GUIDE.md) for commands and patch examples.
+The CLI and browser share the same geometry, connectivity graph, and transaction engine. Agents can inspect and edit `.breadboard.json` files directly, or call the same engine as tools over MCP (`bb mcp`; its write tools stay dry-run until asked to write). See the [Agent guide](docs/AGENT_GUIDE.md) for commands, MCP setup, and patch examples.
 
 Programs now run: user code executes in an isolated QuickJS sandbox on a deterministic virtual clock, driving the board's on-board RGB, the serial console and — over a real controller-level I²C bus — the SSD1315 OLED, with pause, single-step, reset and playback speed. Buttons and touch input work on the canvas and reach the program through the real wiring. Cut a wire, use the wrong address or leave the panel unpowered and each fails differently, with a diagnostic that names the fix. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.

@@ -12,11 +12,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@breadboard-studio/core": "workspace:*",
     "@breadboard-studio/catalog": "workspace:*",
+    "@breadboard-studio/core": "workspace:*",
     "@breadboard-studio/render": "workspace:*",
     "@breadboard-studio/schema": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "commander": "15.0.0",
-    "tsx": "4.23.13"
+    "tsx": "4.23.13",
+    "zod": "4.6.1"
   }
 }
