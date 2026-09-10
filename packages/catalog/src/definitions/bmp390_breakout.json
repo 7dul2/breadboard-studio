@@ -196,7 +196,10 @@
       "configurable": true,
       "sda_pin": "SDA",
       "scl_pin": "SCL",
-      "notes": "SDO 拉高 0x77 (119)，SDO 接地 0x76 (118)。"
+      "notes": "SDO 拉高 0x77 (119)，SDO 接地 0x76 (118)。",
+      "pullups": {
+        "state": "unknown"
+      }
     },
     "notes": "芯片本体供电范围 1.65–3.6 V；转接板是否含稳压/电平转换未知，请在 config.supply_voltage_v 中填写实测/资料值。"
   },

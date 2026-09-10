@@ -230,7 +230,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "notes": "启动模式引脚",
-      "auto_wire": "avoid"
+      "auto_wire": "avoid",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO1": {
       "role": "gpio",
@@ -250,7 +253,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "strapping 引脚（JTAG 选择）"
+      "notes": "strapping 引脚（JTAG 选择）",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO4": {
       "role": "gpio",
@@ -350,7 +356,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "notes": "USB D-",
-      "auto_wire": "avoid"
+      "auto_wire": "avoid",
+      "multiplex": [
+        "usb"
+      ]
     },
     "GPIO20": {
       "role": "gpio",
@@ -358,7 +367,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "notes": "USB D+",
-      "auto_wire": "avoid"
+      "auto_wire": "avoid",
+      "multiplex": [
+        "usb"
+      ]
     },
     "GPIO21": {
       "role": "gpio",
@@ -400,25 +412,37 @@
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO40": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO41": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO42": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO45": {
       "role": "gpio",
@@ -426,7 +450,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "notes": "strapping 引脚",
-      "auto_wire": "avoid"
+      "auto_wire": "avoid",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO46": {
       "role": "gpio",
@@ -434,7 +461,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "notes": "strapping 引脚",
-      "auto_wire": "avoid"
+      "auto_wire": "avoid",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO47": {
       "role": "gpio",
@@ -479,7 +509,10 @@
       "configurable": true,
       "notes": "ESP32-S3 的 I²C 可映射到任意 GPIO；通过 config.i2c_sda_pin / i2c_scl_pin 指定实际使用的引脚。",
       "controllers": 2,
-      "mappable": true
+      "mappable": true,
+      "pullups": {
+        "state": "unknown"
+      }
     }
   },
   "features": [
@@ -698,6 +731,12 @@
     {
       "title": "Espressif ESP32-S3-DevKitC-1 User Guide (pin layout)",
       "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1.html"
+    },
+    {
+      "title": "ESP32-S3 Series Datasheet — strapping and IO multiplexing",
+      "url": "https://documentation.espressif.com/esp32_s3_datasheet_en.pdf",
+      "accessed": "2026-09-11",
+      "note": "芯片复用能力；板级连接及 eFuse 配置仍需实物确认。"
     }
   ],
   "license": {

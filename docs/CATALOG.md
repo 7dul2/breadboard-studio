@@ -6,11 +6,13 @@
 
 | 状态 | 含义 |
 | --- | --- |
-| `verified` | 与注明的资料或实测吻合（不是硬件认证）。 |
+| `verified` | 该范围有可追溯证据与人工复核；几何需要实测（不是硬件认证）。 |
 | `approximate` | 主要尺寸/数据来自资料，但细节未实测。 |
 | `unknown` | 占位；使用前必须核实。 |
 
 规则引擎对每个非 `verified` 的实例输出 `model_unverified`（needs_review），编辑器与导出图上显示徽标。**v0.1 内置定义没有任何几何是 verified。**
+
+新增 `evidence[]` 的字段、升级/降级流程与社区实测表见 [VERIFICATION.md](VERIFICATION.md)。旧 verified 若缺证据会被拒绝导入，须补证据或显式降级。
 
 ## 内置定义（v0.1）
 
@@ -31,17 +33,18 @@
 | `sht41_breakout@1` / `bmp390_breakout@1` / `ltr390_breakout@1` | unknown | approximate | 通用 I²C 转接板模板 + 芯片地址；转接板尺寸/针序/稳压未知。 |
 | `sen66@1` | approximate | approximate | 板外线缆器件，6 端子 JST-GH；平均电流 ~90 mA，峰值未录入。 |
 | `power_module_3v3@1` | unknown | unknown | 3V3/GND 输出占位；能力在 `config.capacity_ma` 填写。 |
-| `resistor_axial@1` / `led_5mm@1` | approximate | verified/approximate | 基础两端元件；两端之间不是短路。 |
+| `resistor_axial@1` / `led_5mm@1` | approximate | approximate | 基础两端元件；两端之间不是短路。 |
 
 来源链接写在各定义的 `sources` 字段中，可用 `pnpm bb catalog inspect <ref> --json` 查看。
 
 ## 引脚元数据 `pin_meta`
 
-每根引脚除 `role`、`direction`、`drive`、电压等字段外，还有两个决定工具行为的字段：
+每根引脚除 `role`、`direction`、`drive`、电压等字段外，还有以下决定工具行为的字段：
 
 | 字段 | 含义 |
 | --- | --- |
 | `auto_wire` | 给自动排线的**偏好**：`avoid` 只在没有别的空闲引脚时才用（strapping、USB），`skip` 从不自动接，`to_ground` / `to_power` 表示这是应当接到地/电源的配置脚。 |
+| `multiplex` | `strapping` / `usb` / `jtag` 数组；接线时提示启动/外设复用风险，自动排线优先避让。 |
 | `reserved` | 关于板子的**事实**：这根引脚虽然引到了排针上，但已被板载存储器占用（`flash` / `psram`），根本不能当作外接 GPIO 使用。 |
 
 两者强度不同。`reserved` 比 `auto_wire: "skip"` 更硬：自动排线不但不会选它，用 `signal_pins` 指名它也会直接报错（线接得上，但不会工作）；仿真器还会拒绝把它当 GPIO 建模——程序对它的 `pinMode` / `digitalWrite` / `digitalRead` 一律不生效，引脚保持高阻、读回 0，并报出一条 `reserved_pin_used`（warning）。请在 `notes` 里写清后果，诊断与排线报告都会引用它。
@@ -111,3 +114,5 @@
   - **“写回元件库”**（只在本地 `pnpm dev` 下出现）：直接覆盖 `packages/catalog/src/definitions/<id>.json`，也就是内置目录真正读的那个文件。改一次所有项目都对，文件本身受 git 管理，写错了 `git checkout` 就回来。**绘图本身画错了，就该走这条。** 写入前浏览器会用 `validateComponentDefinition`（内置目录启动时跑的同一个校验器）挡一道，不合 schema 就不发；服务端只允许覆盖已存在的 `<id>.json`，且 `kind`/`id`/`version` 必须与原文件一致，不能新建、不能跨目录。记得同步更新 `status_notes` 说明依据。
   - “保存到本项目”：通过 `add_definition` 内嵌进当前设计（同一 `id@version`，仅本项目内覆盖内置定义，可撤销）。**只活在这一份文档里**——`replace_design` 在新文档没带 `embedded_catalog` 时会把它删掉，所以应用 DSL 草稿、导入、载入示例、新建项目，以及撤销回到保存之前，都会让绘图退回内置版本（DSL 那条路会额外提示一句）。适合“这块板子我这个项目里想画得不一样”，不适合“库里画错了”。
   - “导出定义 JSON”：下载完整定义，手动复制回 `packages/catalog/src/definitions/`。没有本地 dev server 时用它。
+
+I²C 上拉用 `electrical.i2c.pullups` 建模，内置目录暂为 unknown。字段与规则限制见 [静态规则的边界](VERIFICATION.md#静态规则的边界)。

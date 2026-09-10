@@ -163,6 +163,9 @@
       "aliases": [
         "A2",
         "GPIO3"
+      ],
+      "multiplex": [
+        "strapping"
       ]
     },
     "D3": {
@@ -281,7 +284,10 @@
       "configurable": true,
       "controllers": 2,
       "mappable": true,
-      "notes": "默认 Wire 总线为 D4/SDA、D5/SCL；ESP32-S3 有 2 个 I²C 控制器，可映射到任意 GPIO（config.i2c_sda_pin/i2c_scl_pin、config.i2c_buses）。"
+      "notes": "默认 Wire 总线为 D4/SDA、D5/SCL；ESP32-S3 有 2 个 I²C 控制器，可映射到任意 GPIO（config.i2c_sda_pin/i2c_scl_pin、config.i2c_buses）。",
+      "pullups": {
+        "state": "unknown"
+      }
     },
     "notes": "Wi-Fi 发射与摄像头工作时峰值电流显著高于空闲值，具体数值需以官方资料为准。"
   },
@@ -446,6 +452,12 @@
     {
       "title": "Seeed Studio Wiki — Getting Started with Seeed Studio XIAO ESP32S3 (Sense)",
       "url": "https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/"
+    },
+    {
+      "title": "ESP32-S3 Series Datasheet — strapping and IO multiplexing",
+      "url": "https://documentation.espressif.com/esp32_s3_datasheet_en.pdf",
+      "accessed": "2026-09-11",
+      "note": "芯片复用能力；板级连接及 eFuse 配置仍需实物确认。"
     }
   ],
   "license": {

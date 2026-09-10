@@ -5,6 +5,20 @@
 
 const point = { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 } as const;
 const status = { type: 'string', enum: ['verified', 'approximate', 'unknown'] } as const;
+const evidence = {
+  type: 'array',
+  items: {
+    type: 'object', additionalProperties: false,
+    required: ['facet', 'level', 'source_url', 'scope', 'method', 'result', 'recorded_at'],
+    properties: {
+      facet: { enum: ['geometry', 'electrical'] }, level: { enum: ['documented', 'measured'] },
+      source_url: { type: 'string', pattern: '^https?://[^\\s]+$' },
+      scope: { type: 'string', pattern: '\\S' }, method: { type: 'string', pattern: '\\S' },
+      result: { type: 'string', pattern: '\\S' }, recorded_at: { type: 'string', format: 'date' },
+      reviewer: { type: 'string', pattern: '\\S' }, reviewed_at: { type: 'string', format: 'date' }
+    }
+  }
+} as const;
 const sources = {
   type: 'array',
   items: {
@@ -93,6 +107,7 @@ export const boardDefinitionSchema = {
         corner_radius_um: { type: 'number' }
       }
     },
+    evidence,
     geometry_status: status,
     electrical_status: status,
     status_notes: { type: 'string' },
@@ -114,6 +129,7 @@ const pinMeta = {
     max_source_ma: { type: ['number', 'null'] },
     aliases: { type: 'array', items: { type: 'string' } },
     auto_wire: { type: 'string', enum: ['default', 'avoid', 'skip', 'to_ground', 'to_power'] },
+    multiplex: { type: 'array', minItems: 1, uniqueItems: true, items: { enum: ['strapping', 'usb', 'jtag'] } },
     reserved: { type: 'string', enum: ['flash', 'psram'] },
     notes: { type: 'string' }
   }
@@ -289,6 +305,15 @@ export const componentDefinitionSchema = {
           required: ['sda_pin', 'scl_pin'],
           additionalProperties: false,
           properties: {
+            pullups: {
+              type: 'object', additionalProperties: false, required: ['state'],
+              properties: {
+                state: { enum: ['present', 'absent', 'unknown'] },
+                supply_pin: { type: 'string', minLength: 1 },
+                resistance_ohms: { type: 'number', exclusiveMinimum: 0 }
+              },
+              allOf: [{ if: { properties: { state: { const: 'present' } } }, then: { required: ['supply_pin'] } }]
+            },
             address_default: { type: ['integer', 'null'] },
             address_options: { type: 'array', items: { type: 'integer' } },
             configurable: { type: 'boolean' },
@@ -324,6 +349,7 @@ export const componentDefinitionSchema = {
     },
     simulation,
     render: { type: 'array', items: renderPrimitive },
+    evidence,
     geometry_status: status,
     electrical_status: status,
     status_notes: { type: 'string' },

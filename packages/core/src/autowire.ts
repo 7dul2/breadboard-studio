@@ -710,6 +710,10 @@ function hostPinsByRole(host: PlacedComponent, roles: PinRole[]): PlacedPin[] {
   return host.pins.filter((p) => roles.includes(p.meta.role));
 }
 
+function avoidWire(meta: PinMeta): boolean {
+  return meta.auto_wire === 'avoid' || !!meta.multiplex?.length;
+}
+
 /**
  * Pins the planner must never wire: an explicit `skip` hint, or a pin the board
  * variant has already committed (`reserved`, e.g. the octal PSRAM bus of an
@@ -741,7 +745,7 @@ function allocateGpio(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): { pin: Pla
       throw new AutoWireError(`signal_pins：${ctx.host.instance.id}.${explicit} 被板上的 ${hp.meta.reserved === 'psram' ? 'PSRAM' : 'Flash'} 占用，不能作为外接 GPIO${hp.meta.notes ? `（${hp.meta.notes}）` : ''}`);
     }
     ctx.plannedGpios.add(pinKey(ctx.host.instance.id, hp.name));
-    return { pin: hp, avoided: false };
+    return { pin: hp, avoided: avoidWire(hp.meta) };
   }
   const preferAnalog = pin.meta.role === 'analog';
   const pool = [...hostPinsByRole(ctx.host, preferAnalog ? ['analog'] : ['gpio']), ...hostPinsByRole(ctx.host, preferAnalog ? ['gpio'] : ['analog'])];
@@ -751,8 +755,8 @@ function allocateGpio(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): { pin: Pla
     const free = p.hole ? accessibleHolesForPin(ctx.model, ctx.host.instance.id, p.name).some((h) => !ctx.reserved.has(h)) : true;
     return (free ? 0 : 1_000_000) + manhattan(p.global_um, pin.global_um);
   };
-  const normal = usable.filter((p) => p.meta.auto_wire !== 'avoid').sort((a, b) => rank(a) - rank(b));
-  const fallback = usable.filter((p) => p.meta.auto_wire === 'avoid').sort((a, b) => rank(a) - rank(b));
+  const normal = usable.filter((p) => !avoidWire(p.meta)).sort((a, b) => rank(a) - rank(b));
+  const fallback = usable.filter((p) => avoidWire(p.meta)).sort((a, b) => rank(a) - rank(b));
   const chosen = normal[0] ?? fallback[0];
   if (!chosen) {
     return { component: pc.instance.id, pin: pin.name, code: 'host_no_free_gpio', reason: `主板 ${ctx.host.instance.id} 没有空闲的 GPIO 可分配给 ${key}`, suggestion: '释放一个 GPIO，或用 signal_pins 指定引脚。' };
@@ -863,7 +867,7 @@ function hex(n: number): string {
 function pickFreeGpios(ctx: Ctx, count: number, near: PointUm): PlacedPin[] {
   const pool = hostPinsByRole(ctx.host, ['gpio']).filter((p) => !neverWire(p.meta) && !hostPinInUse(ctx, p));
   const byDistance = (a: PlacedPin, b: PlacedPin) => manhattan(a.global_um, near) - manhattan(b.global_um, near);
-  const ordered = [...pool.filter((p) => p.meta.auto_wire !== 'avoid').sort(byDistance), ...pool.filter((p) => p.meta.auto_wire === 'avoid').sort(byDistance)];
+  const ordered = [...pool.filter((p) => !avoidWire(p.meta)).sort(byDistance), ...pool.filter((p) => avoidWire(p.meta)).sort(byDistance)];
   const picked = ordered.slice(0, count);
   if (picked.length < count) return [];
   for (const p of picked) ctx.plannedGpios.add(pinKey(ctx.host.instance.id, p.name));
@@ -884,10 +888,10 @@ function assignI2cBuses(ctx: Ctx, peripherals: PlacedComponent[]): void {
     if (pc === ctx.host || pc.def.category === 'mcu') continue;
     const pins = i2cPins(pc);
     if (!pins) continue;
-    const sdaRoot = ctx.conn.full.find(pinKey(pc.instance.id, pins.sda));
-    const sclRoot = ctx.conn.full.find(pinKey(pc.instance.id, pins.scl));
+    const sdaRoot = ctx.conn.direct.find(pinKey(pc.instance.id, pins.sda));
+    const sclRoot = ctx.conn.direct.find(pinKey(pc.instance.id, pins.scl));
     for (const b of buses) {
-      if (ctx.conn.full.find(pinKey(ctx.host.instance.id, b.sda)) === sdaRoot && ctx.conn.full.find(pinKey(ctx.host.instance.id, b.scl)) === sclRoot) {
+      if (ctx.conn.direct.find(pinKey(ctx.host.instance.id, b.sda)) === sdaRoot && ctx.conn.direct.find(pinKey(ctx.host.instance.id, b.scl)) === sclRoot) {
         const addr = i2cAddress(pc);
         if (addr !== null) b.addresses.add(addr);
       }
@@ -977,7 +981,7 @@ function signalNet(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): NetPlan | Aut
       severity: 'needs_review',
       code: 'auto_wire_avoid_pin_used',
       category: 'evidence',
-      message: `${key} 被分配到 ${ctx.host.instance.id}.${alloc.pin.name}（${alloc.pin.meta.notes ?? '目录建议避免自动使用'}），因为没有其他空闲 GPIO`,
+      message: `${key} 被分配到 ${ctx.host.instance.id}.${alloc.pin.name}（${alloc.pin.meta.notes ?? '目录建议避免自动使用'}），${ctx.req.signal_pins?.[key] ? '由 signal_pins 显式指定' : '因为没有其他空闲 GPIO'}`,
       objects: [ctx.host.instance.id, pc.instance.id],
       endpoints: [key, pinKey(ctx.host.instance.id, alloc.pin.name)],
       blocking: false,

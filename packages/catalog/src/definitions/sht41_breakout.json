@@ -159,7 +159,10 @@
       "configurable": false,
       "sda_pin": "SDA",
       "scl_pin": "SCL",
-      "notes": "SHT41-AD1B 固定 0x44 (68)；-BD1B 变体 0x45 (69)。"
+      "notes": "SHT41-AD1B 固定 0x44 (68)；-BD1B 变体 0x45 (69)。",
+      "pullups": {
+        "state": "unknown"
+      }
     },
     "notes": "芯片本体供电范围 1.08–3.6 V；转接板是否含稳压/电平转换未知，请在 config.supply_voltage_v 中填写实测/资料值。"
   },

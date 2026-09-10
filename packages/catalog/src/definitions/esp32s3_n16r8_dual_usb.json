@@ -295,7 +295,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "启动配置引脚"
+      "notes": "启动配置引脚",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO1": {
       "role": "gpio",
@@ -315,7 +318,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "strapping 引脚"
+      "notes": "strapping 引脚",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO4": {
       "role": "gpio",
@@ -415,7 +421,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "USB D-"
+      "notes": "USB D-",
+      "multiplex": [
+        "usb"
+      ]
     },
     "GPIO20": {
       "role": "gpio",
@@ -423,7 +432,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "USB D+"
+      "notes": "USB D+",
+      "multiplex": [
+        "usb"
+      ]
     },
     "GPIO21": {
       "role": "gpio",
@@ -465,25 +477,37 @@
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO40": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO41": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO42": {
       "role": "gpio",
       "io_voltage_v": 3.3,
       "direction": "bidir",
-      "drive": "push_pull"
+      "drive": "push_pull",
+      "multiplex": [
+        "jtag"
+      ]
     },
     "GPIO45": {
       "role": "gpio",
@@ -491,7 +515,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "strapping 引脚"
+      "notes": "strapping 引脚",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO46": {
       "role": "gpio",
@@ -499,7 +526,10 @@
       "direction": "bidir",
       "drive": "push_pull",
       "auto_wire": "avoid",
-      "notes": "strapping 引脚"
+      "notes": "strapping 引脚",
+      "multiplex": [
+        "strapping"
+      ]
     },
     "GPIO47": {
       "role": "gpio",
@@ -544,7 +574,10 @@
       "configurable": true,
       "notes": "ESP32-S3 外设矩阵可重映射 I²C；模型默认使用 GPIO8/GPIO9。",
       "controllers": 2,
-      "mappable": true
+      "mappable": true,
+      "pullups": {
+        "state": "unknown"
+      }
     },
     "notes": "N16R8 表示 16 MB Flash 与 8 MB 八线 PSRAM；GPIO35–37 不应作为普通外接 GPIO 使用。"
   },
@@ -4024,6 +4057,12 @@
       "title": "用户提供的红框器件标注正面图",
       "accessed": "2026-09-05",
       "note": "以红框为最终器件清单，并以针脚排为标尺校准所有标注器件的相对位置。"
+    },
+    {
+      "title": "ESP32-S3 Series Datasheet — strapping and IO multiplexing",
+      "url": "https://documentation.espressif.com/esp32_s3_datasheet_en.pdf",
+      "accessed": "2026-09-11",
+      "note": "芯片复用能力；板级连接及 eFuse 配置仍需实物确认。"
     }
   ],
   "license": {

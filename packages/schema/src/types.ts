@@ -186,6 +186,19 @@ export interface DesignDocument {
 
 export type ModelStatus = 'verified' | 'approximate' | 'unknown';
 
+/** Reviewable evidence for a specific definition facet; never hardware certification. */
+export interface DefinitionEvidence {
+  facet: 'geometry' | 'electrical';
+  level: 'documented' | 'measured';
+  source_url: string;
+  scope: string;
+  method: string;
+  result: string;
+  recorded_at: string;
+  reviewer?: string;
+  reviewed_at?: string;
+}
+
 export interface SourceRef {
   title: string;
   url?: string;
@@ -247,6 +260,7 @@ export interface BoardDefinition {
     label_color?: string;
     corner_radius_um?: number;
   };
+  evidence?: DefinitionEvidence[];
   geometry_status: ModelStatus;
   electrical_status: ModelStatus;
   status_notes?: string;
@@ -314,6 +328,8 @@ export interface PinMeta {
    * without octal PSRAM has these pins free.
    */
   reserved?: 'flash' | 'psram';
+  /** Conditional pin functions: warn on external use and prefer ordinary GPIOs. */
+  multiplex?: ('strapping' | 'usb' | 'jtag')[];
   notes?: string;
 }
 
@@ -391,6 +407,8 @@ export interface ElectricalDef {
   supply_current_ma?: { typical?: number | null; peak?: number | null } | null;
   io_voltage_v?: number | null;
   i2c?: {
+    /** Physical on-board pull-ups for the definition's fixed SDA/SCL pins. Missing = unknown. */
+    pullups?: { state: 'present' | 'absent' | 'unknown'; supply_pin?: string; resistance_ohms?: number };
     address_default?: number | null;
     address_options?: number[];
     configurable?: boolean;
@@ -504,6 +522,7 @@ export interface ComponentDefinition {
   simulation?: SimulationDefinition;
   /** Original vector drawing in body-local µm (unrotated). */
   render: RenderPrimitiveDef[];
+  evidence?: DefinitionEvidence[];
   geometry_status: ModelStatus;
   electrical_status: ModelStatus;
   status_notes?: string;

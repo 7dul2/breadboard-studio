@@ -2,6 +2,10 @@
 
 感谢你的兴趣。请先阅读 `docs/ARCHITECTURE.md`（约定）与 `docs/CATALOG.md`（建模）。
 
+## 不写代码也能贡献
+
+按 [实测指南](docs/VERIFICATION.md) 测量尺寸、核对针序或电源轨，用 [实测报告模板](https://github.com/7dul2/breadboard-studio/issues/new?template=hardware_measurement.md) 提交。维护者负责录入 evidence 与复核，报告不会自动升级 verified。
+
 ## 开发环境
 
 ```bash
@@ -24,7 +28,8 @@ pnpm typecheck
 1. 复制 `examples/custom_definition_example.json` 或 `pnpm bb catalog inspect <ref> --json` 的输出。
 2. 如实填写 `geometry_status` / `electrical_status`（默认 `approximate` 或 `unknown`），在 `sources` 写明来源链接，在 `license` 写明绘图/数据许可。
 3. 放到 `packages/catalog/src/definitions/`，在 `packages/catalog/src/index.ts` 注册，运行 `pnpm test`。
-4. PR 描述里说明你核对过哪些尺寸/引脚（实测或资料），哪些没有。
+4. 升级 verified 前按 [证据流转要求](docs/VERIFICATION.md) 补 evidence 与复核记录；不要用测试通过替代实测。
+5. PR 描述里说明你核对过哪些尺寸/引脚（实测或资料），哪些没有。
 
 ## 提交信息
 

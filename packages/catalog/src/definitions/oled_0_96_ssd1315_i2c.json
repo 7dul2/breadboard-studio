@@ -41,7 +41,8 @@
     "supply_voltage_v": { "min": 3.3, "max": 5 },
     "supply_current_ma": { "typical": 20, "peak": null },
     "io_voltage_v": null,
-    "i2c": { "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "地址通常为 0x3C，具体以模块配置为准" }
+    "i2c": {
+      "pullups": { "state": "unknown" }, "address_default": 60, "address_options": [60, 61], "configurable": true, "sda_pin": "SDA", "scl_pin": "SCL", "notes": "地址通常为 0x3C，具体以模块配置为准" }
   },
   "features": [{ "type": "display", "label": "128×64 OLED", "rect_um": { "x": 2350, "y": 6200, "w": 22300, "h": 11500 } }],
   "simulation": {

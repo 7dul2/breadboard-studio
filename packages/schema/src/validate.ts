@@ -56,15 +56,38 @@ export function validateDesignSchema(doc: unknown): SchemaValidation<DesignDocum
   }
   const valid = designValidator(doc);
   if (!valid) issues.push(...toIssues(designValidator.errors));
+  if (valid) {
+    const embedded = (doc as DesignDocument).embedded_catalog;
+    for (const kind of ['boards', 'components'] as const) for (const [i, def] of (embedded?.[kind] ?? []).entries()) {
+      const result = kind === 'boards' ? validateBoardDefinition(def) : validateComponentDefinition(def);
+      issues.push(...result.issues.map((issue) => ({ ...issue, path: `/embedded_catalog/${kind}/${i}${issue.path}` })));
+    }
+  }
   if (issues.length) return { ok: false, issues };
   return { ok: true, issues: [], value: doc as DesignDocument };
+}
+
+function evidenceIssues(def: BoardDefinition | ComponentDefinition): SchemaIssue[] {
+  const issues: SchemaIssue[] = [];
+  for (const [i, e] of (def.evidence ?? []).entries()) {
+    if (!!e.reviewer !== !!e.reviewed_at || (e.reviewed_at && e.reviewed_at < e.recorded_at)) issues.push({ path: `/evidence/${i}`, keyword: 'evidence', message: 'review requires reviewer and a date on or after recording' });
+  }
+  for (const facet of ['geometry', 'electrical'] as const) {
+    if (def[`${facet}_status`] !== 'verified') continue;
+    const records = def.evidence?.filter((e) => e.facet === facet && e.reviewer && e.reviewed_at && e.reviewed_at >= e.recorded_at) ?? [];
+    if (!records.length || (facet === 'geometry' && !records.some((e) => e.level === 'measured'))) {
+      issues.push({ path: `/${facet}_status`, keyword: 'evidence', message: `verified ${facet} requires reviewed, dated evidence${facet === 'geometry' ? ' including physical measurements' : ''}` });
+    }
+  }
+  return issues;
 }
 
 export function validateBoardDefinition(def: unknown): SchemaValidation<BoardDefinition> {
   if (!boardValidator) boardValidator = getAjv().compile(boardDefinitionSchema);
   const valid = boardValidator(def);
   if (!valid) return { ok: false, issues: toIssues(boardValidator.errors) };
-  return { ok: true, issues: [], value: def as BoardDefinition };
+  const issues = evidenceIssues(def as BoardDefinition);
+  return issues.length ? { ok: false, issues } : { ok: true, issues: [], value: def as BoardDefinition };
 }
 
 /**
@@ -99,7 +122,10 @@ export function validateComponentDefinition(def: unknown): SchemaValidation<Comp
   if (!componentValidator) componentValidator = getAjv().compile(componentDefinitionSchema);
   const valid = componentValidator(def);
   if (!valid) return { ok: false, issues: toIssues(componentValidator.errors) };
-  const issues = simulationIssues(def as ComponentDefinition);
+  const typed = def as ComponentDefinition;
+  const issues = [...simulationIssues(typed), ...evidenceIssues(typed)];
+  const pullups = typed.electrical.i2c?.pullups;
+  if (pullups?.supply_pin && !typed.pin_meta[pullups.supply_pin]) issues.push({ path: '/electrical/i2c/pullups/supply_pin', message: 'pull-up supply pin does not exist' });
   if (issues.length) return { ok: false, issues };
   return { ok: true, issues: [], value: def as ComponentDefinition };
 }

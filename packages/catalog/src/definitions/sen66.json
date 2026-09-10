@@ -246,7 +246,10 @@
       "configurable": false,
       "sda_pin": "SDA",
       "scl_pin": "SCL",
-      "notes": "SEN66 默认 I²C 地址 0x6B (107)。"
+      "notes": "SEN66 默认 I²C 地址 0x6B (107)。",
+      "pullups": {
+        "state": "unknown"
+      }
     },
     "notes": "平均电流约 90 mA 只是近似值，启动/风扇峰值电流未在此录入（peak=null），请按 SEN6x 数据手册核对并为供电留出余量。不要仅凭平均值判定供电足够。"
   },

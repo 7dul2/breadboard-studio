@@ -85,7 +85,7 @@ pnpm workspace：
 
 ## 9. 目录定义状态
 
-`geometry_status` 与 `electrical_status` 分别取 `verified` / `approximate` / `unknown`。`verified` 只表示与注明资料或实测吻合，不表示硬件认证。v0.1 内置定义没有任何一项是 `verified` 几何。
+`geometry_status` 与 `electrical_status` 分别取 `verified` / `approximate` / `unknown`。`verified` 需要该范围的可追溯 `evidence[]` 与日期、人工复核记录；几何还需 measured 证据。完整规范见 [VERIFICATION.md](VERIFICATION.md)。单个定义和内嵌定义导入都执行门槛校验；记录不等于硬件认证。当前内置定义没有 verified 项。
 
 ## 10. 仿真：设计态与运行态
 

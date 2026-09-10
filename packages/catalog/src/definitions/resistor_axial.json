@@ -69,7 +69,7 @@
   },
   "render": [],
   "geometry_status": "approximate",
-  "electrical_status": "verified",
+  "electrical_status": "approximate",
   "status_notes": "标准 2.54 mm 栅格跨距；本体尺寸为示意。",
   "sources": [
     {

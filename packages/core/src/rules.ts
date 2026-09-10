@@ -563,8 +563,8 @@ export function checkModel(model: DesignModel): CheckOutput {
         if (seenPins.has(pin)) results.push(res('error', 'i2c_bus_pin_reused', 'interface', `${ctl.instance.id} 的引脚 ${pin} 被多条 I²C 总线使用`, [ctl.instance.id], { endpoints: [pinKey(ctl.instance.id, pin)] }));
         seenPins.add(pin);
       }
-      const sdaRoot = conn.full.find(pinKey(ctl.instance.id, bus.sda));
-      const sclRoot = conn.full.find(pinKey(ctl.instance.id, bus.scl));
+      const sdaRoot = conn.direct.find(pinKey(ctl.instance.id, bus.sda));
+      const sclRoot = conn.direct.find(pinKey(ctl.instance.id, bus.scl));
       if (sdaRoot === sclRoot) {
         results.push(res('error', 'i2c_sda_scl_shorted', 'interface', `${label} 的 SDA 与 SCL 在同一网络`, [ctl.instance.id], { endpoints: [pinKey(ctl.instance.id, bus.sda), pinKey(ctl.instance.id, bus.scl)] }));
       }
@@ -573,11 +573,12 @@ export function checkModel(model: DesignModel): CheckOutput {
   }
   for (const dev of devices) {
     const p = i2cPins(dev)!;
-    const sdaRoot = conn.full.find(pinKey(dev.instance.id, p.sda));
-    const sclRoot = conn.full.find(pinKey(dev.instance.id, p.scl));
-    const sdaNet = conn.netByRoot.get(sdaRoot);
-    const sclNet = conn.netByRoot.get(sclRoot);
-    const wired = (sdaNet && sdaNet.pins.length > 1) || (sclNet && sclNet.pins.length > 1);
+    const sdaRoot = conn.direct.find(pinKey(dev.instance.id, p.sda));
+    const sclRoot = conn.direct.find(pinKey(dev.instance.id, p.scl));
+    const wired = comps.some((other) => other !== dev && other.pins.some((pin) => {
+      const root = conn.direct.find(pinKey(other.instance.id, pin.name));
+      return root === sdaRoot || root === sclRoot;
+    }));
     if (!wired) continue;
     let matched = false;
     for (const bus of buses) {
@@ -621,6 +622,71 @@ export function checkModel(model: DesignModel): CheckOutput {
           })
         );
       }
+    }
+  }
+
+  // Pull-ups are resistive paths to a supply, never direct unions of SDA/SCL.
+  // Inspect each physical line once, including partial buses and remapped pins.
+  const checkedLines = new Set<string>();
+  const allPins = comps.flatMap((pc) => pc.pins.map((pin) => ({ pc, pin, key: pinKey(pc.instance.id, pin.name) })));
+  for (const pc of [...controllers, ...devices]) {
+    const pairs = pc.def.category === 'mcu' ? i2cBuses(pc) : [i2cPins(pc)!];
+    for (const pair of pairs) for (const line of ['sda', 'scl'] as const) {
+      const endpoint = pinKey(pc.instance.id, pair[line]);
+      const root = conn.direct.find(endpoint);
+      if (checkedLines.has(root)) continue;
+      checkedLines.add(root);
+      const attached = allPins.filter((p) => conn.direct.find(p.key) === root);
+      if (!attached.some((p) => p.pc !== pc)) continue;
+      const resistances: (number | undefined)[] = [];
+      const supplyRoots = new Set<string>();
+      let unknown = false;
+      for (const dev of comps) {
+        const i2c = dev.def.electrical.i2c;
+        if (!i2c) continue;
+        // Fixed physical pull-ups must not follow a software pin remapping.
+        const fixedPins = [i2c.sda_pin, i2c.scl_pin].filter((name) => dev.pins.some((p) => p.name === name));
+        if (!fixedPins.some((name) => conn.direct.find(pinKey(dev.instance.id, name)) === root)) continue;
+        const pull = i2c.pullups;
+        if (!pull || pull.state === 'unknown') { unknown = true; continue; }
+        if (pull.state !== 'present' || !pull.supply_pin) continue;
+        const supplyRoot = conn.direct.find(pinKey(dev.instance.id, pull.supply_pin));
+        if (supplyRoot === root) continue;
+        const supply = allPins.filter((p) => conn.direct.find(p.key) === supplyRoot && p.pin.meta.role === 'power_out');
+        if (!supply.length) { unknown = true; continue; }
+        resistances.push(pull.resistance_ohms);
+        supplyRoots.add(supplyRoot);
+      }
+      for (const path of conn.conducted) {
+        const roots = path.pins.map((pin) => conn.direct.find(pinKey(path.componentId, pin)));
+        if (!roots.includes(root) || roots[0] === roots[1]) continue;
+        const other = roots[0] === root ? roots[1] : roots[0];
+        if (!allPins.some((p) => conn.direct.find(p.key) === other && p.pin.meta.role === 'power_out')) continue;
+        if (path.ohms === null || path.ohms <= 0) { unknown = true; continue; }
+        resistances.push(path.ohms);
+        supplyRoots.add(other!);
+      }
+      const objects = [...new Set(attached.map((p) => p.pc.instance.id))];
+      const endpoints = attached.map((p) => p.key);
+      if (!resistances.length || unknown) results.push(res(unknown ? 'needs_review' : 'warning', unknown ? 'i2c_pullup_unknown' : 'i2c_pullup_missing', 'interface', `${endpoint}：${unknown ? `上拉信息或供电连接不完整${resistances.length ? '，已发现上拉但无法排除额外并联' : '，无法确认有效上拉'}` : '未发现连接到电源的 I²C 上拉'}`, objects, { endpoints, suggestion: '核对模块内置上拉；外置上拉应分别从 SDA/SCL 经电阻接到兼容的电源。' }));
+      if (resistances.length > 1) {
+        const equivalent = supplyRoots.size === 1 && resistances.every((r) => r !== undefined) ? 1 / resistances.reduce<number>((g, r) => g + 1 / r!, 0) : null;
+        results.push(res('warning', 'i2c_pullup_parallel', 'interface', `${endpoint}：发现 ${resistances.length} 组上拉并联${equivalent === null ? (supplyRoots.size > 1 ? '，连接不同电源节点，不能按同源并联估算' : '，阻值不完整') : `，等效约 ${Math.round(equivalent)} Ω`}；请核对灌电流与上升时间`, objects, { endpoints }));
+      }
+    }
+  }
+
+  // Multiplexing is conditional risk, whereas reserved memory pins are unavailable.
+  for (const pc of comps) for (const pin of pc.pins) {
+    if (!pin.meta.reserved && !pin.meta.multiplex?.length) continue;
+    const endpoint = pinKey(pc.instance.id, pin.name);
+    const used = allPins.some((p) => p.pc !== pc && conn.full.connected(endpoint, p.key)) ||
+      [...model.wires.values()].some((w) => w.conducts && w.from && conn.direct.connected(endpoint, w.from.address));
+    if (!used) continue;
+    if (pin.meta.reserved) results.push(res('warning', 'reserved_pin_used', 'interface', `${endpoint} 已被板载 ${pin.meta.reserved} 占用，不能作为外接 GPIO。${pin.meta.notes ?? ''}`, [pc.instance.id], { endpoints: [endpoint] }));
+    for (const kind of pin.meta.multiplex ?? []) {
+      const explanation = kind === 'strapping' ? '外接电路可能改变上电/复位采样电平，影响启动、存储器电压或调试选择' : kind === 'usb' ? '与原生 USB D−/D+ 复用；同时使用 USB 时可能冲突' : '与外部 JTAG 调试接口复用；启用该调试接口时可能冲突';
+      results.push(res('warning', `gpio_${kind}_used`, 'interface', `${endpoint}：${explanation}。${pin.meta.notes ?? ''}`, [pc.instance.id], { endpoints: [endpoint], suggestion: '优先换普通 GPIO；如必须使用，请核对板型、启动电平与固件外设配置。静态检查不推断 eFuse 或运行时复用状态。' }));
     }
   }
 
