@@ -39,6 +39,12 @@ export function loadCurrent(): DesignDocument | null {
   return r.ok && r.design ? r.design : null;
 }
 
+/** Raw stored text, for recovery paths that must see *why* a load failed. */
+export function readCurrentText(): string | null {
+  const s = storage();
+  return s ? s.getItem(CURRENT_KEY) : null;
+}
+
 /** Keep the previous project so "新建/导入" can be undone. */
 export function stashPrevious(design: DesignDocument): void {
   const s = storage();
@@ -57,6 +63,11 @@ export function loadPrevious(): DesignDocument | null {
   if (!text) return null;
   const r = loadDesign(text);
   return r.ok && r.design ? r.design : null;
+}
+
+export function readPreviousText(): string | null {
+  const s = storage();
+  return s ? s.getItem(PREVIOUS_KEY) : null;
 }
 
 export function hasPrevious(): boolean {

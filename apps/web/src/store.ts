@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import type { BoardInstance, ComponentInstance, DesignDocument, PointUm, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
 import { analyzeDesign, applyOps, buildModel, catalogForDesign, createEmptyDesign, loadDesign, serializeDesign, type Analysis, type ApplyResult, type Op, type RuleResult } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
-import { hasPrevious, loadClipboard, loadCurrent, loadPrevious, saveClipboard, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import { hasPrevious, loadClipboard, loadCurrent, loadPrevious, readCurrentText, readPreviousText, saveClipboard, saveCurrent, stashPrevious, type StorageStatus } from './storage';
+import { describeDemoted, recoverByExplicitDowngrade } from './recover-embedded';
 import { anchorPointUm, snapBoardPosition, snapPlacement } from './placement';
 import { droppedDefinitions } from './dropped-definitions';
 import deskExample from '../../../examples/desk_device.breadboard.json';
@@ -203,8 +204,41 @@ function nextIdFor(design: DesignDocument, prefix: string): string {
   return `${prefix}${n}`;
 }
 
-export const useStore = create<State>((set, get) => {
-  const initial = loadCurrent() ?? createEmptyDesign('未命名项目');
+interface InitialRestore {
+  design: DesignDocument;
+  notice: { text: string; details: string[] } | null;
+}
+
+/**
+ * Loads the stored current project. When it no longer passes validation — e.g.
+ * an embedded evidence-free `verified` definition under the evidence gate — the
+ * explicit-downgrade recovery runs, its result is written back to the local slot
+ * (so the user is told once, not every startup), and the caller shows the notice.
+ * Without this, a refused load would look exactly like data loss.
+ */
+function restoreInitial(): InitialRestore {
+  const stored = loadCurrent();
+  if (stored) return { design: stored, notice: null };
+  const text = readCurrentText();
+  const rec = text ? recoverByExplicitDowngrade(text) : null;
+  if (!rec) return { design: createEmptyDesign('未命名项目'), notice: null };
+  saveCurrent(rec.design);
+  return {
+    design: rec.design,
+    notice: {
+      text: `本地项目 ${rec.design.metadata.name} 按新版校验无法载入：${rec.demoted.length} 处内嵌定义标着 verified 却没有证据记录。已显式降级为 approximate 并载入。`,
+      details: [
+        `降级的声明：${describeDemoted(rec.demoted)}；降级记录已写入 status_notes，并存回本地槽位以免每次启动重复提示。`,
+        '原始导出文件（如有）未被改动；补齐 evidence 并复核后可以再升级（docs/VERIFICATION.md）。',
+      ]
+    }
+  };
+}
+
+const initialRestore = restoreInitial();
+
+const useStore = create<State>((set, get) => {
+  const initial = initialRestore.design;
   return {
     design: initial,
     past: [],
@@ -379,7 +413,8 @@ export const useStore = create<State>((set, get) => {
       const r = loadDesign(get().dslText);
       if (!r.ok || !r.design) {
         set({ dslErrors: r.errors.map((e) => `${e.path}: ${e.message}`) });
-        get().toast('error', 'DSL 草稿有格式错误，未应用；画布保持不变。');
+        const rec = recoverByExplicitDowngrade(get().dslText);
+        get().toast('error', 'DSL 草稿有格式错误，未应用；画布保持不变。', rec ? ['错误来自缺少证据记录的 verified 内嵌定义：把相应状态改为 approximate 即可通过；用“项目 → 导入”打开同一文件时会执行同样的显式降级。'] : undefined);
         return;
       }
       // A draft taken before an artwork save still parses and still applies — and
@@ -441,6 +476,16 @@ export const useStore = create<State>((set, get) => {
     importJson(text) {
       const r = loadDesign(text);
       if (!r.ok || !r.design) {
+        const rec = recoverByExplicitDowngrade(text);
+        if (rec) {
+          get().replaceDesign(rec.design);
+          const a = analysisOf(rec.design);
+          get().toast(a.hasBlocking ? 'error' : 'info', `已导入 ${rec.design.metadata.name}：其中 ${rec.demoted.length} 处内嵌定义标着 verified 却没有证据记录，已显式降级为 approximate。`, [
+            `降级的声明：${describeDemoted(rec.demoted)}；已写入 status_notes。原文件未被改动，这不是校验放行。`,
+            '导入不可 ⌘Z（replaceDesign 会清历史），“项目 → 恢复上一个项目”可回到导入前的项目。',
+          ]);
+          return { ok: true, errors: [] };
+        }
         const errors = r.errors.map((e) => `${e.path}: ${e.message}`);
         get().toast('error', '导入失败：文件格式不符合 .breadboard.json schema，当前项目未改变。', errors.slice(0, 8));
         return { ok: false, errors };
@@ -453,6 +498,15 @@ export const useStore = create<State>((set, get) => {
     restorePrevious() {
       const prev = loadPrevious();
       if (!prev) {
+        const text = readPreviousText();
+        const rec = text ? recoverByExplicitDowngrade(text) : null;
+        if (rec) {
+          get().replaceDesign(rec.design);
+          get().toast('info', `已恢复 ${rec.design.metadata.name}：其中 ${rec.demoted.length} 处内嵌定义标着 verified 却没有证据记录，已显式降级为 approximate。`, [
+            `降级的声明：${describeDemoted(rec.demoted)}；已写入 status_notes，原文件未被改动。`,
+          ]);
+          return;
+        }
         get().toast('info', '没有可恢复的上一个项目。');
         return;
       }
@@ -640,6 +694,12 @@ export const useStore = create<State>((set, get) => {
     }
   };
 });
+
+// The initial restore recovery runs before any React component exists, so the
+// disclosure goes out through the store itself as soon as it can hold a toast.
+if (initialRestore.notice) useStore.getState().toast('error', initialRestore.notice.text, initialRestore.notice.details);
+
+export { useStore };
 
 export function useAnalysis(): Analysis {
   const design = useStore((s) => s.design);

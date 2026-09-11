@@ -6,6 +6,18 @@ import { chromium } from '@playwright/test';
 
 const dist = join(import.meta.dirname, '..', 'apps', 'web', 'dist');
 const base = '/breadboard-studio/';
+
+// The subpath is injected by CI (pages.yml sets VITE_BASE); a bare `pnpm build`
+// produces a base-/ bundle whose /assets/… requests 404 under this server. Say
+// so immediately instead of letting the first click time out 30 s later (seen
+// on 2026-09-11, issue #9).
+const html = readFileSync(join(dist, 'index.html'), 'utf8');
+if (/<script[^>]+src="\/assets\//.test(html) || /<link[^>]+href="\/assets\//.test(html)) {
+  console.error('check:dist：dist/index.html 以 /assets/… 引用资源，这是 base 为 / 的构建。');
+  console.error('本脚本按 GitHub Pages 的 /breadboard-studio/ 子路径提供服务；本地复现发布构建请先执行：');
+  console.error('  VITE_BASE=/breadboard-studio/ pnpm build');
+  process.exit(1);
+}
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.wasm': 'application/wasm' };
 const server = createServer((req, res) => {
   let path = req.url.split('?')[0];

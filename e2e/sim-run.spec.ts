@@ -10,6 +10,13 @@ import { design, enterSim, fresh, loadExample, simulator } from './helpers';
  * demand under `vite dev`, so it gets a longer poll budget than the rest.
  */
 const FIRST_RUN = { timeout: 20000 };
+// The LED-alternation poll below once saw a single colour for its whole 20 s
+// budget on a loaded CI runner (2026-09-10, run 34507470096) while the same
+// assertion passed locally in 4 s and the rerun was green — the virtual clock
+// was alive (the status/serial/nowUs polls just before it passed), so the
+// budget, not the product, was the weak side. The pin is unchanged — `>= 2`
+// distinct values, both exact colours asserted — only the wall clock grows.
+const LED_ALTERNATION = { timeout: 45000 };
 
 const BLINK = `import { gpio, Serial, sleep, OUTPUT } from '@bbs/runtime';
 
@@ -93,7 +100,7 @@ test.describe('M-S1 · the program actually runs', () => {
       .poll(async () => {
         for (const v of await ledValues(page)) seen.add(v);
         return seen.size;
-      }, FIRST_RUN)
+      }, LED_ALTERNATION)
       .toBeGreaterThanOrEqual(2);
     expect([...seen].sort()).toEqual(['0,0,0', '255,255,255']);
 
