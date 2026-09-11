@@ -70,6 +70,13 @@ export interface AutoWireOptions {
    * (and for addresses a jumper/resistor) change.
    */
   i2c_conflicts?: 'bus_first' | 'address_first' | 'report';
+  /**
+   * After planning, re-run the planner on a few bounded candidate placements of
+   * the component behind the worst long Dupont flight and report a change that
+   * would clearly improve the wiring. Off by default: each candidate is a full
+   * re-plan (up to ~6 extra planner runs). Suggestions never modify the design.
+   */
+  place_suggestions?: boolean;
 }
 
 export interface AutoWireRequest extends AutoWireOptions {
@@ -113,6 +120,29 @@ export interface AutoWireSkip {
   code: string;
   reason: string;
   suggestion?: string;
+}
+
+/**
+ * A placement change worth considering, backed by actually re-planning with
+ * the change applied. The planner never applies it — the design is untouched.
+ */
+export interface AutoWireSuggestion {
+  /** The component to move. */
+  component: string;
+  /** Human-readable change, e.g. "上移 20 mm（靠近主板）". */
+  change: string;
+  /** Where the component is now / would be (anchor hole, or position in mm for off-board). */
+  from: string;
+  to: string;
+  /** Re-planned outcome with the change applied. */
+  objective_after_um: number;
+  total_length_after_um: number;
+  dupont_after: number;
+  unresolved_after: number;
+  /** Objective improvement vs the emitted plan, in percent. */
+  objective_gain_pct: number;
+  /** Numbers come from a full re-plan, not an estimate. */
+  basis: 'replan';
 }
 
 export interface AutoWireOptimization {
@@ -160,6 +190,8 @@ export interface AutoWirePlan {
   bridges: AutoWireBridge[];
   skipped: AutoWireSkip[];
   unresolved: AutoWireSkip[];
+  /** Placement changes worth considering (only with `place_suggestions`); the design is not modified. */
+  suggestions: AutoWireSuggestion[];
   /** Notes to merge into the transaction results (info / needs_review / warning). */
   results: RuleResult[];
 }
@@ -168,19 +200,35 @@ export class AutoWireError extends Error {}
 
 const SIGNAL_COLORS = ['green', 'white', 'purple', 'orange', 'brown', 'gray'];
 
-/** Hard jumpers longer than this become Dupont wires in `auto` mode. */
-const FLAT_MAX_UM = 50_000;
+/**
+ * Hard jumpers longer than this are never chosen in `auto` mode, whatever the
+ * cost comparison says — a protection cap against pathological searches, not
+ * the quality criterion. The criterion is the routed detour ratio and the
+ * direct cost comparison against the Dupont alternative below.
+ */
+const FLAT_MAX_UM = 120_000;
 /** A hard jumper whose routed path exceeds `ratio × straight + slack` is a detour: use a Dupont wire instead. */
 const DETOUR_RATIO = 1.3;
 const DETOUR_SLACK_UM = 8_000;
 /** Cost per bend when comparing candidate endpoint pairs (straight runs read better). */
 const BEND_COST_UM = 2_000;
-/** Dupont wires are compared at their span plus this handicap, so a short hard jumper wins over a Dupont wire of similar length. */
-const ELEVATED_HANDICAP_UM = 6_000;
+/**
+ * Dupont wires are compared at their span plus this handicap. A flight over
+ * the board is visually confusing, awkward to reseat and easy to plug into the
+ * wrong pin — much worse than its length suggests, so the handicap dwarfs the
+ * per-bend cost and makes a clean hard jumper of equal length win.
+ */
+const ELEVATED_HANDICAP_UM = 16_000;
+/**
+ * Additional cost for every component footprint a Dupont wire's straight span
+ * passes over: each flight over a module is one more place to lose track of
+ * the wiring. Hard jumpers never pay this — they cannot cross bodies.
+ */
+const ELEVATED_FLYOVER_UM = 4_000;
 /** How many nearest taps / rail holes are routed for real per source hole. */
 const TARGET_CANDIDATES = 6;
-/** Fixed cost per wire in the objective: fewer wires are easier to build. */
-const WIRE_COST_UM = 3_000;
+/** Fixed cost per wire in the objective: fewer wires are easier to build, but bundling several short hard jumpers is still good form. */
+const WIRE_COST_UM = 1_500;
 /** Largest net (host + peripheral pins) whose spanning trees are enumerated exhaustively (7 nodes = 16807 trees). */
 const EXHAUSTIVE_TREE_NODES = 7;
 /** Largest number of rail segments whose subsets are enumerated exhaustively. */
@@ -328,15 +376,42 @@ function routeEndOf(ctx: Ctx, tap: Tap): RouteEnd {
   return { point: tap.global };
 }
 
-function terminalOwnersOf(a: Tap, b: Tap): Set<string> {
+/**
+ * Modules this wire may route across: those owning its cable terminals (the
+ * terminal sits on its own body and leaves through an outward stub). Hole taps
+ * get no exemption — a module's own body stays an obstacle for wires out of
+ * its group, so the router goes around it instead of through it.
+ */
+function tapOwnersOf(_ctx: Ctx, a: Tap, b: Tap): Set<string> {
   const owners = new Set<string>();
   for (const t of [a, b]) if (t.ep.terminal) owners.add(parseAddress(t.ep.terminal)!.owner);
   return owners;
 }
 
+/** Number of component footprints the straight span passes over (Dupont flights over modules). */
+function flyoversOf(ctx: Ctx, a: Tap, b: Tap): number {
+  const owners = tapOwnersOf(ctx, a, b);
+  let n = 0;
+  for (const pc of ctx.model.components.values()) {
+    if (owners.has(pc.instance.id)) continue;
+    if (segIntersectsRect(a.global, b.global, pc.footprint)) n++;
+  }
+  return n;
+}
+
+/** Whether the segment `a`→`b` touches rect `r` (border counts: a span along a footprint edge still flies over it). */
+function segIntersectsRect(a: PointUm, b: PointUm, r: Rect): boolean {
+  const lo = (v: number, s: number, e: number) => v >= Math.min(s, e) && v <= Math.max(s, e);
+  const inside = (p: PointUm) => p[0] >= r.x && p[0] <= r.x + r.w && p[1] >= r.y && p[1] <= r.y + r.h;
+  if (inside(a) || inside(b)) return true;
+  if (a[0] === b[0]) return a[0] >= r.x && a[0] <= r.x + r.w && lo(r.y, a[1], b[1]);
+  if (a[1] === b[1]) return a[1] >= r.y && a[1] <= r.y + r.h && lo(r.x, a[0], b[0]);
+  return false;
+}
+
 /** Route a hard jumper between two taps exactly as the model will, given the hard jumpers in `flatPaths`. */
 function flatPath(ctx: Ctx, a: Tap, b: Tap, flatPaths: PointUm[][]): PointUm[] {
-  const obstacles: Rect[] = flatRouteObstacles(ctx.model.components.values(), flatPaths, terminalOwnersOf(a, b));
+  const obstacles: Rect[] = flatRouteObstacles(ctx.model.components.values(), flatPaths, tapOwnersOf(ctx, a, b));
   const wps = autoRoute(routeEndOf(ctx, a), routeEndOf(ctx, b), obstacles);
   return [a.global, ...wps, b.global];
 }
@@ -344,20 +419,42 @@ function flatPath(ctx: Ctx, a: Tap, b: Tap, flatPaths: PointUm[][]): PointUm[] {
 /**
  * Evaluate one endpoint pair: decide hard jumper vs Dupont wire (unless the
  * request forces one), compute the path it will get and a comparable cost.
- * Obstacles default to everything planned so far.
+ * A hard jumper wins whenever its routed cost is lower — the Dupont wire is
+ * no longer the fallback for "long", it is the alternative that has to beat
+ * the routed corridor on the same objective. Obstacles default to everything
+ * planned so far.
  */
 function evaluate(ctx: Ctx, source: Tap, target: Tap, flatPaths: PointUm[][] = ctx.flatPaths): Candidate {
   const forced = ctx.req.route && ctx.req.route !== 'auto' ? ctx.req.route : null;
   const straight = distance(source.global, target.global);
-  const crossBoard = !source.board_id || !target.board_id || source.board_id !== target.board_id;
-  const elevated = (): Candidate => ({ source, target, route: 'elevated', points: [source.global, target.global], length_um: Math.round(straight), cost: straight + ELEVATED_HANDICAP_UM });
+  const elevated = (): Candidate => ({ source, target, route: 'elevated', points: [source.global, target.global], length_um: Math.round(straight), cost: straight + ELEVATED_HANDICAP_UM + flyoversOf(ctx, source, target) * ELEVATED_FLYOVER_UM });
   if (forced === 'elevated') return elevated();
-  if (!forced && crossBoard) return elevated();
+  // Hole-to-hole pairs on two boards that do not overlap in plan view sit on
+  // the same work plane: a hard jumper may cross the desk gap between them.
+  // Stacked boards and anything involving a cable terminal still flies.
+  if (!forced && (crossBoard(ctx, source, target) && !(source.ep.hole && target.ep.hole && boardsCoplanar(ctx, source, target)))) return elevated();
   const points = flatPath(ctx, source, target, flatPaths);
   const length = polylineLength(points);
   const bends = Math.max(0, points.length - 2);
   if (!forced && (length > FLAT_MAX_UM || length > DETOUR_RATIO * straight + DETOUR_SLACK_UM)) return elevated();
-  return { source, target, route: 'flat', points, length_um: Math.round(length), cost: length + bends * BEND_COST_UM };
+  const flat: Candidate = { source, target, route: 'flat', points, length_um: Math.round(length), cost: length + bends * BEND_COST_UM };
+  if (!forced && flat.cost >= elevated().cost) return elevated();
+  return flat;
+}
+
+/** A pair is cross-board when either end is a cable terminal or the ends sit on different boards. */
+function crossBoard(ctx: Ctx, source: Tap, target: Tap): boolean {
+  return !source.board_id || !target.board_id || source.board_id !== target.board_id;
+}
+
+/** Two boards can share a flat jumper only when both are modelled and do not overlap in plan view (not stacked). */
+function boardsCoplanar(ctx: Ctx, a: Tap, b: Tap): boolean {
+  const pa = ctx.model.boards.get(a.board_id!);
+  const pb = ctx.model.boards.get(b.board_id!);
+  if (!pa || !pb) return false;
+  const A = pa.bounds;
+  const B = pb.bounds;
+  return A.x + A.w <= B.x || B.x + B.w <= A.x || A.y + A.h <= B.y || B.y + B.h <= A.y;
 }
 
 /** Best routed pair among source holes and the nearest targets (by Manhattan distance) of each source. */
@@ -1686,6 +1783,227 @@ function centre(pc: PlacedComponent): PointUm {
   return [pc.bounds.x + pc.bounds.w / 2, pc.bounds.y + pc.bounds.h / 2];
 }
 
+/**
+ * A power module nobody wired stays silently dangling in the design. The
+ * planner never parallels a peripheral supply with the host on its own — that
+ * is an electrical decision (two regulator outputs must not simply be tied) —
+ * but it does report the floating module instead of ignoring it.
+ */
+function floatingPowerSources(ctx: Ctx, requested: Set<string>): RuleResult[] {
+  const out: RuleResult[] = [];
+  for (const pc of ctx.model.components.values()) {
+    if (pc === ctx.host || requested.has(pc.instance.id)) continue;
+    for (const pin of pc.pins) {
+      if (pin.meta.role !== 'power_out' || typeof pin.meta.voltage_v !== 'number') continue;
+      const key = pinKey(pc.instance.id, pin.name);
+      if (terminalWired(ctx, key)) continue;
+      out.push({
+        severity: 'needs_review',
+        code: 'auto_wire_power_source_floating',
+        category: 'evidence',
+        message: `电源元件 ${pc.instance.id} 的 ${pin.name}（${voltageName(pin.meta.voltage_v)} 输出）没有接线，电源模块处于悬空状态`,
+        objects: [pc.instance.id],
+        endpoints: [key],
+        blocking: false,
+        suggestion: `如需外部供电：把 ${pin.name} 接到最近的 + 电源轨、模块的 GND 接到 − 轨（或用 bb autowire 把电源模块作为主板单独布线）。注意与主板 ${ctx.host.instance.id} 的输出并联供电是否安全需要你自行确认。`
+      });
+    }
+  }
+  return out;
+}
+
+/** Global point of a plan connection endpoint: a hole address or a `component.pin` terminal. */
+function endpointGlobal(ctx: Ctx, address: string): PointUm | null {
+  const g = holeGlobal(ctx.model, address);
+  if (g) return g;
+  const parsed = parseAddress(address);
+  const pin = parsed ? pinOf(ctx.model.components.get(parsed.owner)!, parsed.name) : undefined;
+  return pin ? pin.global_um : null;
+}
+
+const BUNDLE_EXIT_UM = 8_000;
+const BUNDLE_STAGGER_UM = 1_800;
+/** Bundling may add at most this much over the straight span (or 5 % for long spans). */
+const BUNDLE_MAX_ADDED_UM = 8_000;
+
+/**
+ * Wires leaving the same module fan out as a cable, not as coincident spans:
+ * each elevated wire of a ≥2-wire group gets one staggered bend near the
+ * source so the runs separate where they leave the module and stay readable.
+ * Lengths stay honest — the emitted polyline is what gets measured — and a
+ * wire keeps its straight span when bundling would add too much length.
+ */
+function bundleElevatedFans(ctx: Ctx, notes: string[]): void {
+  const byComponent = new Map<string, AutoWireConnection[]>();
+  for (const c of ctx.connections) {
+    if (c.route !== 'elevated' || !c.to) continue;
+    byComponent.set(c.component, [...(byComponent.get(c.component) ?? []), c]);
+  }
+  let bundled = 0;
+  for (const conns of byComponent.values()) {
+    if (conns.length < 2) continue;
+    const sorted = [...conns].sort((a, b) => (a.from < b.from ? -1 : 1));
+    sorted.forEach((c, k) => {
+      const source = endpointGlobal(ctx, c.from);
+      const target = endpointGlobal(ctx, c.to!);
+      if (!source || !target) return;
+      const dx = target[0] - source[0];
+      const dy = target[1] - source[1];
+      const len = Math.hypot(dx, dy);
+      if (len < 3 * BUNDLE_EXIT_UM) return;
+      const u: PointUm = [dx / len, dy / len];
+      const n: PointUm = [-u[1], u[0]];
+      const offset = (k - (sorted.length - 1) / 2) * BUNDLE_STAGGER_UM;
+      const bend: PointUm = [Math.round(source[0] + u[0] * BUNDLE_EXIT_UM + n[0] * offset), Math.round(source[1] + u[1] * BUNDLE_EXIT_UM + n[1] * offset)];
+      const straight = distance(source, target);
+      const after = Math.hypot(bend[0] - source[0], bend[1] - source[1]) + Math.hypot(target[0] - bend[0], target[1] - bend[1]);
+      if (after - straight > Math.min(BUNDLE_MAX_ADDED_UM, straight * 0.05)) return;
+      const op = ctx.wires.find((w) => w.op === 'add_wire' && w.wire.id === c.wire_id);
+      if (!op || op.op !== 'add_wire') return;
+      op.wire.path_mode = 'manual';
+      op.wire.waypoints_um = [bend];
+      c.length_um = Math.round(after);
+      bundled++;
+    });
+  }
+  if (bundled) notes.push(`杜邦整束：${bundled} 根同源飞线加了错开的拐点（path_mode = manual，长度按折线计）`);
+}
+
+// ---------------------------------------------------------------------------
+// Placement suggestions (opt-in): re-plan on a few candidate moves, report only
+// changes that clearly improve the wiring. The design is never modified.
+// ---------------------------------------------------------------------------
+
+const MAX_SUGGESTION_CANDIDATES = 6;
+const SUGGESTION_REPLAN_BUDGET_MS = 4_000;
+/** A suggestion must beat the emitted plan by at least this much objective. */
+const SUGGESTION_MIN_GAIN_PCT = 15;
+
+interface MoveCandidate {
+  change: string;
+  from: string;
+  to: string;
+  apply: (design: DesignDocument) => void;
+}
+
+/** Candidate moves for one component: slide along the hole columns (on-board anchor) or the position (off-board). */
+function moveCandidates(design: DesignDocument, model: DesignModel, componentId: string): MoveCandidate[] {
+  const instance = design.components.find((c) => c.id === componentId);
+  const pc = model.components.get(componentId);
+  if (!instance || !pc) return [];
+  if (instance.placement.kind === 'board') {
+    const anchor = instance.placement.anchor_hole;
+    const m = /^([a-j])(\d{1,2})$/.exec(anchor);
+    if (!m) return [];
+    const row = m[1]!;
+    const col = Number(m[2]);
+    const board = model.boards.get(instance.placement.board_id);
+    const out: MoveCandidate[] = [];
+    for (const dc of [-3, -2, -1, 1, 2, 3]) {
+      const next = col + dc;
+      if (next < 1 || !board || !board.resolved.holes.has(`${row}${next}`)) continue;
+      out.push({
+        change: `沿列方向挪 ${dc > 0 ? '+' : ''}${dc} 列（${anchor} → ${row}${next}）`,
+        from: `${instance.placement.board_id}.${anchor}`,
+        to: `${instance.placement.board_id}.${row}${next}`,
+        apply: (d) => {
+          const target = d.components.find((c) => c.id === componentId)!;
+          if (target.placement.kind === 'board') target.placement.anchor_hole = `${row}${next}`;
+        }
+      });
+    }
+    return out;
+  }
+  const pos = instance.placement.position_um;
+  const out: MoveCandidate[] = [];
+  for (const [dx, dy, label] of [
+    [0, -40_000, '上移 40 mm（靠近面包板）'],
+    [0, -30_000, '上移 30 mm（靠近面包板）'],
+    [0, -20_000, '上移 20 mm（靠近面包板）'],
+    [0, -10_000, '上移 10 mm（靠近面包板）'],
+    [-20_000, 0, '左移 20 mm'],
+    [20_000, 0, '右移 20 mm']
+  ] as [number, number, string][]) {
+    out.push({
+      change: label,
+      from: `(${(pos[0] / 1000).toFixed(0)}, ${(pos[1] / 1000).toFixed(0)}) mm`,
+      to: `(${((pos[0] + dx) / 1000).toFixed(0)}, ${((pos[1] + dy) / 1000).toFixed(0)}) mm`,
+      apply: (d) => {
+        const target = d.components.find((c) => c.id === componentId)!;
+        if (target.placement.kind === 'off_board') {
+          target.placement.position_um = [pos[0] + dx, pos[1] + dy];
+        }
+      }
+    });
+  }
+  return out;
+}
+
+function planStats(plan: AutoWirePlan): { total_length: number; dupont: number } {
+  const all = [...plan.connections, ...plan.bridges];
+  return {
+    total_length: all.reduce((n, w) => n + w.length_um, 0),
+    dupont: all.filter((w) => w.route === 'elevated').length
+  };
+}
+
+/**
+ * Take the worst long Dupont flight among the signal/I²C connections, re-plan
+ * on a bounded set of candidate placements of its component (plus small moves
+ * of the host when the component itself has nothing better), and report the
+ * best change that beats the emitted plan clearly and connects at least as
+ * many pins. Pure reporting: nothing is applied to the design.
+ */
+function placementSuggestions(design: DesignDocument, catalog: Catalog, req: AutoWireRequest, plan: AutoWirePlan, model: DesignModel): AutoWireSuggestion[] {
+  const signalRoles = ['i2c_sda', 'i2c_scl', 'signal_in', 'signal_out', 'gpio', 'analog'];
+  const offenders = plan.connections.filter((c) => c.route === 'elevated' && signalRoles.includes(c.role)).sort((a, b) => b.length_um - a.length_um);
+  if (!offenders.length) return [];
+  const before = planStats(plan);
+  const tryReplan = (apply: (d: DesignDocument) => void): AutoWirePlan | null => {
+    const draft = JSON.parse(JSON.stringify(design)) as DesignDocument;
+    apply(draft);
+    const r = planAutoWire(draft, catalog, { ...req, place_suggestions: false, time_budget_ms: SUGGESTION_REPLAN_BUDGET_MS });
+    return r.connections.length >= plan.connections.length ? r : null;
+  };
+  const consider = (componentId: string, candidates: MoveCandidate[]): { suggestion: AutoWireSuggestion; gain: number } | null => {
+    let localBest: { suggestion: AutoWireSuggestion; gain: number } | null = null;
+    for (const cand of candidates.slice(0, MAX_SUGGESTION_CANDIDATES)) {
+      const replan = tryReplan(cand.apply);
+      if (!replan || replan.unresolved.length > plan.unresolved.length) continue;
+      const after = planStats(replan);
+      const gain = ((before.total_length - after.total_length) / Math.max(before.total_length, 1)) * 100;
+      const wireGotFlat = offenders.some((o) => {
+        const c = replan.connections.find((x) => x.component === o.component && x.pin === o.pin);
+        return c && c.route === 'flat';
+      });
+      if (gain < SUGGESTION_MIN_GAIN_PCT && !wireGotFlat) continue;
+      const suggestion: AutoWireSuggestion = {
+        component: componentId,
+        change: cand.change,
+        from: cand.from,
+        to: cand.to,
+        objective_after_um: replan.optimization.objective_um,
+        total_length_after_um: Math.round(after.total_length),
+        dupont_after: after.dupont,
+        unresolved_after: replan.unresolved.length,
+        objective_gain_pct: Math.round(gain * 10) / 10,
+        basis: 'replan'
+      };
+      const score = before.total_length - after.total_length;
+      if (!localBest || score > localBest.gain) localBest = { suggestion, gain: score };
+    }
+    return localBest;
+  };
+  const worst = offenders[0]!;
+  let result = consider(worst.component, moveCandidates(design, model, worst.component));
+  if (!result) {
+    // The component itself has nothing better: try small moves of the host
+    // (a module blocking a corridor often moves the host off the corridor).
+    result = consider(req.host, moveCandidates(design, model, req.host));
+  }
+  return result ? [result.suggestion] : [];
+}
+
 function makeCtx(model: DesignModel, conn: Connectivity, host: PlacedComponent, req: AutoWireRequest, design: DesignDocument, skipped: AutoWireSkip[], estimateCache: Map<string, Candidate>): Ctx {
   const baseFlatPaths = [...model.wires.values()].filter((w) => w.instance.route === 'flat' && w.points.length > 1).map((w) => w.points);
   return {
@@ -1774,9 +2092,13 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
   const lifted = !req.route || req.route === 'auto' ? liftCrossingWires(design, catalog, ctx.wires) : new Set<string>();
   for (const c of ctx.connections) if (lifted.has(c.wire_id)) c.route = 'elevated';
   for (const b of ctx.bridges) if (lifted.has(b.wire_id)) b.route = 'elevated';
+  // Dupont wires from one module leave as a cable, not as coincident spans.
+  // An explicit `route=elevated` request remains the documented two-point
+  // straight-span mode; bundling is only an auto-mode polish pass.
+  if (!req.route || req.route === 'auto') bundleElevatedFans(ctx, notes);
 
   const ops: Op[] = [...ctx.configOps, ...ctx.wires, ...((req.net_intents ?? true) ? intentOps(ctx, design) : [])];
-  const results: RuleResult[] = [...ctx.results];
+  const results: RuleResult[] = [...ctx.results, ...floatingPowerSources(ctx, new Set(req.components))];
   for (const u of ctx.unresolved) {
     results.push({ severity: 'warning', code: 'auto_wire_unresolved', category: 'wire', message: `自动布线未能连接 ${u.component}${u.pin ? `.${u.pin}` : ''}：${u.reason}`, objects: [u.component], endpoints: u.pin ? [terminalAddress(u.component, u.pin)] : [], blocking: false, ...(u.suggestion ? { suggestion: u.suggestion } : {}) });
   }
@@ -1810,5 +2132,21 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
     blocking: false
   });
   const i2c_buses: AutoWireI2cBus[] = ctx.i2c.buses.filter((b) => b.devices.length || b.added).map((b) => ({ index: b.index, sda: b.sda, scl: b.scl, devices: [...b.devices], added: b.added }));
-  return { host: host.instance.id, components: peripherals.map((p) => p.instance.id), optimization, i2c_buses, config_changes: ctx.configChanges, ops, connections: ctx.connections, bridges: ctx.bridges, skipped: ctx.skipped, unresolved: ctx.unresolved, results };
+  const plan: AutoWirePlan = { host: host.instance.id, components: peripherals.map((p) => p.instance.id), optimization, i2c_buses, config_changes: ctx.configChanges, ops, connections: ctx.connections, bridges: ctx.bridges, skipped: ctx.skipped, unresolved: ctx.unresolved, suggestions: [], results };
+  if (req.place_suggestions) {
+    plan.suggestions = placementSuggestions(design, catalog, req, plan, model);
+    if (plan.suggestions.length) {
+      const s = plan.suggestions[0]!;
+      results.push({
+        severity: 'info',
+        code: 'auto_wire_placement_suggestion',
+        category: 'wire',
+        message: `重放置建议（仅建议，未改动设计）：把 ${s.component} ${s.change}——重排后总长 ${(s.total_length_after_um / 1000).toFixed(0)} mm（原 ${(planStats(plan).total_length / 1000).toFixed(0)} mm）、杜邦 ${s.dupont_after} 根，数字来自完整重排`,
+        objects: [s.component],
+        blocking: false,
+        suggestion: '确认元件位置合理后手动挪动，再重跑自动布线。'
+      });
+    }
+  }
+  return plan;
 }

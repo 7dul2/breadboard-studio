@@ -218,13 +218,14 @@ export function buildProgram(): Command {
     .option('--optimize <mode>', 'global|greedy：全局搜索（默认，结果不劣于贪心）或只做逐引脚贪心', 'global')
     .option('--i2c-conflicts <mode>', 'bus_first|address_first|report：同地址器件的处理——先开第二条总线 / 先改可配置地址 / 只报告', 'bus_first')
     .option('--time-budget <ms>', '全局搜索时限（毫秒）', (v) => Number(v))
+    .option('--suggest-placement', '对最长飞线做有界的重放置搜索并输出建议（会多做几次完整重排，慢）')
     .option('--require-all', '有引脚无法连接时整体失败、不写文件')
     .option('--out <out>', '输出文件（默认覆盖输入文件）')
     .option('--dry-run', '只报告，不写入')
     .option('--expect-revision <n>', '期望的 revision', (v) => Number(v))
     .option('--expect-hash <hash>', '期望的内容 hash')
     .option('--json', 'JSON 输出')
-    .action((file: string, opts: { host: string; components?: string; all?: boolean; supply?: number; power: string; signal?: string[]; route: string; intents: boolean; optimize: string; i2cConflicts: string; timeBudget?: number; requireAll?: boolean; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; json?: boolean }) => {
+    .action((file: string, opts: { host: string; components?: string; all?: boolean; supply?: number; power: string; signal?: string[]; route: string; intents: boolean; optimize: string; i2cConflicts: string; timeBudget?: number; suggestPlacement?: boolean; requireAll?: boolean; out?: string; dryRun?: boolean; expectRevision?: number; expectHash?: string; json?: boolean }) => {
       let components: string[] | undefined;
       if (opts.all) components = undefined; // the data layer expands `all` from the design
       else if (opts.components) components = opts.components.split(',').map((x) => x.trim()).filter(Boolean);
@@ -250,6 +251,7 @@ export function buildProgram(): Command {
         i2cConflicts: opts.i2cConflicts as 'bus_first' | 'address_first' | 'report',
         ...(opts.timeBudget !== undefined ? { timeBudget: opts.timeBudget } : {}),
         ...(opts.supply !== undefined ? { supply: opts.supply } : {}),
+        ...(opts.suggestPlacement ? { placeSuggestions: true } : {}),
         ...(Object.keys(signal_pins).length ? { signalPins: signal_pins } : {}),
         ...(opts.requireAll ? { requireAll: true } : {}),
         out: opts.out,
@@ -264,6 +266,7 @@ export function buildProgram(): Command {
         lines.push(...fmtPlan(plan));
         lines.push(...fmtI2c(plan));
         lines.push(...fmtOptimization(plan.optimization));
+        for (const s of plan.suggestions ?? []) lines.push(`建议：把 ${s.component} ${s.change}——重排后总长 ${(s.total_length_after_um / 1000).toFixed(0)} mm、杜邦 ${s.dupont_after} 根（数字来自完整重排，未改动设计）`);
         lines.push(`revision ${data.previous_revision} → ${data.revision}${data.dry_run ? '（未写入）' : `，写入 ${data.out}`}`);
         lines.push(`结果：error ${s.error}, warning ${s.warning}, needs_review ${s.needs_review}, info ${s.info}`);
         for (const x of data.results.filter((x) => x.severity === 'error' || x.severity === 'warning' || (x.severity === 'needs_review' && x.code.startsWith('auto_wire')))) lines.push(fmtResult(x));

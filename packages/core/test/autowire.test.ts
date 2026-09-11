@@ -47,12 +47,17 @@ describe('auto wire', () => {
     expect(feeders.map((b) => b.net).sort()).toEqual(['3V3', 'GND']);
     for (const f of feeders) expect(f.length_um, `${f.net} feeder ${f.from} → ${f.to}`).toBeLessThan(15_000);
     expect(bridges.map((b) => `${b.from}→${b.to}`).sort()).toEqual(['bb.top_inner_25→bb.top_inner_26', 'bb.top_outer_25→bb.top_outer_26']);
-    // Short rail taps are hard jumpers; the long I²C and IO runs across the DevKit become Dupont wires.
+    // Short rail taps are hard jumpers; long signal runs follow real corridors
+    // as hard jumpers too — the touch IO runs along the clean b-row corridor
+    // above the DevKit instead of flying over the board. The OLED signals keep
+    // flying: around the DevKit the detour costs more than the flight, and the
+    // objective decides, not a length cap.
     for (const c of plan.connections) {
       if (c.via === 'rail') expect(c.route, `${c.component}.${c.pin}`).toBe('flat');
-      else expect(c.route, `${c.component}.${c.pin}`).toBe('elevated');
     }
-    expect(Math.max(...plan.connections.filter((c) => c.route === 'flat').map((c) => c.length_um))).toBeLessThan(30_000);
+    expect(plan.connections.find((c) => c.component === 'touch' && c.pin === 'IO')!.route).toBe('flat');
+    expect(plan.connections.find((c) => c.component === 'oled' && c.pin === 'SDA')!.route).toBe('elevated');
+    expect(Math.max(...plan.connections.filter((c) => c.route === 'flat').map((c) => c.length_um))).toBeLessThan(100_000);
     // The generated design is electrically consistent and its intents are satisfied.
     expect(connected(design, 'oled.SDA', 'mcu.GPIO8')).toBe(true);
     expect(connected(design, 'touch.VCC', 'mcu.3V3_1')).toBe(true);
@@ -112,6 +117,9 @@ describe('auto wire', () => {
     // Power and ground reach every module over the rails (the SEN66 cables land on rail holes, not on the host group).
     for (const c of plan.connections.filter((c) => c.net === 'GND' || c.net === '3V3')) expect(c.via, `${c.component}.${c.pin}`).toBe('rail');
     expect(plan.bridges.filter((b) => b.kind === 'feeder').map((b) => b.net).sort()).toEqual(['3V3', 'GND']);
+    expect(plan.bridges.some((b) => b.kind === 'bridge' && b.net === 'GND' && b.route === 'flat')).toBe(true);
+    expect(plan.connections.find((c) => c.component === 'sen66' && c.pin === 'GND')!.to).toMatch(/^bb_b\.bottom_outer/);
+    expect(plan.connections.find((c) => c.component === 'sen66' && c.pin === 'SEL')!.to).toMatch(/^bb_b\.bottom_outer/);
     // The I²C bus chains outward through the sensors' hole groups as straight hard jumpers, SDA and SCL on different rows.
     const chained = plan.connections.filter((c) => ['bmp390', 'ltr390'].includes(c.component) && (c.pin === 'SDA' || c.pin === 'SCL'));
     expect(chained.length).toBe(4);
@@ -140,6 +148,32 @@ describe('auto wire', () => {
     expect(a.summary.error).toBe(0);
     expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(false);
     expect(a.results.some((r) => r.code === 'no_common_ground')).toBe(false);
+  });
+
+  it('reports an unrequested power module as floating instead of silently ignoring it', () => {
+    const { plan, results } = autoWire(bare(loadExample('environment_node.breadboard.json')), 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66']);
+    expect(plan.suggestions).toEqual([]);
+    expect(results.some((r) => r.code === 'auto_wire_power_source_floating' && r.severity === 'needs_review' && r.objects.includes('psu'))).toBe(true);
+  });
+
+  it('bundles same-module Dupont fans with manual waypoints and keeps the output deterministic', () => {
+    const source = bare(loadExample('environment_node.breadboard.json'));
+    const first = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66']);
+    const second = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66']);
+    const bundled = first.design.wires.filter((w) => w.route === 'elevated' && w.path_mode === 'manual' && w.waypoints_um.length > 0);
+    expect(bundled.length).toBeGreaterThanOrEqual(2);
+    expect(first.design.wires).toEqual(second.design.wires);
+    for (const w of bundled) expect(w.waypoints_um.length).toBeGreaterThan(0);
+  });
+
+  it('returns a real re-plan placement suggestion only when explicitly requested', () => {
+    const source = bare(loadExample('environment_node.breadboard.json'));
+    const normal = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66']);
+    expect(normal.plan.suggestions).toEqual([]);
+    const suggested = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66'], { place_suggestions: true });
+    expect(suggested.plan.suggestions.length).toBeGreaterThanOrEqual(1);
+    expect(suggested.plan.suggestions[0]!.basis).toBe('replan');
+    expect(suggested.plan.suggestions[0]!.total_length_after_um).toBeLessThan(suggested.plan.connections.reduce((n, c) => n + c.length_um, 0) + suggested.plan.bridges.reduce((n, b) => n + b.length_um, 0));
   });
 
   it('does not double-wire a terminal that is already connected elsewhere and refuses to parallel a peripheral supply', () => {

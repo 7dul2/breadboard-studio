@@ -65,10 +65,24 @@ function inside(r: Rect, p: PointUm): boolean {
   return p[0] > r.x && p[0] < r.x + r.w && p[1] > r.y && p[1] < r.y + r.h;
 }
 
-/** Whether an axis-aligned segment stays out of every obstacle's interior. */
+/** A zero-width/height rect is the segment of an earlier hard jumper, not a body. */
+function isLine(r: Rect): boolean {
+  return r.w === 0 || r.h === 0;
+}
+
+/**
+ * Whether an axis-aligned segment stays clear of every obstacle: component
+ * footprints must not be entered at all, while earlier hard jumpers (line
+ * rects) only forbid sharing a collinear segment — perpendicular crossings
+ * are physically fine on a real board and keep corridors open.
+ */
 function segmentClear(a: PointUm, b: PointUm, obstacles: Rect[]): boolean {
   if (a[0] !== b[0] && a[1] !== b[1]) return false;
   for (const r of obstacles) {
+    if (isLine(r)) {
+      if (segmentOverlapsOccupiedLine(a, b, r)) return false;
+      continue;
+    }
     if (a[0] === b[0]) {
       if (a[0] <= r.x || a[0] >= r.x + r.w) continue;
       const lo = Math.min(a[1], b[1]);
@@ -253,17 +267,18 @@ export function autoRoute(from: PointUm | RouteEnd, to: PointUm | RouteEnd, obst
   const b = portPoints(t, f.point);
   const A = a.length ? a[a.length - 1]! : f.point;
   const B = b.length ? b[b.length - 1]! : t.point;
-  const occupiedWirePaths = obstacles.filter((r) => r.w === 0 || r.h === 0);
+  const lines = obstacles.filter((r) => isLine(r));
+  const areas = obstacles.filter((r) => !isLine(r));
   // If an older route passes over this insertion point, leave it
   // perpendicularly instead of following the same segment.
-  if (occupiedWirePaths.some((line) => pointOnOccupiedLine(A, line) || pointOnOccupiedLine(B, line))) {
-    const lane = nonOverlappingLane(A, B, occupiedWirePaths);
+  if (lines.some((line) => pointOnOccupiedLine(A, line) || pointOnOccupiedLine(B, line))) {
+    const lane = nonOverlappingLane(A, B, lines);
     if (lane) {
       const all = simplify([f.point, ...a, ...lane.slice(1, -1), ...b.reverse(), t.point]);
       return all.slice(1, -1);
     }
   }
-  const expanded = obstacles.map((r) => {
+  const expanded = areas.map((r) => {
     const padded = rectExpand(r, FLAT_CLEARANCE_UM);
     // A valid hole can sit very close to a neighbouring footprint. Do not let
     // safety padding trap an endpoint; the original body remains forbidden.
@@ -272,16 +287,17 @@ export function autoRoute(from: PointUm | RouteEnd, to: PointUm | RouteEnd, obst
   // Start with an empty visibility grid, then add only obstacles actually hit
   // by the candidate path. This keeps dense designs fast while converging to
   // a path checked against every component and previously placed jumper.
+  // Line obstacles (earlier hard jumpers) take part in every round: crossing
+  // them perpendicularly is allowed, sharing a collinear segment is not.
   const relevant: Rect[] = [];
   let middle: PointUm[] | null = null;
   for (;;) {
-    middle = avoidRects(A, B, relevant);
+    middle = avoidRects(A, B, [...lines, ...relevant]);
     if (!middle) {
       // Dense endpoint keep-outs can occasionally disconnect the strict
       // visibility graph. Preserve the hard-jumper contract first: choose a
       // separate lane around already occupied board-plane wire segments.
-      const occupiedWirePaths = obstacles.filter((r) => r.w === 0 || r.h === 0);
-      middle = nonOverlappingLane(A, B, occupiedWirePaths);
+      middle = nonOverlappingLane(A, B, lines);
       if (!middle) return oldOrthogonalRoute(from, to);
       break;
     }

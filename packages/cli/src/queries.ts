@@ -47,7 +47,7 @@ export function resultsJson(results: RuleResult[]) {
 }
 
 export function planJson(plan: AutoWirePlan) {
-  return { host: plan.host, components: plan.components, optimization: plan.optimization, i2c_buses: plan.i2c_buses, config_changes: plan.config_changes, connections: plan.connections, bridges: plan.bridges, skipped: plan.skipped, unresolved: plan.unresolved, ops: plan.ops.length };
+  return { host: plan.host, components: plan.components, optimization: plan.optimization, i2c_buses: plan.i2c_buses, config_changes: plan.config_changes, connections: plan.connections, bridges: plan.bridges, skipped: plan.skipped, unresolved: plan.unresolved, suggestions: plan.suggestions, ops: plan.ops.length };
 }
 
 /** Program list without the source text (use `program export` for that). */
@@ -242,6 +242,8 @@ export interface AutoWireArgs {
   optimize?: AutoWireOptions['optimize'];
   i2cConflicts?: AutoWireOptions['i2c_conflicts'];
   timeBudget?: number;
+  /** Re-plan on a few candidate placements and report improvements (opt-in, adds up to ~6 planner runs). */
+  placeSuggestions?: boolean;
   signalPins?: Record<string, string>;
   requireAll?: boolean;
   out?: string;
@@ -266,7 +268,8 @@ export function autowireData(file: string, args: AutoWireArgs) {
     ...(args.timeBudget !== undefined ? { time_budget_ms: args.timeBudget } : {}),
     ...(args.supply !== undefined ? { supply_voltage_v: args.supply } : {}),
     ...(args.signalPins && Object.keys(args.signalPins).length ? { signal_pins: args.signalPins } : {}),
-    ...(args.requireAll ? { require_all: true } : {})
+    ...(args.requireAll ? { require_all: true } : {}),
+    ...(args.placeSuggestions ? { place_suggestions: true } : {})
   };
   const r = applyOps(design, [{ op: 'auto_wire', host: args.host, components, options }], { expected_revision: args.expectRevision, expected_hash: args.expectHash });
   if (!r.ok) {
