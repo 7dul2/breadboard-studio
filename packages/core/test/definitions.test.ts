@@ -29,6 +29,38 @@ describe('embedded definitions', () => {
 });
 
 describe('configured component rendering', () => {
+  it('mirrors TTP224 physical pins from the touch face onto the solder face', () => {
+    const def = builtinCatalog().getComponent('ttp224_module@1')!;
+    const resolved = resolveComponent(def);
+    // The supplied touch-face photo has these pin centers from left to right.
+    // Looking at the opposite face mirrors x; the electrical names stay attached
+    // to the same physical pins, including the supply and ground terminals.
+    const touchFace = [
+      ['OUT1', 11150], ['OUT2', 13690], ['OUT3', 16230],
+      ['OUT4', 18770], ['GND', 21310], ['VCC', 23850]
+    ] as const;
+    for (const [name, x] of touchFace) {
+      expect(resolved.pins.find((pin) => pin.name === name)?.local_um, name).toEqual([35000 - x, 1270]);
+    }
+    expect(def.pin_meta.VCC?.role).toBe('power_in');
+    expect(def.pin_meta.GND?.role).toBe('ground');
+  });
+
+  it.each([
+    { rotation: 0, anchor: 'j10', holes: ['j10', 'j11', 'j12', 'j13', 'j14', 'j15'] },
+    { rotation: 180, anchor: 'j15', holes: ['j15', 'j14', 'j13', 'j12', 'j11', 'j10'] }
+  ] as const)('maps mirrored TTP224 terminals onto board holes at $rotation degrees', ({ rotation, anchor, holes }) => {
+    const design = build([...oneBoard, { op: 'add_component', component: {
+      id: 'touch', model: 'ttp224_module@1', placement: {
+        kind: 'board', board_id: 'bb', anchor_hole: anchor, anchor_pin: 'VCC', rotation_deg: rotation
+      }
+    } }], undefined, true);
+    const placed = analyzeDesign(design).model.components.get('touch')!;
+    expect(placed.pins.map((pin) => `${pin.name}=${pin.hole?.hole}`)).toEqual(
+      ['VCC', 'GND', 'OUT4', 'OUT3', 'OUT2', 'OUT1'].map((name, i) => `${name}=${holes[i]}`)
+    );
+  });
+
   it('switches the SSD1315 OLED sample between white and blue', () => {
     const def = builtinCatalog().getComponent('oled_0_96_ssd1315_i2c@1')!;
     const white = resolveComponent(def);

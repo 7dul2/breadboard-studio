@@ -15,7 +15,7 @@ describe('built-in catalog', () => {
     const c = builtinCatalog();
     const ttp224 = c.getComponent('ttp224_module@1')!;
     expect(ttp224.body.size_um).toEqual([35000, 29000]);
-    expect(ttp224.params_default?.pin_names).toEqual(['OUT1', 'OUT2', 'OUT3', 'OUT4', 'GND', 'VCC']);
+    expect(ttp224.params_default?.pin_names).toEqual(['VCC', 'GND', 'OUT4', 'OUT3', 'OUT2', 'OUT1']);
     expect(ttp224.back_render?.length).toBeGreaterThan(10);
     const frontText = ttp224.render.filter((primitive) => primitive.t === 'text').map((primitive) => primitive.text);
     const backText = ttp224.back_render!.filter((primitive) => primitive.t === 'text').map((primitive) => primitive.text);

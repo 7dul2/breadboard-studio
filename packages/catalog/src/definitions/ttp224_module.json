@@ -5,8 +5,8 @@
   "name": "TTP224 四路电容触摸模块",
   "manufacturer": "Generic",
   "model": "TTP224 4-channel capacitive touch sensor module",
-  "variant": "6 针单排：OUT1 / OUT2 / OUT3 / OUT4 / GND / VCC",
-  "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。按参考图约定，正面为图片 A 的走线与焊盘面，反面为触摸按键与元件面；模式焊盘和针序请按手中实物复核。",
+  "variant": "走线焊盘面从左到右：VCC / GND / OUT4 / OUT3 / OUT2 / OUT1",
+  "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。正面为走线焊盘面，排针朝上时从左到右为 VCC、GND、OUT4、OUT3、OUT2、OUT1；反面为触摸按键与元件面，同一排针从左到右为 OUT1、OUT2、OUT3、OUT4、GND、VCC。",
   "category": "input",
   "mount": "breadboard",
   "origin": "top_left",
@@ -39,7 +39,7 @@
     }
   },
   "params_default": {
-    "pin_names": ["OUT1", "OUT2", "OUT3", "OUT4", "GND", "VCC"],
+    "pin_names": ["VCC", "GND", "OUT4", "OUT3", "OUT2", "OUT1"],
     "body_size_um": [35000, 29000],
     "mount_orientation": "flat"
   },
@@ -269,11 +269,11 @@
   ],
   "geometry_status": "approximate",
   "electrical_status": "approximate",
-  "status_notes": "外形尺寸、安装孔与工作电压来自用户提供的商品尺寸图；正反面布局依据用户提供的图片重绘，朝向按用户指定以图片 A 的走线焊盘面为正面。针序、走线细节、模式焊盘和元件位置因图片清晰度与批次差异均为近似值，接线前须核对实物丝印。",
+  "status_notes": "外形尺寸、安装孔与工作电压来自用户提供的商品尺寸图；正反面布局依据用户提供的图片重绘，朝向以走线焊盘面为正面。针序依据元件面的 OUT1、OUT2、OUT3、OUT4、GND、VCC 丝印左右镜像到正面；走线细节、模式焊盘和元件位置为近似值。旧设计中的孔位导线不会随针序修正自动改接，应按修正后的引脚孔位重新核对接线。",
   "sources": [
     {
       "title": "用户提供的 TTP224 四路触摸模块商品尺寸图",
-      "note": "标注板尺寸 35×29 mm、孔径 2 mm、孔中心距 30 mm、工作电压 2.4–5.5 V；用于原创反面矢量重绘。"
+      "note": "标注板尺寸 35×29 mm、孔径 2 mm、孔中心距 30 mm、工作电压 2.4–5.5 V；排针朝上时元件面丝印从左到右为 OUT1、OUT2、OUT3、OUT4、GND、VCC，走线焊盘面针序须左右镜像；用于原创反面矢量重绘。"
     },
     {
       "title": "用户提供的 TTP224 模块实物安装照片",
