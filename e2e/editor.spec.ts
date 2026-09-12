@@ -129,10 +129,10 @@ test.describe('editor core flows', () => {
 
     // 4. wire tool: GND group → inner rail, VCC group → outer rail
     await page.getByTestId('tool-wire').click();
-    await page.getByTestId('wire-color').selectOption('red');
+    await page.getByTestId('wire-color').locator('[data-color="red"]').click();
     await clickHole(page, 'bb_1.g9');
     await clickHole(page, 'bb_1.top_inner_5');
-    await page.getByTestId('wire-color').selectOption('black');
+    await page.getByTestId('wire-color').locator('[data-color="black"]').click();
     await clickHole(page, 'bb_1.g10');
     await clickHole(page, 'bb_1.top_outer_6');
     d = await design(page);
