@@ -6,7 +6,7 @@
   "manufacturer": "Generic",
   "model": "TTP224 4-channel capacitive touch sensor module",
   "variant": "6 针单排：OUT1 / OUT2 / OUT3 / OUT4 / GND / VCC",
-  "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。正面为触摸与元件面，反面为走线与焊盘面；模式焊盘和针序请按手中实物复核。",
+  "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。按参考图约定，正面为图片 A 的走线与焊盘面，反面为触摸按键与元件面；模式焊盘和针序请按手中实物复核。",
   "category": "input",
   "mount": "breadboard",
   "origin": "top_left",
@@ -142,7 +142,7 @@
     { "type": "led", "label": "状态灯 3", "rect_um": { "x": 900, "y": 11000, "w": 1900, "h": 1300 } },
     { "type": "led", "label": "状态灯 4", "rect_um": { "x": 900, "y": 13200, "w": 1900, "h": 1300 } }
   ],
-  "render": [
+  "back_render": [
     { "t": "rect", "x": 0, "y": 0, "w": 35000, "h": 29000, "rx": 500, "fill": "#0b4f8a", "stroke": "#082f5a", "sw": 260 },
     { "t": "line", "x1": 0, "y1": 19700, "x2": 35000, "y2": 19700, "stroke": "#8ac7e8", "sw": 170 },
     { "t": "circle", "cx": 2500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
@@ -210,7 +210,7 @@
     { "t": "text", "x": 21700, "y": 25600, "text": "3", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" },
     { "t": "text", "x": 30200, "y": 25600, "text": "4", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" }
   ],
-  "back_render": [
+  "render": [
     { "t": "rect", "x": 0, "y": 0, "w": 35000, "h": 29000, "rx": 500, "fill": "#0a4a82", "stroke": "#082f5a", "sw": 260 },
     { "t": "circle", "cx": 2500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
     { "t": "circle", "cx": 2500, "cy": 3500, "r": 630, "fill": "#334155" },
@@ -269,15 +269,15 @@
   ],
   "geometry_status": "approximate",
   "electrical_status": "approximate",
-  "status_notes": "外形尺寸、安装孔与工作电压来自用户提供的商品尺寸图；正反面布局依据用户提供的实物照片重绘。针序、走线细节、模式焊盘和元件位置因图片清晰度与批次差异均为近似值，接线前须核对实物丝印。",
+  "status_notes": "外形尺寸、安装孔与工作电压来自用户提供的商品尺寸图；正反面布局依据用户提供的图片重绘，朝向按用户指定以图片 A 的走线焊盘面为正面。针序、走线细节、模式焊盘和元件位置因图片清晰度与批次差异均为近似值，接线前须核对实物丝印。",
   "sources": [
     {
       "title": "用户提供的 TTP224 四路触摸模块商品尺寸图",
-      "note": "标注板尺寸 35×29 mm、孔径 2 mm、孔中心距 30 mm、工作电压 2.4–5.5 V；用于原创正面矢量重绘。"
+      "note": "标注板尺寸 35×29 mm、孔径 2 mm、孔中心距 30 mm、工作电压 2.4–5.5 V；用于原创反面矢量重绘。"
     },
     {
       "title": "用户提供的 TTP224 模块实物安装照片",
-      "note": "显示蓝色 PCB 反面焊盘与走线；用于原创反面矢量重绘，未嵌入原始位图。"
+      "note": "显示蓝色 PCB 走线与焊盘；按用户指定作为正面，用于原创正面矢量重绘，未嵌入原始位图。"
     }
   ],
   "license": {
