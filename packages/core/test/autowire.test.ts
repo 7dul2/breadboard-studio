@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { builtinCatalog } from '@breadboard-studio/catalog';
 import type { DesignDocument } from '@breadboard-studio/schema';
-import { analyzeDesign, applyOps, netOfAddress, planAutoWire, type AutoWirePlan, type Op } from '../src/index.js';
+import { analyzeDesign, applyOps, netOfAddress, planAutoWire, polylineLength, type AutoWirePlan, type Op } from '../src/index.js';
 import { build, examplesDir, loadExample, oneBoard, twoBoards } from './helpers.js';
 
 function bare(design: DesignDocument): DesignDocument {
@@ -56,7 +56,7 @@ describe('auto wire', () => {
       if (c.via === 'rail') expect(c.route, `${c.component}.${c.pin}`).toBe('flat');
     }
     expect(plan.connections.find((c) => c.component === 'touch' && c.pin === 'IO')!.route).toBe('flat');
-    expect(plan.connections.find((c) => c.component === 'oled' && c.pin === 'SDA')!.route).toBe('elevated');
+    expect(plan.connections.find((c) => c.component === 'oled' && c.pin === 'SDA')!.route).toBe('flat');
     expect(Math.max(...plan.connections.filter((c) => c.route === 'flat').map((c) => c.length_um))).toBeLessThan(100_000);
     // The generated design is electrically consistent and its intents are satisfied.
     expect(connected(design, 'oled.SDA', 'mcu.GPIO8')).toBe(true);
@@ -163,17 +163,43 @@ describe('auto wire', () => {
     const bundled = first.design.wires.filter((w) => w.route === 'elevated' && w.path_mode === 'manual' && w.waypoints_um.length > 0);
     expect(bundled.length).toBeGreaterThanOrEqual(2);
     expect(first.design.wires).toEqual(second.design.wires);
-    for (const w of bundled) expect(w.waypoints_um.length).toBeGreaterThan(0);
+    const model = analyzeDesign(first.design).model;
+    for (const w of bundled) {
+      const rw = model.wires.get(w.id)!;
+      const report = first.plan.connections.find((c) => c.wire_id === w.id)!;
+      expect(report.length_um).toBe(polylineLength(rw.points));
+      const straight = Math.hypot(rw.points.at(-1)![0] - rw.points[0]![0], rw.points.at(-1)![1] - rw.points[0]![1]);
+      expect(report.length_um - straight).toBeLessThanOrEqual(Math.min(8000, straight * 0.05) + 1);
+    }
   });
 
   it('returns a real re-plan placement suggestion only when explicitly requested', () => {
     const source = bare(loadExample('environment_node.breadboard.json'));
     const normal = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66']);
     expect(normal.plan.suggestions).toEqual([]);
-    const suggested = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66'], { place_suggestions: true });
+    const suggested = autoWire(source, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66'], { place_suggestions: true, time_budget_ms: 20000 });
     expect(suggested.plan.suggestions.length).toBeGreaterThanOrEqual(1);
     expect(suggested.plan.suggestions[0]!.basis).toBe('replan');
+    const suggestion = suggested.plan.suggestions[0]!;
+    const moved = structuredClone(source);
+    moved.components.find((c) => c.id === suggestion.component)!.placement = suggestion.placement;
+    expect(analyzeDesign(moved).hasBlocking).toBe(false);
+    const repeated = autoWire(moved, 'mcu', ['sht41', 'bmp390', 'ltr390', 'sen66'], { time_budget_ms: 20000 });
+    expect(repeated.plan.connections.reduce((n, c) => n + c.length_um, 0) + repeated.plan.bridges.reduce((n, b) => n + b.length_um, 0)).toBe(suggestion.total_length_after_um);
+    expect(source.components).toEqual(bare(loadExample('environment_node.breadboard.json')).components);
     expect(suggested.plan.suggestions[0]!.total_length_after_um).toBeLessThan(suggested.plan.connections.reduce((n, c) => n + c.length_um, 0) + suggested.plan.bridges.reduce((n, b) => n + b.length_um, 0));
+  });
+
+  it('does not suggest moving locked components or claim a result after budget exhaustion', () => {
+    const source = bare(loadExample('environment_node.breadboard.json'));
+    for (const c of source.components) c.locked = true;
+    const locked = planAutoWire(source, builtinCatalog(), { host: 'mcu', components: ['sen66'], place_suggestions: true });
+    expect(locked.suggestions).toEqual([]);
+    const expired = planAutoWire(bare(loadExample('environment_node.breadboard.json')), builtinCatalog(), {
+      host: 'mcu', components: ['sht41', 'bmp390', 'ltr390', 'sen66'], place_suggestions: true, time_budget_ms: 0
+    });
+    expect(expired.suggestions).toEqual([]);
+    expect(expired.results.some((r) => r.code === 'auto_wire_placement_budget_exhausted')).toBe(true);
   });
 
   it('does not double-wire a terminal that is already connected elsewhere and refuses to parallel a peripheral supply', () => {

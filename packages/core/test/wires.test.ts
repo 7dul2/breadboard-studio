@@ -97,6 +97,15 @@ describe('wires', () => {
     expect(a.model.wires.get('w1')!.conducts).toBe(false);
   });
 
+  it('avoids bodies even when an endpoint starts on an earlier wire', () => {
+    const start: [number, number] = [0, 0];
+    const end: [number, number] = [10000, 0];
+    const body = { x: 4000, y: -1000, w: 2000, h: 2000 };
+    const line = { x: -1000, y: 0, w: 3000, h: 0 };
+    const points = [start, ...autoRoute(start, end, [line, body]), end];
+    for (let i = 1; i < points.length; i++) expect(segmentIntersectsRect(points[i - 1]!, points[i]!, body)).toBe(false);
+  });
+
   it('an earlier hard jumper only forbids sharing its segment: perpendicular crossings stay legal', () => {
     // A vertical earlier jumper right across the corridor: the straight path
     // crosses it perpendicularly — legal on a real board, no detour needed.

@@ -2,7 +2,7 @@ import type { DesignDocument, JsonValue, PinMeta, PinRole, PointUm, WireEndpoint
 import { Catalog } from '@breadboard-studio/catalog';
 import { holeAddress, parseAddress, terminalAddress } from './address.js';
 import { buildConnectivity, conductiveSet, pinKey, voltageName, type Connectivity } from './connectivity.js';
-import { distance, polylineLength, toGlobal, type Rect } from './geometry.js';
+import { distance, polylineLength, segmentIntersectsRect, toGlobal, type Rect } from './geometry.js';
 import { accessibleHolesForPin, buildModel, flatRouteObstacles, groupHoles, terminalRouteEnd, type DesignModel, type PlacedBoard, type PlacedComponent, type PlacedPin } from './model.js';
 import type { Op } from './ops.js';
 import type { RuleResult } from './results.js';
@@ -141,6 +141,10 @@ export interface AutoWireSuggestion {
   unresolved_after: number;
   /** Objective improvement vs the emitted plan, in percent. */
   objective_gain_pct: number;
+  /** Reduction in actual wire length, distinct from the routing objective. */
+  length_gain_pct: number;
+  /** Exact reproducible candidate placement; reporting only. */
+  placement: DesignDocument['components'][number]['placement'];
   /** Numbers come from a full re-plan, not an estimate. */
   basis: 'replan';
 }
@@ -394,19 +398,9 @@ function flyoversOf(ctx: Ctx, a: Tap, b: Tap): number {
   let n = 0;
   for (const pc of ctx.model.components.values()) {
     if (owners.has(pc.instance.id)) continue;
-    if (segIntersectsRect(a.global, b.global, pc.footprint)) n++;
+    if (segmentIntersectsRect(a.global, b.global, pc.footprint)) n++;
   }
   return n;
-}
-
-/** Whether the segment `a`→`b` touches rect `r` (border counts: a span along a footprint edge still flies over it). */
-function segIntersectsRect(a: PointUm, b: PointUm, r: Rect): boolean {
-  const lo = (v: number, s: number, e: number) => v >= Math.min(s, e) && v <= Math.max(s, e);
-  const inside = (p: PointUm) => p[0] >= r.x && p[0] <= r.x + r.w && p[1] >= r.y && p[1] <= r.y + r.h;
-  if (inside(a) || inside(b)) return true;
-  if (a[0] === b[0]) return a[0] >= r.x && a[0] <= r.x + r.w && lo(r.y, a[1], b[1]);
-  if (a[1] === b[1]) return a[1] >= r.y && a[1] <= r.y + r.h && lo(r.x, a[0], b[0]);
-  return false;
 }
 
 /** Route a hard jumper between two taps exactly as the model will, given the hard jumpers in `flatPaths`. */
@@ -1796,7 +1790,10 @@ function floatingPowerSources(ctx: Ctx, requested: Set<string>): RuleResult[] {
     for (const pin of pc.pins) {
       if (pin.meta.role !== 'power_out' || typeof pin.meta.voltage_v !== 'number') continue;
       const key = pinKey(pc.instance.id, pin.name);
-      if (terminalWired(ctx, key)) continue;
+      const root = ctx.conn.direct.find(key);
+      const attached = [...ctx.model.components.values()].some((other) => other !== pc && other.pins.some((p) => ctx.conn.direct.find(pinKey(other.instance.id, p.name)) === root)) ||
+        [...ctx.model.wires.values()].some((w) => w.conducts && w.from && ctx.conn.direct.find(w.from.address) === root);
+      if (attached) continue;
       out.push({
         severity: 'needs_review',
         code: 'auto_wire_power_source_floating',
@@ -1862,6 +1859,7 @@ function bundleElevatedFans(ctx: Ctx, notes: string[]): void {
       if (!op || op.op !== 'add_wire') return;
       op.wire.path_mode = 'manual';
       op.wire.waypoints_um = [bend];
+      ctx.objective += Math.round(after) - c.length_um;
       c.length_um = Math.round(after);
       bundled++;
     });
@@ -1875,7 +1873,6 @@ function bundleElevatedFans(ctx: Ctx, notes: string[]): void {
 // ---------------------------------------------------------------------------
 
 const MAX_SUGGESTION_CANDIDATES = 6;
-const SUGGESTION_REPLAN_BUDGET_MS = 4_000;
 /** A suggestion must beat the emitted plan by at least this much objective. */
 const SUGGESTION_MIN_GAIN_PCT = 15;
 
@@ -1890,7 +1887,7 @@ interface MoveCandidate {
 function moveCandidates(design: DesignDocument, model: DesignModel, componentId: string): MoveCandidate[] {
   const instance = design.components.find((c) => c.id === componentId);
   const pc = model.components.get(componentId);
-  if (!instance || !pc) return [];
+  if (!instance || !pc || instance.locked) return [];
   if (instance.placement.kind === 'board') {
     const anchor = instance.placement.anchor_hole;
     const m = /^([a-j])(\d{1,2})$/.exec(anchor);
@@ -1954,20 +1951,39 @@ function planStats(plan: AutoWirePlan): { total_length: number; dupont: number }
  * best change that beats the emitted plan clearly and connects at least as
  * many pins. Pure reporting: nothing is applied to the design.
  */
-function placementSuggestions(design: DesignDocument, catalog: Catalog, req: AutoWireRequest, plan: AutoWirePlan, model: DesignModel): AutoWireSuggestion[] {
+function placementSuggestions(design: DesignDocument, catalog: Catalog, req: AutoWireRequest, plan: AutoWirePlan, model: DesignModel, deadline: number): AutoWireSuggestion[] {
   const signalRoles = ['i2c_sda', 'i2c_scl', 'signal_in', 'signal_out', 'gpio', 'analog'];
   const offenders = plan.connections.filter((c) => c.route === 'elevated' && signalRoles.includes(c.role)).sort((a, b) => b.length_um - a.length_um);
   if (!offenders.length) return [];
   const before = planStats(plan);
+  let attempted = 0;
+  let expired = false;
   const tryReplan = (apply: (d: DesignDocument) => void): AutoWirePlan | null => {
     const draft = JSON.parse(JSON.stringify(design)) as DesignDocument;
     apply(draft);
-    const r = planAutoWire(draft, catalog, { ...req, place_suggestions: false, time_budget_ms: SUGGESTION_REPLAN_BUDGET_MS });
+    if (checkModel(buildModel(draft, catalog)).results.some((r) => r.blocking)) return null;
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) { expired = true; return null; }
+    const r = planAutoWire(draft, catalog, { ...req, place_suggestions: false, time_budget_ms: remaining });
+    if (performance.now() >= deadline) { expired = true; return null; }
+    // Validate the actual emitted wiring as well as the candidate placement.
+    for (const op of r.ops) {
+      if (op.op === 'add_wire') draft.wires.push(op.wire as DesignDocument['wires'][number]);
+      if (op.op === 'add_net_intent') draft.net_intents.push(op.net_intent as DesignDocument['net_intents'][number]);
+      if (op.op === 'update_property' && op.path.startsWith('config.')) {
+        const instance = draft.components.find((c) => c.id === op.id);
+        if (instance) instance.config = { ...instance.config, [op.path.slice(7)]: op.value };
+      }
+    }
+    if (checkModel(buildModel(draft, catalog)).results.some((r) => r.blocking)) return null;
     return r.connections.length >= plan.connections.length ? r : null;
   };
   const consider = (componentId: string, candidates: MoveCandidate[]): { suggestion: AutoWireSuggestion; gain: number } | null => {
     let localBest: { suggestion: AutoWireSuggestion; gain: number } | null = null;
-    for (const cand of candidates.slice(0, MAX_SUGGESTION_CANDIDATES)) {
+    for (const cand of candidates) {
+      if (attempted >= MAX_SUGGESTION_CANDIDATES) break;
+      if (performance.now() >= deadline) { expired = true; break; }
+      attempted++;
       const replan = tryReplan(cand.apply);
       if (!replan || replan.unresolved.length > plan.unresolved.length) continue;
       const after = planStats(replan);
@@ -1977,6 +1993,8 @@ function placementSuggestions(design: DesignDocument, catalog: Catalog, req: Aut
         return c && c.route === 'flat';
       });
       if (gain < SUGGESTION_MIN_GAIN_PCT && !wireGotFlat) continue;
+      const moved = structuredClone(design);
+      cand.apply(moved);
       const suggestion: AutoWireSuggestion = {
         component: componentId,
         change: cand.change,
@@ -1986,7 +2004,9 @@ function placementSuggestions(design: DesignDocument, catalog: Catalog, req: Aut
         total_length_after_um: Math.round(after.total_length),
         dupont_after: after.dupont,
         unresolved_after: replan.unresolved.length,
-        objective_gain_pct: Math.round(gain * 10) / 10,
+        objective_gain_pct: Math.round((plan.optimization.objective_um - replan.optimization.objective_um) / Math.max(plan.optimization.objective_um, 1) * 1000) / 10,
+        length_gain_pct: Math.round(gain * 10) / 10,
+        placement: moved.components.find((c) => c.id === componentId)!.placement,
         basis: 'replan'
       };
       const score = before.total_length - after.total_length;
@@ -2000,6 +2020,11 @@ function placementSuggestions(design: DesignDocument, catalog: Catalog, req: Aut
     // The component itself has nothing better: try small moves of the host
     // (a module blocking a corridor often moves the host off the corridor).
     result = consider(req.host, moveCandidates(design, model, req.host));
+  }
+  if (expired) {
+    plan.optimization.notes.push('重放置建议：时间预算耗尽，未返回建议；可增加 time_budget_ms 后重试。');
+    plan.results.push({ severity: 'info', category: 'wire', code: 'auto_wire_placement_budget_exhausted', message: '重放置搜索的时间预算已耗尽，未返回建议。', objects: [req.host], blocking: false });
+    return [];
   }
   return result ? [result.suggestion] : [];
 }
@@ -2134,7 +2159,7 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
   const i2c_buses: AutoWireI2cBus[] = ctx.i2c.buses.filter((b) => b.devices.length || b.added).map((b) => ({ index: b.index, sda: b.sda, scl: b.scl, devices: [...b.devices], added: b.added }));
   const plan: AutoWirePlan = { host: host.instance.id, components: peripherals.map((p) => p.instance.id), optimization, i2c_buses, config_changes: ctx.configChanges, ops, connections: ctx.connections, bridges: ctx.bridges, skipped: ctx.skipped, unresolved: ctx.unresolved, suggestions: [], results };
   if (req.place_suggestions) {
-    plan.suggestions = placementSuggestions(design, catalog, req, plan, model);
+    plan.suggestions = placementSuggestions(design, catalog, req, plan, model, started + (req.time_budget_ms ?? DEFAULT_TIME_BUDGET_MS));
     if (plan.suggestions.length) {
       const s = plan.suggestions[0]!;
       results.push({
@@ -2148,5 +2173,6 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
       });
     }
   }
+  plan.optimization.elapsed_ms = Math.round(performance.now() - started);
   return plan;
 }

@@ -159,8 +159,8 @@ function nonOverlappingLane(start: PointUm, end: PointUm, lines: Rect[]): PointU
  */
 function avoidRects(start: PointUm, end: PointUm, rects: Rect[]): PointUm[] | null {
   if (segmentClear(start, end, rects)) return [start, end];
-  const xs = [...new Set([start[0], end[0], ...rects.flatMap((r) => [r.x, r.x + r.w])])].sort((a, b) => a - b);
-  const ys = [...new Set([start[1], end[1], ...rects.flatMap((r) => [r.y, r.y + r.h])])].sort((a, b) => a - b);
+  const xs = [...new Set([start[0], end[0], ...rects.flatMap((r) => r.w === 0 ? [r.x - 600, r.x, r.x + 600] : [r.x, r.x + r.w])])].sort((a, b) => a - b);
+  const ys = [...new Set([start[1], end[1], ...rects.flatMap((r) => r.h === 0 ? [r.y - 600, r.y, r.y + 600] : [r.y, r.y + r.h])])].sort((a, b) => a - b);
   const points: PointUm[] = [];
   const at = new Map<string, number>();
   const key = (x: number, y: number) => `${x},${y}`;
@@ -273,7 +273,7 @@ export function autoRoute(from: PointUm | RouteEnd, to: PointUm | RouteEnd, obst
   // perpendicularly instead of following the same segment.
   if (lines.some((line) => pointOnOccupiedLine(A, line) || pointOnOccupiedLine(B, line))) {
     const lane = nonOverlappingLane(A, B, lines);
-    if (lane) {
+    if (lane && lane.every((p, i) => i === 0 || segmentClear(lane[i - 1]!, p, areas))) {
       const all = simplify([f.point, ...a, ...lane.slice(1, -1), ...b.reverse(), t.point]);
       return all.slice(1, -1);
     }
