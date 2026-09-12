@@ -192,7 +192,6 @@ export function Canvas() {
               if (owner) {
                 pins.add(owner.pin);
                 comps.add(owner.comp);
-                break;
               }
             }
           } else pins.add(ep.address);
@@ -713,13 +712,10 @@ export function Canvas() {
     if (!w) return null;
     const own = end === 'from' ? w.from : w.to;
     const other = end === 'from' ? w.to : w.from;
-    const h = hit(e);
-    // 拖回原来的孔/端子：当作没动过，别报"这个孔已经有线了"。
-    if ((h.hole !== undefined && h.hole === own?.hole) || (h.pin !== undefined && h.pin === own?.terminal)) return null;
-    if ((h.hole !== undefined && h.hole === other?.hole) || (h.pin !== undefined && h.pin === other?.terminal)) {
-      toast('error', '同一根线的两端不能接在同一个孔或端子上');
-      return null;
-    }
+    // pointer capture 会让 pointerup.target 永远是 SVG；elementFromPoint 才是松手处
+    // 真正位于最上层的孔或板外端子。
+    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+    const h = hit({ ...e, target: dropTarget ?? e.target });
     // 导线画在孔上面，指针常常落在线上：按几何退回找下面的孔（与接线模式同一套）。
     let targetHit: { hole?: string; pin?: string } = h;
     if (!h.hole && !h.pin) {
@@ -731,6 +727,13 @@ export function Canvas() {
           break;
         }
       }
+    }
+    // 几何回退以后再比较，才能正确识别被导线抓取圈遮住的原孔。
+    // 拖回原来的孔/端子：当作没动过，别报"这个孔已经有线了"。
+    if ((targetHit.hole !== undefined && targetHit.hole === own?.hole) || (targetHit.pin !== undefined && targetHit.pin === own?.terminal)) return null;
+    if ((targetHit.hole !== undefined && targetHit.hole === other?.hole) || (targetHit.pin !== undefined && targetHit.pin === other?.terminal)) {
+      toast('error', '同一根线的两端不能接在同一个孔或端子上');
+      return null;
     }
     if (!targetHit.hole && !targetHit.pin) return null; // 松手在空白处 = 取消
     return endpointFromHit(targetHit);

@@ -271,12 +271,22 @@ function attachedEnds(model: DesignModel, componentId: string): AttachedEnd[] {
       const own = pinHoleAddress(pin);
       if (!own) continue;
       const key = `${pc.instance.id}.${pin.name}`;
-      for (const hole of groupHoles(model, own)) pinOfHole.set(hole, key);
+      const group = groupHoles(model, own);
+      // 同一导通孔组里如果还有别的元件引脚，单凭线插在哪个空孔无法判断它属于谁。
+      // 这种接法保持原位，避免移动一个元件时把实际接在另一个元件上的线抢走。
+      if (group.some((hole) => {
+        const state = model.holes.get(hole);
+        return state?.component_id !== undefined && state.component_id !== componentId;
+      })) continue;
+      for (const hole of group) pinOfHole.set(hole, key);
     }
   }
   const out: AttachedEnd[] = [];
   for (const rw of model.wires.values()) {
     const wire = rw.instance;
+    // 锁定的导线不能由移动元件这个间接操作改写；它留在原位，和直接 update_wire
+    // 时的锁定语义一致。
+    if (wire.locked) continue;
     for (const end of WIRE_ENDS) {
       const ep = wire[end];
       if (!ep) continue;

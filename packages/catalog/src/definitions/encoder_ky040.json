@@ -72,9 +72,9 @@
   "pin_meta": {
     "CLK": {
       "role": "signal_out",
-      "io_voltage_v": 3.3,
+      "io_voltage_v": null,
       "direction": "out",
-      "drive": "push_pull",
+      "drive": "open_drain",
       "aliases": [
         "A",
         "ENC_A",
@@ -84,9 +84,9 @@
     },
     "DT": {
       "role": "signal_out",
-      "io_voltage_v": 3.3,
+      "io_voltage_v": null,
       "direction": "out",
-      "drive": "push_pull",
+      "drive": "open_drain",
       "aliases": [
         "B",
         "ENC_B",
@@ -96,7 +96,7 @@
     },
     "SW": {
       "role": "signal_out",
-      "io_voltage_v": 3.3,
+      "io_voltage_v": null,
       "direction": "out",
       "drive": "open_drain",
       "aliases": [
@@ -130,7 +130,7 @@
       "typical": 2,
       "peak": null
     },
-    "io_voltage_v": 3.3,
+    "io_voltage_v": null,
     "i2c": null
   },
   "features": [

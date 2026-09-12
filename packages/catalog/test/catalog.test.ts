@@ -24,6 +24,14 @@ describe('built-in catalog', () => {
     expect(xiao.geometry_status).toBe('approximate');
   });
 
+  it('models KY-040 signals as supply-pulled contacts instead of fixed 3.3 V push-pull outputs', () => {
+    const encoder = builtinCatalog().getComponent('encoder_ky040@1')!;
+    expect(encoder.electrical.io_voltage_v).toBeNull();
+    for (const pin of ['CLK', 'DT', 'SW']) {
+      expect(encoder.pin_meta[pin]).toMatchObject({ drive: 'open_drain', io_voltage_v: null });
+    }
+  });
+
   it('reserves the octal-PSRAM lines on exactly the variants that have them', () => {
     const c = builtinCatalog();
     const reservedOf = (ref: string) =>

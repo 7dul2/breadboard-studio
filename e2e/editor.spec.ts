@@ -43,11 +43,12 @@ test.describe('editor core flows', () => {
     await fresh(page);
     await addFromLibrary(page, 'breadboard_400_terminal');
     await addFromLibrary(page, 'breadboard_power_strip_25');
-    await page.locator('.board-body[data-board="bb_2"]').click({ force: true });
+    expect((await state(page)).selectedIds).toEqual(['bb_2']);
     await page.getByTestId('board-join-target').selectOption('bb_1');
     await page.getByTestId('board-join-bottom').click();
     await addFromLibrary(page, 'breadboard_400_terminal');
-    await page.locator('.board-body[data-board="bb_3"]').click({ force: true });
+    // 元件库会选中新加入的板；第三块此时可能在当前视口之外，仍应可直接拼接。
+    expect((await state(page)).selectedIds).toEqual(['bb_3']);
     await page.getByTestId('board-join-target').selectOption('bb_2');
     await page.getByTestId('board-join-bottom').click();
     await fit(page);
@@ -505,6 +506,20 @@ test.describe('editor core flows', () => {
     expect(applied.ok).toBe(true);
     expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
 
+    // 抓出去再拖回原孔应当是无操作，不能把自己的孔误判成已占用。
+    const ownHandle = await page.locator('[data-wire="w_drag"][data-end="from"].wire-end-hit').first().boundingBox();
+    const ownHole = await page.locator('[data-hole="bb_1.e1"]').first().boundingBox();
+    expect(ownHandle && ownHole).toBeTruthy();
+    const pastBeforeNoop = (await state(page)).past;
+    await page.mouse.move(ownHandle!.x + ownHandle!.width / 2, ownHandle!.y + ownHandle!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(ownHandle!.x + ownHandle!.width / 2 + 24, ownHandle!.y + ownHandle!.height / 2 + 12, { steps: 4 });
+    await page.mouse.move(ownHole!.x + ownHole!.width / 2, ownHole!.y + ownHole!.height / 2, { steps: 4 });
+    await page.mouse.up();
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+    expect((await state(page)).past).toBe(pastBeforeNoop);
+    await expect(page.getByTestId('toast-error')).toHaveCount(0);
+
     // 抓住已经插好的那一端的插头，拖到另一个空孔
     await dragWireEnd(page, 'w_drag', 'from', 'bb_1.c3');
     let d = await design(page);
@@ -523,6 +538,24 @@ test.describe('editor core flows', () => {
     // 端点的拖拽和其他编辑一样进撤销栈
     await page.getByTestId('undo').click();
     expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+  });
+
+  test('re-plugs a wire endpoint onto an off-board component terminal', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await page.getByTestId('tool-select').click();
+    const applied = await page.evaluate(() =>
+      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+        { op: 'add_component', component: { id: 'sensor', model: 'ttp223_module@1', placement: { kind: 'off_board', position_um: [140000, 10000], rotation_deg: 0 } } },
+        { op: 'add_wire', wire: { id: 'w_terminal', from: { hole: 'bb_1.e1' }, to: { hole: 'bb_1.e5' }, color: 'blue', route: 'elevated' } }
+      ])
+    );
+    expect(applied.ok).toBe(true);
+    await fit(page);
+
+    await dragWireEnd(page, 'w_terminal', 'from', 'sensor.IO');
+    expect((await design(page)).wires.find((wire) => wire.id === 'w_terminal')!.from).toEqual({ terminal: 'sensor.IO' });
+    await expect(page.getByTestId('toast-error')).toHaveCount(0);
   });
 
   test('agent-style batch through the same engine matches the UI analysis', async ({ page }) => {

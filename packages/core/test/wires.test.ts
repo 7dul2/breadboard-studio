@@ -170,6 +170,35 @@ describe('wires', () => {
     expect(moved.wires[1]!.to).toEqual({ hole: 'bb.j20' });
   });
 
+  it('does not rewrite a locked wire when its connected component moves', () => {
+    const base = build([...oneBoard, { op: 'add_component', component: { id: 'led', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c5', anchor_pin: 'A', rotation_deg: 0 } } }]);
+    const wired = build([{ op: 'add_wire', wire: { id: 'w_locked', from: { pin: 'led.A' }, to: { hole: 'bb.top_inner_1' }, color: 'red' } }], base);
+    const locked = build([{ op: 'update_property', id: 'w_locked', path: 'locked', value: true }], wired);
+    const originalFrom = locked.wires[0]!.from;
+
+    const moved = build([{ op: 'move_component', id: 'led', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c20', anchor_pin: 'A', rotation_deg: 0 } }], locked);
+    expect(moved.wires[0]!.from).toEqual(originalFrom);
+    expect(moved.components[0]!.placement).toMatchObject({ anchor_hole: 'c20' });
+  });
+
+  it('does not guess wire ownership when another component shares the same conductive group', () => {
+    const components = build(
+      [
+        ...oneBoard,
+        { op: 'add_component', component: { id: 'moving', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c5', anchor_pin: 'A', rotation_deg: 0 } } },
+        { op: 'add_component', component: { id: 'fixed', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e5', anchor_pin: 'A', rotation_deg: 0 } } }
+      ],
+      undefined,
+      true
+    );
+    const wired = build([{ op: 'add_wire', wire: { id: 'w_fixed', from: { pin: 'fixed.A' }, to: { hole: 'bb.top_inner_1' }, color: 'blue' } }], components, true);
+    const originalFrom = wired.wires[0]!.from;
+
+    const moved = build([{ op: 'move_component', id: 'moving', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c20', anchor_pin: 'A', rotation_deg: 0 } }], wired, true);
+    expect(moved.wires[0]!.from).toEqual(originalFrom);
+    expect(analyzeDesign(moved).connectivity.full.connected('fixed.A', 'bb.top_inner_1')).toBe(true);
+  });
+
   it('lifts the wires with a component that is moved off the board, and picks them up again on the way back', () => {
     const base = build([...oneBoard, { op: 'add_component', component: { id: 'led', model: 'led_5mm@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'c5', anchor_pin: 'A', rotation_deg: 0 } } }]);
     const d = build([{ op: 'add_wire', wire: { id: 'w1', from: { pin: 'led.A' }, to: { hole: 'bb.top_inner_1' }, color: 'red' } }], base);
