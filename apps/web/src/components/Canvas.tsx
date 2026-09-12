@@ -29,7 +29,27 @@ interface View {
   z: number; // px per mm
   px: number;
   py: number;
+  /** 视图旋转（度）。只影响显示，不写进设计数据。 */
+  rot: number;
 }
+
+/** 把设计坐标按视图角度旋转（度）。 */
+function rotateByDeg(p: [number, number], deg: number): [number, number] {
+  if (!deg) return p;
+  const rad = (deg * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return [p[0] * c - p[1] * s, p[0] * s + p[1] * c];
+}
+
+/**
+ * 滚轮缩放灵敏度（每像素 deltaY 的指数系数）。
+ * 一格滚轮的 deltaY 约 100px，这里约合 16% —— 想更细就调小，想更"跟手"就调大。
+ */
+const ZOOM_WHEEL_SENSITIVITY = 0.0016;
+/** 缩放范围，避免缩到看不见或放大到坐标溢出。 */
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 60;
 
 type DragMode =
   | { kind: 'none' }
@@ -68,7 +88,7 @@ export function Canvas() {
   const { apply, select, selectHole, setWireDraft, cancelInteraction, toast } = useStore.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40 });
+  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0 });
   const viewRef = useRef(view);
   viewRef.current = view;
   const dragRef = useRef<DragMode>({ kind: 'none' });
@@ -152,7 +172,14 @@ export function Canvas() {
     const svg = svgRef.current!;
     const r = svg.getBoundingClientRect();
     const v = viewRef.current;
-    return [(clientX - r.left - v.px) / v.z, (clientY - r.top - v.py) / v.z];
+    const dx = (clientX - r.left - v.px) / v.z;
+    const dy = (clientY - r.top - v.py) / v.z;
+    if (!v.rot) return [dx, dy];
+    // 视图转过角度，屏幕坐标要反向转回去才是设计坐标（R⁻¹ = Rᵀ）
+    const rad = (v.rot * Math.PI) / 180;
+    const c = Math.cos(rad);
+    const s = Math.sin(rad);
+    return [dx * c + dy * s, -dx * s + dy * c];
   }, []);
   const toUm = (p: [number, number]): PointUm => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)];
 
@@ -161,12 +188,24 @@ export function Canvas() {
     if (!svg) return;
     const r = svg.getBoundingClientRect();
     const b = model.bounds ?? { x: 0, y: 0, w: 100000, h: 60000 };
-    const wMm = b.w / 1000 + 20;
-    const hMm = b.h / 1000 + 20;
+    const rot = viewRef.current.rot;
+    // 旋转后要按旋转过的外接矩形来算，否则转 90° 内容会跑出视口
+    const corners: [number, number][] = [
+      [b.x / 1000, b.y / 1000],
+      [(b.x + b.w) / 1000, b.y / 1000],
+      [b.x / 1000, (b.y + b.h) / 1000],
+      [(b.x + b.w) / 1000, (b.y + b.h) / 1000]
+    ].map((p) => rotateByDeg(p as [number, number], rot));
+    const minX = Math.min(...corners.map((p) => p[0]));
+    const maxX = Math.max(...corners.map((p) => p[0]));
+    const minY = Math.min(...corners.map((p) => p[1]));
+    const maxY = Math.max(...corners.map((p) => p[1]));
+    const wMm = maxX - minX + 20;
+    const hMm = maxY - minY + 20;
     const z = Math.max(0.5, Math.min(40, Math.min(r.width / wMm, r.height / hMm)));
-    const px = (r.width - (b.w / 1000) * z) / 2 - (b.x / 1000) * z;
-    const py = (r.height - (b.h / 1000) * z) / 2 - (b.y / 1000) * z;
-    setView({ z, px, py });
+    const px = (r.width - (maxX - minX) * z) / 2 - minX * z;
+    const py = (r.height - (maxY - minY) * z) / 2 - minY * z;
+    setView({ z, px, py, rot });
   }, [model]);
 
   useEffect(() => {
@@ -184,10 +223,13 @@ export function Canvas() {
         const r = el.getBoundingClientRect();
         const cx = e.clientX - r.left;
         const cy = e.clientY - r.top;
-        const factor = Math.exp(-e.deltaY * 0.01);
-        const z = Math.max(0.5, Math.min(60, v.z * factor));
+        // 无极缩放：把 deltaY 统一成像素后按指数连续换算。
+        // 一格滚轮约 100px → 约 16%，触控板/捏合的细小 delta 也照样平滑；
+        // 原来的 0.01 系数一格能跳 2.7 倍，所以看着"一档一档"。
+        const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+        const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.z * Math.exp(-px * ZOOM_WHEEL_SENSITIVITY)));
         const k = z / v.z;
-        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
+        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k, rot: v.rot });
       } else {
         setView({ ...v, px: v.px - e.deltaX, py: v.py - e.deltaY });
       }
@@ -224,9 +266,33 @@ export function Canvas() {
         const v = viewRef.current;
         const cx = r.width / 2;
         const cy = r.height / 2;
-        const z = Math.max(0.5, Math.min(60, v.z * f));
+        const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.z * f));
         const k = z / v.z;
-        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
+        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k, rot: v.rot });
+      },
+      /**
+       * 转动视图。绕视口中心转，所以视野中心的设计坐标保持不动，
+       * 转完不用手动 pan。
+       */
+      rotateBy: (deltaDeg: number) => {
+        const svg = svgRef.current!;
+        const r = svg.getBoundingClientRect();
+        const cx = r.width / 2;
+        const cy = r.height / 2;
+        const v = viewRef.current;
+        const rot = (((v.rot + deltaDeg) % 360) + 360) % 360;
+        const [rx, ry] = rotateByDeg([cx - v.px, cy - v.py], deltaDeg);
+        setView({ ...v, rot, px: cx - rx, py: cy - ry });
+      },
+      rotateTo: (deg: number) => {
+        const svg = svgRef.current!;
+        const r = svg.getBoundingClientRect();
+        const cx = r.width / 2;
+        const cy = r.height / 2;
+        const v = viewRef.current;
+        const rot = (((deg % 360) + 360) % 360);
+        const [rx, ry] = rotateByDeg([cx - v.px, cy - v.py], rot - v.rot);
+        setView({ ...v, rot, px: cx - rx, py: cy - ry });
       },
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
       // Paste needs to know where the pointer is; the store has no view transform.
@@ -702,7 +768,7 @@ export function Canvas() {
         </defs>
         <rect className="canvas-bg" width="100%" height="100%" fill="#eef0f4" />
         {view.z > 3 && <rect width="100%" height="100%" fill="url(#grid)" style={{ pointerEvents: 'none' }} />}
-        <g transform={`translate(${view.px} ${view.py}) scale(${view.z})`}>
+        <g transform={`translate(${view.px} ${view.py}) scale(${view.z}) rotate(${view.rot})`}>
           <g className={drag.kind === 'objects' && drag.moved ? 'scene scene-dim' : 'scene'}>
             <SceneNodes nodes={scene.nodes} />
           </g>
