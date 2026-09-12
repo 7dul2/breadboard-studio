@@ -6,7 +6,7 @@ describe('built-in catalog', () => {
     const c = builtinCatalog();
     expect(c.listBoards().map((b) => b.id).sort()).toEqual(['breadboard_400', 'breadboard_400_terminal', 'breadboard_830', 'breadboard_power_strip_25']);
     const ids = c.listComponents().map((d) => d.id);
-    for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3']) {
+    for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3', 'tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6']) {
       expect(ids).toContain(id);
     }
   });
@@ -22,6 +22,14 @@ describe('built-in catalog', () => {
     // Nothing in v0.1 has been physically verified; the catalog must not claim otherwise.
     const xiao = c.getComponent('xiao_esp32s3_sense@1')!;
     expect(xiao.geometry_status).toBe('approximate');
+  });
+
+  it('models KY-040 signals as supply-pulled contacts instead of fixed 3.3 V push-pull outputs', () => {
+    const encoder = builtinCatalog().getComponent('encoder_ky040@1')!;
+    expect(encoder.electrical.io_voltage_v).toBeNull();
+    for (const pin of ['CLK', 'DT', 'SW']) {
+      expect(encoder.pin_meta[pin]).toMatchObject({ drive: 'open_drain', io_voltage_v: null });
+    }
   });
 
   it('reserves the octal-PSRAM lines on exactly the variants that have them', () => {

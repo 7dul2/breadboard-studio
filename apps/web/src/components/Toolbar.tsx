@@ -124,6 +124,7 @@ export function Toolbar() {
   const showHoleLabels = useStore((s) => s.showHoleLabels);
   const showPinLabels = useStore((s) => s.showPinLabels);
   const connectivityHighlight = useStore((s) => s.connectivityHighlight);
+  const dimUnhighlighted = useStore((s) => s.dimUnhighlighted);
   const wireColor = useStore((s) => s.wireColor);
   const wireRoute = useStore((s) => s.wireRoute);
   const storage = useStore((s) => s.storage);
@@ -234,6 +235,7 @@ export function Toolbar() {
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
       <label className="toggle"><input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} />针脚名</label>
       <label className="toggle"><input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮</label>
+      <label className="toggle" title="选中元件或孔时，把无关的导线压暗，只留下直连的那几根"><input type="checkbox" checked={dimUnhighlighted} onChange={st.toggleDimUnhighlighted} data-testid="toggle-dim" />聚焦选中</label>
       <span className="spacer" />
       <ModeSwitch mode={mode} />
       <span className={`storage ${storage.state}`} data-testid="storage-status">{storageText}</span>

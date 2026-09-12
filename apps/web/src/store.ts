@@ -13,6 +13,8 @@ import touchExample from '../../../examples/touch_display.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
 export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation' | 'hardware';
+/** 左栏两个页签：从目录挑新元件，或从已放置的元件里直接点选。 */
+export type LeftTab = 'library' | 'selected';
 /**
  * The two things this app does, and the line between them: `build` changes the
  * document (place, wire, edit, undo), `sim` only observes and drives a session.
@@ -114,9 +116,12 @@ interface State {
   showHoleLabels: boolean;
   showPinLabels: boolean;
   connectivityHighlight: boolean;
+  /** 选中元件/孔时，把无关的导线压暗，只留直连的那几根显眼。 */
+  dimUnhighlighted: boolean;
   mode: AppMode;
   clipboard: ClipboardPayload | null;
   rightTab: RightTab;
+  leftTab: LeftTab;
   buildStep: number;
   dslText: string;
   dslDirty: boolean;
@@ -147,7 +152,9 @@ interface State {
   toggleHoleLabels: () => void;
   togglePinLabels: () => void;
   toggleConnectivityHighlight: () => void;
+  toggleDimUnhighlighted: () => void;
   setRightTab: (t: RightTab) => void;
+  setLeftTab: (t: LeftTab) => void;
   setMode: (m: AppMode) => void;
   setBuildStep: (i: number) => void;
   toggleBuildDone: (wireId: string) => void;
@@ -253,9 +260,11 @@ const useStore = create<State>((set, get) => {
     showHoleLabels: false,
     showPinLabels: true,
     connectivityHighlight: true,
+  dimUnhighlighted: true,
     mode: 'build',
     clipboard: loadClipboard<ClipboardPayload>(),
     rightTab: 'properties',
+    leftTab: 'library',
     buildStep: 0,
     dslText: serializeDesign(initial),
     dslDirty: false,
@@ -366,8 +375,14 @@ const useStore = create<State>((set, get) => {
     toggleConnectivityHighlight() {
       set({ connectivityHighlight: !get().connectivityHighlight });
     },
+    toggleDimUnhighlighted() {
+      set({ dimUnhighlighted: !get().dimUnhighlighted });
+    },
     setRightTab(t) {
       set({ rightTab: t, ...(t === 'wiring' ? { buildStep: 0 } : {}) });
+    },
+    setLeftTab(t) {
+      set({ leftTab: t });
     },
     setMode(m) {
       if (get().mode === m) return;

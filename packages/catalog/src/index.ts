@@ -26,6 +26,9 @@ import sen66 from './definitions/sen66.json';
 import powerModule from './definitions/power_module_3v3.json';
 import resistor from './definitions/resistor_axial.json';
 import led from './definitions/led_5mm.json';
+import tft177St7735Spi from './definitions/tft_1_77_st7735_spi.json';
+import encoderKy040 from './definitions/encoder_ky040.json';
+import tactile6x6 from './definitions/tactile_6x6.json';
 
 export const CATALOG_ID = 'builtin';
 export const CATALOG_VERSION = '0.1.0';
@@ -45,7 +48,10 @@ const rawComponents: unknown[] = [
   sen66,
   powerModule,
   resistor,
-  led
+  led,
+  tft177St7735Spi,
+  encoderKy040,
+  tactile6x6
 ];
 
 export interface ModelRef {

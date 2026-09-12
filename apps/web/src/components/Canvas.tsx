@@ -56,7 +56,12 @@ type DragMode =
   | { kind: 'pan'; startX: number; startY: number; view: View }
   | { kind: 'marquee'; start: [number, number]; current: [number, number] }
   | { kind: 'objects'; ids: string[]; startMm: [number, number]; moved: boolean; pointerId: number }
-  | { kind: 'waypoint'; wireId: string; index: number; pointerId: number };
+  | { kind: 'waypoint'; wireId: string; index: number; pointerId: number }
+  /**
+   * 拖一根已经接好的线的端点。`from` 是拖起来那一刻的端点，用来判断"拖回原地"
+   * 与"两端撞到同一个孔"，也让取消（松手前没动）什么都不改。
+   */
+  | { kind: 'wire-end'; wireId: string; end: WireEnd; startMm: [number, number]; from: WireEndpoint; moved: boolean; pointerId: number };
 
 interface Preview {
   ops: Op[];
@@ -64,6 +69,9 @@ interface Preview {
   model: DesignModel;
   blocking: RuleResult[];
 }
+
+/** 一根导线的两端。`from` 画在第一个点上，`to` 画在最后一个点上。 */
+type WireEnd = 'from' | 'to';
 
 
 export function Canvas() {
@@ -77,6 +85,7 @@ export function Canvas() {
   const showHoleLabels = useStore((s) => s.showHoleLabels);
   const showPinLabels = useStore((s) => s.showPinLabels);
   const connectivityHighlight = useStore((s) => s.connectivityHighlight);
+  const dimUnhighlighted = useStore((s) => s.dimUnhighlighted);
   const highlightEndpoints = useStore((s) => s.highlightEndpoints);
   const fitRequest = useStore((s) => s.fitRequest);
   const mode = useStore((s) => s.mode);
@@ -103,10 +112,51 @@ export function Canvas() {
   /** Same value as `cursorMm`, readable from the window bridge without re-running its effect. */
   const cursorRef = useRef<[number, number] | null>(null);
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
+  /** 正在拖的线端点：跟着指针画一条虚线，并标出候选落点。 */
+  const [endDrag, setEndDrag] = useState<{ wireId: string; end: WireEnd; pos: PointUm } | null>(null);
   const spaceRef = useRef(false);
 
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const model = analysis.model;
+
+  /**
+   * 孔 → 插在这个孔里的引脚。一根线插进一个空孔时，光看导线是看不出它接到谁的：
+   * 电气上它接的是同一列导通组里的那个引脚，这张表就是把这句话还原出来。
+   */
+  const pinAtHole = useMemo(() => {
+    const m = new Map<string, { comp: string; pin: string }>();
+    for (const pc of model.components.values()) {
+      for (const pin of pc.pins) {
+        if (!pin.hole) continue;
+        m.set(`${pin.hole.board_id}.${pin.hole.hole}`, { comp: pc.instance.id, pin: `${pc.instance.id}.${pin.name}` });
+      }
+    }
+    return m;
+  }, [model]);
+
+  /** 所有引脚的世界坐标（mm），命中测试用。 */
+  const pinPoints = useMemo(() => {
+    const out: { addr: string; x: number; y: number }[] = [];
+    for (const pc of model.components.values()) {
+      for (const pin of pc.pins) out.push({ addr: `${pc.instance.id}.${pin.name}`, x: mm(pin.global_um[0]), y: mm(pin.global_um[1]) });
+    }
+    return out;
+  }, [model]);
+
+  /** 落点上的元件：取包围盒最小的那个（最具体的先赢）。 */
+  const componentAt = useCallback(
+    (p: [number, number]): string | undefined => {
+      let best: { id: string; area: number } | null = null;
+      for (const pc of model.components.values()) {
+        const b = { x: mm(pc.bounds.x) - 0.6, y: mm(pc.bounds.y) - 0.6, w: mm(pc.bounds.w) + 1.2, h: mm(pc.bounds.h) + 1.2 };
+        if (p[0] < b.x || p[0] > b.x + b.w || p[1] < b.y || p[1] > b.y + b.h) continue;
+        const area = b.w * b.h;
+        if (!best || area < best.area) best = { id: pc.instance.id, area };
+      }
+      return best?.id;
+    },
+    [model]
+  );
 
   // ---- highlight sets -------------------------------------------------------
   const highlight = useMemo(() => {
@@ -118,6 +168,14 @@ export function Canvas() {
       const set = connectivityHighlight ? conductiveSet(model, analysis.connectivity, selectedHole) : { holes: groupHoles(model, selectedHole), pins: [] };
       set.holes.forEach((h) => holes.add(h));
       set.pins.forEach((p) => pins.add(p));
+      // 空孔本身没有意义，真正要知道的是"这一列上插着谁"。
+      for (const h of groupHoles(model, selectedHole)) {
+        const owner = pinAtHole.get(h);
+        if (owner) {
+          pins.add(owner.pin);
+          comps.add(owner.comp);
+        }
+      }
       const net = analysis.connectivity.netByRoot.get(analysis.connectivity.full.find(selectedHole));
       if (connectivityHighlight && net) net.wires.forEach((w) => wires.add(w));
     }
@@ -126,8 +184,48 @@ export function Canvas() {
       if (rw) {
         for (const ep of [rw.from, rw.to]) {
           if (!ep) continue;
-          if (ep.kind === 'hole') holes.add(ep.address);
-          else pins.add(ep.address);
+          if (ep.kind === 'hole') {
+            holes.add(ep.address);
+            // 选中一根线时，把两端各自"插到谁身上"一并点亮 —— 这是"不知道接到哪里"的答案。
+            for (const h of groupHoles(model, ep.address)) {
+              const owner = pinAtHole.get(h);
+              if (owner) {
+                pins.add(owner.pin);
+                comps.add(owner.comp);
+              }
+            }
+          } else pins.add(ep.address);
+        }
+        continue;
+      }
+      // 选中的是元件/面包板：把"插在它身上"的导线挑出来。
+      //
+      // 这里刻意**不**用电学导通组来判断。像 GND / 3V3 这种共用网络，用导通组
+      // 会把所有接在电源轨上的线全点亮（选一个旋钮就连屏幕的电源线都亮），
+      // 那就不是"直连"了。物理上"直连"= 导线端点落在该元件引脚所在的那一列
+      // 面包板孔里，所以用 groupHoles（板内导通组）而不是 connectivity（整网）。
+      if (model.components.has(id) || model.boards.has(id)) {
+        comps.add(id);
+        const own = new Set<string>();
+        const pc = model.components.get(id);
+        if (pc) {
+          for (const p of pc.pins) {
+            if (!p.hole) continue;
+            const addr = `${p.hole.board_id}.${p.hole.hole}`;
+            own.add(addr);
+            for (const h of groupHoles(model, addr)) own.add(h);
+          }
+        }
+        if (model.boards.has(id)) {
+          for (const h of model.holes.keys()) {
+            if (parseAddress(h)?.owner === id) own.add(h);
+          }
+        }
+        if (own.size) {
+          for (const w of model.wires.values()) {
+            const wired = [w.from, w.to].some((ep) => ep && own.has(ep.address));
+            if (wired) wires.add(w.instance.id);
+          }
         }
       }
     }
@@ -149,7 +247,7 @@ export function Canvas() {
       }
     }
     return { holes, pins, wires, comps };
-  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep]);
+  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep, pinAtHole]);
 
   const scene = useMemo(
     () =>
@@ -162,9 +260,11 @@ export function Canvas() {
         highlightPins: highlight.pins,
         highlightWires: highlight.wires,
         highlightComponents: highlight.comps,
-        selectedIds: new Set(selectedIds)
+        selectedIds: new Set(selectedIds),
+        // 有选中项时才压暗，否则整张图会一直是灰的
+        dimUnhighlighted: dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole))
       }),
-    [model, showHoleLabels, showPinLabels, highlight, selectedIds]
+    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted]
   );
 
   // ---- coordinate helpers ---------------------------------------------------
@@ -240,6 +340,19 @@ export function Canvas() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      const dragging = dragRef.current;
+      if (e.key === 'Escape' && dragging.kind === 'wire-end') {
+        // 放弃这次改接：先还掉指针捕获，别让随后的 pointerup 又落一个端点。
+        try {
+          svgRef.current?.releasePointerCapture(dragging.pointerId);
+        } catch {
+          // 捕获可能早就被浏览器收回了，忽略。
+        }
+        dragRef.current = { kind: 'none' };
+        setDragState({ kind: 'none' });
+        setEndDrag(null);
+        return;
+      }
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         spaceRef.current = true;
         e.preventDefault();
@@ -295,6 +408,19 @@ export function Canvas() {
         setView({ ...v, rot, px: cx - rx, py: cy - ry });
       },
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
+      // 「已选元件」面板用它把视图移到目标上（入参是全局 µm 包围盒）。
+      // 留 40mm 边距、最高 200%：只框住目标本身会把一根细线放到 500%，除了它什么都看不见。
+      // 视图可以旋转（rotate-view），变换是 translate∘scale∘rotate，所以目标中心要先转过去。
+      centerOn: (b: { x: number; y: number; w: number; h: number }) => {
+        const svg = svgRef.current;
+        if (!svg) return;
+        const r = svg.getBoundingClientRect();
+        const rot = viewRef.current.rot;
+        const swap = rot % 180 !== 0;
+        const z = Math.max(1, Math.min(12, Math.min(r.width / (mm(swap ? b.h : b.w) + 40), r.height / (mm(swap ? b.w : b.h) + 40))));
+        const [cx, cy] = rotateByDeg([mm(b.x + b.w / 2), mm(b.y + b.h / 2)], rot);
+        setView({ z, px: r.width / 2 - cx * z, py: r.height / 2 - cy * z, rot });
+      },
       // Paste needs to know where the pointer is; the store has no view transform.
       cursorUm: (): PointUm | null => {
         const c = cursorRef.current;
@@ -304,11 +430,15 @@ export function Canvas() {
   }, [fit]);
 
   // ---- hit testing ----------------------------------------------------------
-  function hit(target: EventTarget | null): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string } {
-    const el = target as Element | null;
+  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string; end?: WireEnd } {
+    const el = e.target as Element | null;
     if (!el || !(el instanceof Element)) return {};
     const wp = el.closest('[data-waypoint]') as HTMLElement | null;
     if (wp) return { wire: wp.dataset.wire, waypoint: Number(wp.dataset.waypoint) };
+    // 线端点的抓取圈压在孔上面，所以要先于 data-hole 判断：指针落在插头上时
+    // 用户想拖的是这根线，不是那个孔。
+    const endEl = el.closest('[data-end]') as HTMLElement | null;
+    if (endEl?.dataset.wire) return { wire: endEl.dataset.wire, end: endEl.dataset.end as WireEnd };
     const hole = (el.closest('[data-hole]') as HTMLElement | null)?.dataset.hole;
     if (hole) return { hole };
     const pin = (el.closest('[data-pin]') as HTMLElement | null)?.dataset.pin;
@@ -316,6 +446,23 @@ export function Canvas() {
     const wire = (el.closest('[data-wire]') as HTMLElement | null)?.dataset.wire;
     const board = (el.closest('[data-board]') as HTMLElement | null)?.dataset.board;
     const badge = (el.closest('[data-badge]') as HTMLElement | null)?.dataset.badge;
+    if (pin || component) return { pin, component, wire, board, badge };
+    // 导线画在元件之上，于是 DOM 最上面那层永远是导线：6×6 轻触开关、被线压住的
+    // 引脚全都点不到。这里按几何把命中让回给元件 —— 想选那根线，点它没被元件压住
+    // 的那一段（或从「已选元件」面板里点）。
+    const p = toMm(e.clientX, e.clientY);
+    let nearPin: string | undefined;
+    let nearD = 1.15;
+    for (const q of pinPoints) {
+      const d = Math.hypot(q.x - p[0], q.y - p[1]);
+      if (d <= nearD) {
+        nearD = d;
+        nearPin = q.addr;
+      }
+    }
+    if (nearPin) return { pin: nearPin };
+    const comp = componentAt(p);
+    if (comp) return { component: comp };
     return { pin, component, wire, board, badge };
   }
 
@@ -402,7 +549,7 @@ export function Canvas() {
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     const svg = svgRef.current!;
     const p = toMm(e.clientX, e.clientY);
-    const h = hit(e.target);
+    const h = hit(e);
     if (e.button === 1 || spaceRef.current || tool === 'pan') {
       svg.setPointerCapture(e.pointerId);
       setDrag({ kind: 'pan', startX: e.clientX, startY: e.clientY, view });
@@ -416,6 +563,18 @@ export function Canvas() {
     // Either way pointer-down still selects — it just never captures the pointer or
     // starts a drag, so the edit is refused *before* it happens, not by a later toast.
     const canEdit = useStore.getState().mode === 'build' && useSimulatorStore.getState().canEditTopology;
+    if (h.wire && h.end) {
+      // 已经接好的线，抓住它的插头就能改接到别的孔/端子 —— 选中照旧发生，
+      // 只有真的拖出去了（moved）才会写设计。
+      select([h.wire]);
+      if (!canEdit) return;
+      const w = design.wires.find((x) => x.id === h.wire);
+      const ep = h.end === 'from' ? w?.from : w?.to;
+      if (!w || !ep) return;
+      svg.setPointerCapture(e.pointerId);
+      setDrag({ kind: 'wire-end', wireId: w.id, end: h.end, startMm: p, from: ep, moved: false, pointerId: e.pointerId });
+      return;
+    }
     if (h.waypoint !== undefined && h.wire) {
       if (!canEdit) return;
       svg.setPointerCapture(e.pointerId);
@@ -470,6 +629,12 @@ export function Canvas() {
       case 'waypoint':
         setWpDrag({ wireId: d.wireId, index: d.index, pos: toUm(p) });
         break;
+      case 'wire-end': {
+        const moved = d.moved || Math.hypot(p[0] - d.startMm[0], p[1] - d.startMm[1]) > 0.8;
+        if (moved !== d.moved) setDrag({ ...d, moved });
+        if (moved) setEndDrag({ wireId: d.wireId, end: d.end, pos: toUm(p) });
+        break;
+      }
     }
   }
 
@@ -526,8 +691,52 @@ export function Canvas() {
         setWpDrag(null);
         break;
       }
+      case 'wire-end': {
+        setEndDrag(null);
+        if (d.moved) {
+          const ep = wireEndTarget(e, d.wireId, d.end);
+          if (ep) apply([{ op: 'update_wire', id: d.wireId, patch: d.end === 'from' ? { from: ep } : { to: ep } }], '改接导线');
+        }
+        break;
+      }
     }
     setDrag({ kind: 'none' });
+  }
+
+  /**
+   * 松手时把指针位置解析成这个端点要改接到的目标。返回 null 表示不改：拖回原地、
+   * 松手在空白处、或者落点非法（非法情况由 endpointFromHit 说明原因）。
+   */
+  function wireEndTarget(e: { target: EventTarget | null; clientX: number; clientY: number }, wireId: string, end: WireEnd): WireEndpoint | null {
+    const w = design.wires.find((x) => x.id === wireId);
+    if (!w) return null;
+    const own = end === 'from' ? w.from : w.to;
+    const other = end === 'from' ? w.to : w.from;
+    // pointer capture 会让 pointerup.target 永远是 SVG；elementFromPoint 才是松手处
+    // 真正位于最上层的孔或板外端子。
+    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+    const h = hit({ ...e, target: dropTarget ?? e.target });
+    // 导线画在孔上面，指针常常落在线上：按几何退回找下面的孔（与接线模式同一套）。
+    let targetHit: { hole?: string; pin?: string } = h;
+    if (!h.hole && !h.pin) {
+      const global = toUm(toMm(e.clientX, e.clientY));
+      for (const pb of model.boards.values()) {
+        const hole = holeAtLocal(pb.resolved, toLocal(global, pb.transform), SNAP_UM);
+        if (hole) {
+          targetHit = { hole: `${pb.instance.id}.${hole.name}` };
+          break;
+        }
+      }
+    }
+    // 几何回退以后再比较，才能正确识别被导线抓取圈遮住的原孔。
+    // 拖回原来的孔/端子：当作没动过，别报"这个孔已经有线了"。
+    if ((targetHit.hole !== undefined && targetHit.hole === own?.hole) || (targetHit.pin !== undefined && targetHit.pin === own?.terminal)) return null;
+    if ((targetHit.hole !== undefined && targetHit.hole === other?.hole) || (targetHit.pin !== undefined && targetHit.pin === other?.terminal)) {
+      toast('error', '同一根线的两端不能接在同一个孔或端子上');
+      return null;
+    }
+    if (!targetHit.hole && !targetHit.pin) return null; // 松手在空白处 = 取消
+    return endpointFromHit(targetHit);
   }
 
   function endpointFromHit(h: ReturnType<typeof hit>): WireEndpoint | null {
@@ -573,7 +782,7 @@ export function Canvas() {
   }
 
   function onClick(e: React.MouseEvent<SVGSVGElement>) {
-    const h = hit(e.target);
+    const h = hit(e);
     if (placing) {
       const pv = computePlacing(toMm(e.clientX, e.clientY));
       if (!pv) return;
@@ -623,7 +832,7 @@ export function Canvas() {
   }
 
   function onDoubleClick(e: React.MouseEvent<SVGSVGElement>) {
-    const h = hit(e.target);
+    const h = hit(e);
     if (h.waypoint !== undefined && h.wire) {
       const rw = model.wires.get(h.wire);
       if (!rw) return;
@@ -736,6 +945,24 @@ export function Canvas() {
       const pts = rw.points.map((q) => [q[0], q[1]] as PointUm);
       pts[wpDrag.index + 1] = wpDrag.pos;
       overlays.push(<polyline key="wp" points={pts.map((q) => `${mm(q[0])},${mm(q[1])}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={1} strokeDasharray="1.5 1" style={{ pointerEvents: 'none' }} />);
+    }
+  }
+  if (endDrag) {
+    const rw = model.wires.get(endDrag.wireId);
+    if (rw && rw.points.length >= 2) {
+      // from 画在第一个点上、to 画在最后一个点上，所以不动的那端在另一边。
+      const anchor = endDrag.end === 'from' ? rw.points[rw.points.length - 1]! : rw.points[0]!;
+      const cx = mm(endDrag.pos[0]);
+      const cy = mm(endDrag.pos[1]);
+      overlays.push(
+        <g key="wire-end" style={{ pointerEvents: 'none' }}>
+          <polyline points={`${mm(anchor[0])},${mm(anchor[1])} ${cx},${cy}`} fill="none" stroke={wireColor(rw.instance.color)} strokeWidth={0.9} strokeDasharray="2 1" strokeLinecap="round" opacity={0.9} />
+          <circle cx={cx} cy={cy} r={1.4} fill="none" stroke="#2563eb" strokeWidth={0.35} strokeDasharray="0.9 0.7" />
+          <text x={cx + 2} y={cy - 2} fontSize={2} fill="#1f2937">
+            松开改接到目标孔/端子（Esc 取消）
+          </text>
+        </g>
+      );
     }
   }
   if (drag.kind === 'marquee') {

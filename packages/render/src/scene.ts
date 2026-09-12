@@ -26,6 +26,11 @@ export interface SceneOptions {
   highlightWires?: Set<string>;
   highlightComponents?: Set<string>;
   selectedIds?: Set<string>;
+  /**
+   * 当有东西被选中时，把没被高亮的导线压暗，只留下关心的那几根。
+   * 由调用方决定什么时候开（一般 = 有选中项 且 用户没关掉这个开关）。
+   */
+  dimUnhighlighted?: boolean;
 }
 
 export const mm = (um: number): number => Math.round(um / 10) / 100;
@@ -260,7 +265,16 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
     children.push({ t: 'polyline', points: pts, stroke: '#111827', sw: 1.35, opacity: 0.35, linecap: 'round', cls: 'wire-shadow' });
     children.push({ t: 'polyline', points: pts, stroke: color, sw: 1.0, linecap: 'round', dash: w.route === 'elevated' ? '2.2 1.1' : undefined, cls: `wire wire-${w.route}`, data: { wire: w.id } });
     if (w.color === 'white' || w.color === 'yellow') children.push({ t: 'polyline', points: pts, stroke: '#9ca3af', sw: 0.15, cls: 'wire-outline', data: { wire: w.id } });
-    for (const p of [pts[0]!, pts[pts.length - 1]!]) children.push({ t: 'circle', cx: p[0], cy: p[1], r: 0.75, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-end' });
+    // 两端的「插头」。可见的小圆照旧只是装饰（CSS 里 pointer-events: none），
+    // 叠在下面的透明抓取圈才是拖拽改接的落点：把一根已经插好的线的端点
+    // 拖到别的孔/端子上，不必先删线重画。见 Canvas 的 wire-end 拖拽。
+    for (const [end, p] of [
+      ['from', pts[0]!],
+      ['to', pts[pts.length - 1]!]
+    ] as Array<['from' | 'to', [number, number]]>) {
+      children.push({ t: 'circle', cx: p[0], cy: p[1], r: 1.4, fill: 'transparent', cls: 'wire-end-hit', data: { wire: w.id, end } });
+      children.push({ t: 'circle', cx: p[0], cy: p[1], r: 0.75, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-end', data: { wire: w.id, end } });
+    }
     // number label at the mid-point of the longest segment
     let best = 0;
     let bi = 1;
@@ -283,7 +297,9 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
       children.push({ t: 'rect', x: mm(p[0]) - 0.8, y: mm(p[1]) - 0.8, w: 1.6, h: 1.6, fill: '#ffffff', stroke: '#2563eb', sw: 0.3, cls: 'waypoint', data: { wire: w.id, waypoint: String(i) } });
     }
   }
-  return { t: 'group', id: `wire:${w.id}`, cls: 'wire-group', data: { wire: w.id }, children };
+  // 聚焦模式：没被高亮也没被选中的导线整体压暗（连编号一起淡掉）
+  const dimmed = Boolean(opts.dimUnhighlighted) && !hl && !selected;
+  return { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, opacity: dimmed ? 0.16 : undefined, children };
 }
 
 export interface Scene {

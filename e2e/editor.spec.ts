@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, state } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, dragWireEnd, fit, fresh, loadExample, state } from './helpers';
 
 /** The shipped drawing of the board the artwork test edits, read here so a redraw cannot break the test. */
 const BOARD_DEF = JSON.parse(
@@ -11,8 +11,8 @@ const BOARD_DEF = JSON.parse(
 test.describe('editor core flows', () => {
   test('shows the curated library with integrated and modular breadboard groups', async ({ page }) => {
     await fresh(page);
-    await expect(page.locator('.library-list .lib-item')).toHaveCount(6);
-    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '主控', '显示']);
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(9);
+    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '主控', '显示', '输入']);
     await expect(page.getByTestId('lib-breadboard_400')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_400_terminal')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_power_strip_25')).toBeVisible();
@@ -43,11 +43,12 @@ test.describe('editor core flows', () => {
     await fresh(page);
     await addFromLibrary(page, 'breadboard_400_terminal');
     await addFromLibrary(page, 'breadboard_power_strip_25');
-    await page.locator('.board-body[data-board="bb_2"]').click({ force: true });
+    expect((await state(page)).selectedIds).toEqual(['bb_2']);
     await page.getByTestId('board-join-target').selectOption('bb_1');
     await page.getByTestId('board-join-bottom').click();
     await addFromLibrary(page, 'breadboard_400_terminal');
-    await page.locator('.board-body[data-board="bb_3"]').click({ force: true });
+    // 元件库会选中新加入的板；第三块此时可能在当前视口之外，仍应可直接拼接。
+    expect((await state(page)).selectedIds).toEqual(['bb_3']);
     await page.getByTestId('board-join-target').selectOption('bb_2');
     await page.getByTestId('board-join-bottom').click();
     await fit(page);
@@ -281,10 +282,13 @@ test.describe('editor core flows', () => {
     const moved = (await design(page)).components.find((c) => c.id === 'sht41')!;
     expect(moved.placement.board_id).toBe('bb_b');
     expect(moved.placement.anchor_hole).toBe('j20');
-    // wires that pointed at the old holes now report the intent as open — no phantom connection
+    // the module brought its wires along, so its I²C nets stay intact instead of being
+    // left behind on the old holes
     const a = await analysis(page);
-    expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(true);
-    expect(a.nets.find((n) => n.name === 'SDA')!.pins).not.toContain('sht41.SDA');
+    expect(a.nets.find((n) => n.name === 'SDA')!.pins).toContain('sht41.SDA');
+    expect(a.nets.find((n) => n.name === 'SCL')!.pins).toContain('sht41.SCL');
+    expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(false);
+    expect(a.summary.blocking).toBe(0);
   });
 
   test('the wiring guide lists every wire and remembers completion across reload', async ({ page }) => {
@@ -488,6 +492,70 @@ test.describe('editor core flows', () => {
     expect(anchor).not.toBeNull();
     expect(Math.abs(anchor!.x + anchor!.width / 2 - target.x)).toBeLessThan(1);
     expect(Math.abs(anchor!.y + anchor!.height / 2 - target.y)).toBeLessThan(1);
+  });
+
+  test('re-plugs a connected wire by dragging its endpoint, and refuses an impossible drop', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await page.getByTestId('tool-select').click();
+    const applied = await page.evaluate(() =>
+      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+        { op: 'add_wire', wire: { id: 'w_drag', from: { hole: 'bb_1.e1' }, to: { hole: 'bb_1.e5' }, color: 'red', route: 'elevated' } }
+      ])
+    );
+    expect(applied.ok).toBe(true);
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+
+    // 抓出去再拖回原孔应当是无操作，不能把自己的孔误判成已占用。
+    const ownHandle = await page.locator('[data-wire="w_drag"][data-end="from"].wire-end-hit').first().boundingBox();
+    const ownHole = await page.locator('[data-hole="bb_1.e1"]').first().boundingBox();
+    expect(ownHandle && ownHole).toBeTruthy();
+    const pastBeforeNoop = (await state(page)).past;
+    await page.mouse.move(ownHandle!.x + ownHandle!.width / 2, ownHandle!.y + ownHandle!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(ownHandle!.x + ownHandle!.width / 2 + 24, ownHandle!.y + ownHandle!.height / 2 + 12, { steps: 4 });
+    await page.mouse.move(ownHole!.x + ownHole!.width / 2, ownHole!.y + ownHole!.height / 2, { steps: 4 });
+    await page.mouse.up();
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+    expect((await state(page)).past).toBe(pastBeforeNoop);
+    await expect(page.getByTestId('toast-error')).toHaveCount(0);
+
+    // 抓住已经插好的那一端的插头，拖到另一个空孔
+    await dragWireEnd(page, 'w_drag', 'from', 'bb_1.c3');
+    let d = await design(page);
+    expect(d.wires[0]!.from).toEqual({ hole: 'bb_1.c3' });
+    expect(d.wires[0]!.to).toEqual({ hole: 'bb_1.e5' }); // 另一端没有被碰
+    let a = await analysis(page);
+    expect(a.summary.error).toBe(0);
+    expect(a.summary.blocking).toBe(0);
+
+    // 拖到另一端已经占着的孔上：拒绝，设计不动
+    await dragWireEnd(page, 'w_drag', 'from', 'bb_1.e5');
+    await expect(page.getByTestId('toast-error')).toBeVisible();
+    d = await design(page);
+    expect(d.wires[0]!.from).toEqual({ hole: 'bb_1.c3' });
+
+    // 端点的拖拽和其他编辑一样进撤销栈
+    await page.getByTestId('undo').click();
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+  });
+
+  test('re-plugs a wire endpoint onto an off-board component terminal', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await page.getByTestId('tool-select').click();
+    const applied = await page.evaluate(() =>
+      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+        { op: 'add_component', component: { id: 'sensor', model: 'ttp223_module@1', placement: { kind: 'off_board', position_um: [140000, 10000], rotation_deg: 0 } } },
+        { op: 'add_wire', wire: { id: 'w_terminal', from: { hole: 'bb_1.e1' }, to: { hole: 'bb_1.e5' }, color: 'blue', route: 'elevated' } }
+      ])
+    );
+    expect(applied.ok).toBe(true);
+    await fit(page);
+
+    await dragWireEnd(page, 'w_terminal', 'from', 'sensor.IO');
+    expect((await design(page)).wires.find((wire) => wire.id === 'w_terminal')!.from).toEqual({ terminal: 'sensor.IO' });
+    await expect(page.getByTestId('toast-error')).toHaveCount(0);
   });
 
   test('agent-style batch through the same engine matches the UI analysis', async ({ page }) => {

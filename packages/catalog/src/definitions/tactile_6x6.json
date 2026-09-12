@@ -1,0 +1,168 @@
+{
+  "kind": "component",
+  "id": "tactile_6x6",
+  "version": 1,
+  "name": "轻触按键 6×6×5（4 脚，本定义只建模 2 个电气端点）",
+  "manufacturer": "generic",
+  "model": "6x6x5 mm through-hole tactile push switch",
+  "variant": "4 脚直脚；同侧两脚内部相通",
+  "description": "6×6×5 mm 直脚轻触开关。实物有 4 只脚，但同侧的两只脚在内部是连通的，所以电气上只有 2 个端点：A 和 B。按下时 A-B 导通。本定义按 2 针建模（间距 5.08 mm = 面包板 2 个孔），实物脚距是 6.5×4.5 mm，插面包板时两脚需要稍微外撇。",
+  "category": "input",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": {
+    "type": "single_row_header",
+    "edge": "top",
+    "inset_um": 1270
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "type": "string",
+        "enum": [
+          "upright",
+          "flat"
+        ]
+      }
+    }
+  },
+  "params_default": {
+    "pin_names": [
+      "A",
+      "B"
+    ],
+    "body_size_um": [
+      5080,
+      5080
+    ],
+    "mount_orientation": "upright"
+  },
+  "body": {
+    "size_um": [
+      5080,
+      5080
+    ],
+    "height_um": 5000,
+    "standoff_um": 0,
+    "corner_radius_um": 300
+  },
+  "pins": [],
+  "pin_meta": {
+    "A": {
+      "role": "passive",
+      "aliases": [
+        "1",
+        "3"
+      ],
+      "notes": "一端；接 MCU 的 GPIO（MCU 侧开 INPUT_PULLUP）。"
+    },
+    "B": {
+      "role": "passive",
+      "aliases": [
+        "2",
+        "4"
+      ],
+      "notes": "另一端；接 GND。按下时 A-B 导通，GPIO 读到低电平。"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": null,
+    "supply_current_ma": {
+      "typical": 0,
+      "peak": null
+    },
+    "io_voltage_v": null,
+    "i2c": null,
+    "notes": "无源机械开关，本身不耗电。"
+  },
+  "features": [
+    {
+      "type": "button",
+      "label": "按键",
+      "rect_um": {
+        "x": 640,
+        "y": 640,
+        "w": 3800,
+        "h": 3800
+      }
+    }
+  ],
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 5080,
+      "h": 5080,
+      "rx": 300,
+      "fill": "#111827",
+      "stroke": "#374151",
+      "sw": 200
+    },
+    {
+      "t": "circle",
+      "cx": 2540,
+      "cy": 2540,
+      "r": 1500,
+      "fill": "#e5e7eb",
+      "stroke": "#6b7280",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 2540,
+      "cy": 2540,
+      "r": 700,
+      "fill": "#9ca3af"
+    },
+    {
+      "t": "text",
+      "x": 1270,
+      "y": -400,
+      "text": "A",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 3810,
+      "y": -400,
+      "text": "B",
+      "size": 800,
+      "fill": "#93c5fd",
+      "anchor": "middle"
+    }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "电气上是 2 端点的常开开关（实物 4 脚中同侧两脚内部相通）。脚距按面包板 2 孔（5.08 mm）建模，实物为 6.5×4.5 mm。",
+  "sources": [
+    {
+      "title": "Common 6x6x5 mm tactile switch listings",
+      "note": "Pin pitch 6.5 x 4.5 mm; pins on the same side are internally connected."
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}
