@@ -89,6 +89,45 @@ export function Canvas() {
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const model = analysis.model;
 
+  /**
+   * 孔 → 插在这个孔里的引脚。一根线插进一个空孔时，光看导线是看不出它接到谁的：
+   * 电气上它接的是同一列导通组里的那个引脚，这张表就是把这句话还原出来。
+   */
+  const pinAtHole = useMemo(() => {
+    const m = new Map<string, { comp: string; pin: string }>();
+    for (const pc of model.components.values()) {
+      for (const pin of pc.pins) {
+        if (!pin.hole) continue;
+        m.set(`${pin.hole.board_id}.${pin.hole.hole}`, { comp: pc.instance.id, pin: `${pc.instance.id}.${pin.name}` });
+      }
+    }
+    return m;
+  }, [model]);
+
+  /** 所有引脚的世界坐标（mm），命中测试用。 */
+  const pinPoints = useMemo(() => {
+    const out: { addr: string; x: number; y: number }[] = [];
+    for (const pc of model.components.values()) {
+      for (const pin of pc.pins) out.push({ addr: `${pc.instance.id}.${pin.name}`, x: mm(pin.global_um[0]), y: mm(pin.global_um[1]) });
+    }
+    return out;
+  }, [model]);
+
+  /** 落点上的元件：取包围盒最小的那个（最具体的先赢）。 */
+  const componentAt = useCallback(
+    (p: [number, number]): string | undefined => {
+      let best: { id: string; area: number } | null = null;
+      for (const pc of model.components.values()) {
+        const b = { x: mm(pc.bounds.x) - 0.6, y: mm(pc.bounds.y) - 0.6, w: mm(pc.bounds.w) + 1.2, h: mm(pc.bounds.h) + 1.2 };
+        if (p[0] < b.x || p[0] > b.x + b.w || p[1] < b.y || p[1] > b.y + b.h) continue;
+        const area = b.w * b.h;
+        if (!best || area < best.area) best = { id: pc.instance.id, area };
+      }
+      return best?.id;
+    },
+    [model]
+  );
+
   // ---- highlight sets -------------------------------------------------------
   const highlight = useMemo(() => {
     const holes = new Set<string>();
@@ -99,6 +138,14 @@ export function Canvas() {
       const set = connectivityHighlight ? conductiveSet(model, analysis.connectivity, selectedHole) : { holes: groupHoles(model, selectedHole), pins: [] };
       set.holes.forEach((h) => holes.add(h));
       set.pins.forEach((p) => pins.add(p));
+      // 空孔本身没有意义，真正要知道的是"这一列上插着谁"。
+      for (const h of groupHoles(model, selectedHole)) {
+        const owner = pinAtHole.get(h);
+        if (owner) {
+          pins.add(owner.pin);
+          comps.add(owner.comp);
+        }
+      }
       const net = analysis.connectivity.netByRoot.get(analysis.connectivity.full.find(selectedHole));
       if (connectivityHighlight && net) net.wires.forEach((w) => wires.add(w));
     }
@@ -107,8 +154,18 @@ export function Canvas() {
       if (rw) {
         for (const ep of [rw.from, rw.to]) {
           if (!ep) continue;
-          if (ep.kind === 'hole') holes.add(ep.address);
-          else pins.add(ep.address);
+          if (ep.kind === 'hole') {
+            holes.add(ep.address);
+            // 选中一根线时，把两端各自"插到谁身上"一并点亮 —— 这是"不知道接到哪里"的答案。
+            for (const h of groupHoles(model, ep.address)) {
+              const owner = pinAtHole.get(h);
+              if (owner) {
+                pins.add(owner.pin);
+                comps.add(owner.comp);
+                break;
+              }
+            }
+          } else pins.add(ep.address);
         }
         continue;
       }
@@ -161,7 +218,7 @@ export function Canvas() {
       }
     }
     return { holes, pins, wires, comps };
-  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep]);
+  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep, pinAtHole]);
 
   const scene = useMemo(
     () =>
@@ -263,6 +320,15 @@ export function Canvas() {
         setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
       },
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
+      // 「已选元件」面板用它把视图移到目标上（入参是全局 µm 包围盒）。
+      // 留 40mm 边距、最高 200%：只框住目标本身会把一根细线放到 500%，除了它什么都看不见。
+      centerOn: (b: { x: number; y: number; w: number; h: number }) => {
+        const svg = svgRef.current;
+        if (!svg) return;
+        const r = svg.getBoundingClientRect();
+        const z = Math.max(1, Math.min(12, Math.min(r.width / (mm(b.w) + 40), r.height / (mm(b.h) + 40))));
+        setView({ z, px: r.width / 2 - mm(b.x + b.w / 2) * z, py: r.height / 2 - mm(b.y + b.h / 2) * z });
+      },
       // Paste needs to know where the pointer is; the store has no view transform.
       cursorUm: (): PointUm | null => {
         const c = cursorRef.current;
@@ -272,8 +338,8 @@ export function Canvas() {
   }, [fit]);
 
   // ---- hit testing ----------------------------------------------------------
-  function hit(target: EventTarget | null): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string } {
-    const el = target as Element | null;
+  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string } {
+    const el = e.target as Element | null;
     if (!el || !(el instanceof Element)) return {};
     const wp = el.closest('[data-waypoint]') as HTMLElement | null;
     if (wp) return { wire: wp.dataset.wire, waypoint: Number(wp.dataset.waypoint) };
@@ -284,6 +350,23 @@ export function Canvas() {
     const wire = (el.closest('[data-wire]') as HTMLElement | null)?.dataset.wire;
     const board = (el.closest('[data-board]') as HTMLElement | null)?.dataset.board;
     const badge = (el.closest('[data-badge]') as HTMLElement | null)?.dataset.badge;
+    if (pin || component) return { pin, component, wire, board, badge };
+    // 导线画在元件之上，于是 DOM 最上面那层永远是导线：6×6 轻触开关、被线压住的
+    // 引脚全都点不到。这里按几何把命中让回给元件 —— 想选那根线，点它没被元件压住
+    // 的那一段（或从「已选元件」面板里点）。
+    const p = toMm(e.clientX, e.clientY);
+    let nearPin: string | undefined;
+    let nearD = 1.15;
+    for (const q of pinPoints) {
+      const d = Math.hypot(q.x - p[0], q.y - p[1]);
+      if (d <= nearD) {
+        nearD = d;
+        nearPin = q.addr;
+      }
+    }
+    if (nearPin) return { pin: nearPin };
+    const comp = componentAt(p);
+    if (comp) return { component: comp };
     return { pin, component, wire, board, badge };
   }
 
@@ -370,7 +453,7 @@ export function Canvas() {
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     const svg = svgRef.current!;
     const p = toMm(e.clientX, e.clientY);
-    const h = hit(e.target);
+    const h = hit(e);
     if (e.button === 1 || spaceRef.current || tool === 'pan') {
       svg.setPointerCapture(e.pointerId);
       setDrag({ kind: 'pan', startX: e.clientX, startY: e.clientY, view });
@@ -541,7 +624,7 @@ export function Canvas() {
   }
 
   function onClick(e: React.MouseEvent<SVGSVGElement>) {
-    const h = hit(e.target);
+    const h = hit(e);
     if (placing) {
       const pv = computePlacing(toMm(e.clientX, e.clientY));
       if (!pv) return;
@@ -591,7 +674,7 @@ export function Canvas() {
   }
 
   function onDoubleClick(e: React.MouseEvent<SVGSVGElement>) {
-    const h = hit(e.target);
+    const h = hit(e);
     if (h.waypoint !== undefined && h.wire) {
       const rw = model.wires.get(h.wire);
       if (!rw) return;

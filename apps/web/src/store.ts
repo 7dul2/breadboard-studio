@@ -13,6 +13,8 @@ import touchExample from '../../../examples/touch_display.breadboard.json';
 
 export type Tool = 'select' | 'wire' | 'pan';
 export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation' | 'hardware';
+/** 左栏两个页签：从目录挑新元件，或从已放置的元件里直接点选。 */
+export type LeftTab = 'library' | 'selected';
 /**
  * The two things this app does, and the line between them: `build` changes the
  * document (place, wire, edit, undo), `sim` only observes and drives a session.
@@ -119,6 +121,7 @@ interface State {
   mode: AppMode;
   clipboard: ClipboardPayload | null;
   rightTab: RightTab;
+  leftTab: LeftTab;
   buildStep: number;
   dslText: string;
   dslDirty: boolean;
@@ -151,6 +154,7 @@ interface State {
   toggleConnectivityHighlight: () => void;
   toggleDimUnhighlighted: () => void;
   setRightTab: (t: RightTab) => void;
+  setLeftTab: (t: LeftTab) => void;
   setMode: (m: AppMode) => void;
   setBuildStep: (i: number) => void;
   toggleBuildDone: (wireId: string) => void;
@@ -260,6 +264,7 @@ const useStore = create<State>((set, get) => {
     mode: 'build',
     clipboard: loadClipboard<ClipboardPayload>(),
     rightTab: 'properties',
+    leftTab: 'library',
     buildStep: 0,
     dslText: serializeDesign(initial),
     dslDirty: false,
@@ -375,6 +380,9 @@ const useStore = create<State>((set, get) => {
     },
     setRightTab(t) {
       set({ rightTab: t, ...(t === 'wiring' ? { buildStep: 0 } : {}) });
+    },
+    setLeftTab(t) {
+      set({ leftTab: t });
     },
     setMode(m) {
       if (get().mode === m) return;

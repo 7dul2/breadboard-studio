@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { Library } from './components/Library';
+import { PlacedComponents } from './components/PlacedComponents';
 import { Canvas } from './components/Canvas';
 import { Properties } from './components/Properties';
 import { Validation } from './components/Validation';
@@ -33,6 +34,7 @@ function Toasts() {
 
 export function App() {
   const rightTab = useStore((s) => s.rightTab);
+  const leftTab = useStore((s) => s.leftTab);
   const mode = useStore((s) => s.mode);
   const st = useStore.getState();
 
@@ -135,7 +137,14 @@ export function App() {
         {/* Nothing can be placed while a design is frozen, so 仿真 gives the canvas the room instead. */}
         {mode === 'build' && (
           <aside className="left">
-            <Library />
+            <div className="tabs">
+              <button className={leftTab === 'library' ? 'active' : ''} onClick={() => st.setLeftTab('library')} data-testid="tab-library">元件库</button>
+              <button className={leftTab === 'selected' ? 'active' : ''} onClick={() => st.setLeftTab('selected')} data-testid="tab-selected">已选元件</button>
+            </div>
+            <div className="tab-body">
+              {leftTab === 'library' && <Library />}
+              {leftTab === 'selected' && <PlacedComponents />}
+            </div>
           </aside>
         )}
         <section className="center">
