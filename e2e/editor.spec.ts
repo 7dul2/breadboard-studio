@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addFromLibrary, analysis, clickHole, design, fit, fresh, loadExample, state } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, dragWireEnd, fit, fresh, loadExample, state } from './helpers';
 
 /** The shipped drawing of the board the artwork test edits, read here so a redraw cannot break the test. */
 const BOARD_DEF = JSON.parse(
@@ -281,10 +281,13 @@ test.describe('editor core flows', () => {
     const moved = (await design(page)).components.find((c) => c.id === 'sht41')!;
     expect(moved.placement.board_id).toBe('bb_b');
     expect(moved.placement.anchor_hole).toBe('j20');
-    // wires that pointed at the old holes now report the intent as open — no phantom connection
+    // the module brought its wires along, so its I²C nets stay intact instead of being
+    // left behind on the old holes
     const a = await analysis(page);
-    expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(true);
-    expect(a.nets.find((n) => n.name === 'SDA')!.pins).not.toContain('sht41.SDA');
+    expect(a.nets.find((n) => n.name === 'SDA')!.pins).toContain('sht41.SDA');
+    expect(a.nets.find((n) => n.name === 'SCL')!.pins).toContain('sht41.SCL');
+    expect(a.results.some((r) => r.code === 'net_intent_open')).toBe(false);
+    expect(a.summary.blocking).toBe(0);
   });
 
   test('the wiring guide lists every wire and remembers completion across reload', async ({ page }) => {
@@ -488,6 +491,38 @@ test.describe('editor core flows', () => {
     expect(anchor).not.toBeNull();
     expect(Math.abs(anchor!.x + anchor!.width / 2 - target.x)).toBeLessThan(1);
     expect(Math.abs(anchor!.y + anchor!.height / 2 - target.y)).toBeLessThan(1);
+  });
+
+  test('re-plugs a connected wire by dragging its endpoint, and refuses an impossible drop', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await page.getByTestId('tool-select').click();
+    const applied = await page.evaluate(() =>
+      (window as unknown as { __bbs: { apply: (ops: unknown[]) => { ok: boolean } } }).__bbs.apply([
+        { op: 'add_wire', wire: { id: 'w_drag', from: { hole: 'bb_1.e1' }, to: { hole: 'bb_1.e5' }, color: 'red', route: 'elevated' } }
+      ])
+    );
+    expect(applied.ok).toBe(true);
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
+
+    // 抓住已经插好的那一端的插头，拖到另一个空孔
+    await dragWireEnd(page, 'w_drag', 'from', 'bb_1.c3');
+    let d = await design(page);
+    expect(d.wires[0]!.from).toEqual({ hole: 'bb_1.c3' });
+    expect(d.wires[0]!.to).toEqual({ hole: 'bb_1.e5' }); // 另一端没有被碰
+    let a = await analysis(page);
+    expect(a.summary.error).toBe(0);
+    expect(a.summary.blocking).toBe(0);
+
+    // 拖到另一端已经占着的孔上：拒绝，设计不动
+    await dragWireEnd(page, 'w_drag', 'from', 'bb_1.e5');
+    await expect(page.getByTestId('toast-error')).toBeVisible();
+    d = await design(page);
+    expect(d.wires[0]!.from).toEqual({ hole: 'bb_1.c3' });
+
+    // 端点的拖拽和其他编辑一样进撤销栈
+    await page.getByTestId('undo').click();
+    expect((await design(page)).wires[0]!.from).toEqual({ hole: 'bb_1.e1' });
   });
 
   test('agent-style batch through the same engine matches the UI analysis', async ({ page }) => {

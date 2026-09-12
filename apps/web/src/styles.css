@@ -239,6 +239,10 @@ table.pins td { padding: 2px 4px; border-top: 1px solid #eef0f4; vertical-align:
 .toast ul { margin: 4px 0 0; padding-left: 16px; }
 .canvas .badge, .canvas .annotations text, .canvas .board-label, .canvas .rail-mark { pointer-events: none; }
 .canvas .wire-tag, .canvas .wire-shadow, .canvas .wire-halo, .canvas .wire-end, .canvas .upright-ghost { pointer-events: none; }
+/* 线端点的透明抓取圈：fill="transparent" 本身就参与命中，这里显式声明一遍，
+   免得将来有人把 wire-end 的 pointer-events 规则推广到这个类上。 */
+.canvas .wire-end-hit { pointer-events: all; cursor: grab; }
+.canvas .wire-end-hit:active { cursor: grabbing; }
 
 /* ---- artwork editor ---- */
 .artwork-layer { position: fixed; inset: 0; z-index: 40; background: #0f172a66; display: flex; align-items: stretch; justify-content: stretch; padding: 18px; }

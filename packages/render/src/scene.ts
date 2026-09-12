@@ -265,7 +265,16 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
     children.push({ t: 'polyline', points: pts, stroke: '#111827', sw: 1.35, opacity: 0.35, linecap: 'round', cls: 'wire-shadow' });
     children.push({ t: 'polyline', points: pts, stroke: color, sw: 1.0, linecap: 'round', dash: w.route === 'elevated' ? '2.2 1.1' : undefined, cls: `wire wire-${w.route}`, data: { wire: w.id } });
     if (w.color === 'white' || w.color === 'yellow') children.push({ t: 'polyline', points: pts, stroke: '#9ca3af', sw: 0.15, cls: 'wire-outline', data: { wire: w.id } });
-    for (const p of [pts[0]!, pts[pts.length - 1]!]) children.push({ t: 'circle', cx: p[0], cy: p[1], r: 0.75, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-end' });
+    // 两端的「插头」。可见的小圆照旧只是装饰（CSS 里 pointer-events: none），
+    // 叠在下面的透明抓取圈才是拖拽改接的落点：把一根已经插好的线的端点
+    // 拖到别的孔/端子上，不必先删线重画。见 Canvas 的 wire-end 拖拽。
+    for (const [end, p] of [
+      ['from', pts[0]!],
+      ['to', pts[pts.length - 1]!]
+    ] as Array<['from' | 'to', [number, number]]>) {
+      children.push({ t: 'circle', cx: p[0], cy: p[1], r: 1.4, fill: 'transparent', cls: 'wire-end-hit', data: { wire: w.id, end } });
+      children.push({ t: 'circle', cx: p[0], cy: p[1], r: 0.75, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-end', data: { wire: w.id, end } });
+    }
     // number label at the mid-point of the longest segment
     let best = 0;
     let bi = 1;

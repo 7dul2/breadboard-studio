@@ -1,12 +1,13 @@
 import type { ComponentInstance, Constraint, DesignDocument, DesignMetadata, JsonValue, NetIntent, Placement, PointUm, ProgramAsset, ProgramLanguage, RotationDeg, SimulationConfig, WireEndpoint, WireInstance, WireRoute, WirePathMode } from '@breadboard-studio/schema';
 import { PROGRAM_LANGUAGES, SIMULATION_SPEEDS, migrateDesign, validateDesignSchema } from '@breadboard-studio/schema';
 import { Catalog, builtinCatalog } from '@breadboard-studio/catalog';
-import { parseAddress } from './address.js';
+import { parseAddress, holeAddress } from './address.js';
 import { analyzeDesign } from './analyze.js';
+import { holeAtLocal } from './board.js';
 import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
-import { accessibleHolesForPin, buildModel, catalogForDesign } from './model.js';
+import { accessibleHolesForPin, buildModel, catalogForDesign, groupHoles, pinHoleAddress, type DesignModel } from './model.js';
 import { AutoWireError, planAutoWire, type AutoWireOptions, type AutoWirePlan } from './autowire.js';
 import { sortResults, type RuleResult } from './results.js';
 
@@ -233,6 +234,222 @@ function resolveOpEndpoint(design: DesignDocument, catalog: Catalog, ep: OpEndpo
   return ep;
 }
 
+// ---------------------------------------------------------------------------
+// 拖动元件时，挂在他引脚上的线一起走
+// ---------------------------------------------------------------------------
+
+type WireEnd = 'from' | 'to';
+
+const WIRE_ENDS: readonly WireEnd[] = ['from', 'to'];
+
+/** 一个挂在这个元件引脚上的导线端点。 */
+interface AttachedEnd {
+  wire: WireInstance;
+  end: WireEnd;
+  /** 端点接的是元件上的哪个引脚（`comp.pin`）。 */
+  pin: string;
+  /** 端点在板上的孔；走端子接线的端点为 null。 */
+  hole: string | null;
+}
+
+function endKey(item: AttachedEnd): string {
+  return `${item.wire.id}:${item.end}`;
+}
+
+/**
+ * 列出挂在这个元件引脚上的导线端点。
+ *
+ * 一根线的端点插在空孔里时，电气上它接的是同一导通组里的那个引脚 —— 一列
+ * a–e / f–j，或者电源轨的 5 孔段 —— 所以"挂在这个元件上"要按孔组判定，不能只看
+ * 孔本身。板外元件用 `{terminal}` 端点，那些直接按 owner 判定。
+ */
+function attachedEnds(model: DesignModel, componentId: string): AttachedEnd[] {
+  const pinOfHole = new Map<string, string>();
+  for (const pc of model.components.values()) {
+    if (pc.instance.id !== componentId) continue;
+    for (const pin of pc.pins) {
+      const own = pinHoleAddress(pin);
+      if (!own) continue;
+      const key = `${pc.instance.id}.${pin.name}`;
+      for (const hole of groupHoles(model, own)) pinOfHole.set(hole, key);
+    }
+  }
+  const out: AttachedEnd[] = [];
+  for (const rw of model.wires.values()) {
+    const wire = rw.instance;
+    for (const end of WIRE_ENDS) {
+      const ep = wire[end];
+      if (!ep) continue;
+      if (ep.hole !== undefined) {
+        const pin = pinOfHole.get(ep.hole);
+        if (pin) out.push({ wire, end, pin, hole: ep.hole });
+      } else if (parseAddress(ep.terminal!)?.owner === componentId) {
+        out.push({ wire, end, pin: ep.terminal!, hole: null });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * 把挂在这个元件引脚上的线跟着元件一起搬。
+ *
+ * 端点在板上的相对位置保持不变：元件右移一格，插在它上方那一行的线也右移一格，
+ * 看上去就是整束线跟着元件平移。只有平移后的孔被别人占着、或者被板体挡住时，才
+ * 退一步改插到新孔组里最近的空孔 —— 连接比相对位置更重要，一次拖动不该把电路拆散。
+ * 元件被拖离面包板时这些端点改成 `{terminal}` 直接接在引脚上，线仍然连着。
+ *
+ * `mutate` 负责真正改位置/角度；本函数在它前后各建一次模型来换算新旧孔，返回动过的
+ * 导线 id。
+ */
+function carryAttachedWires(design: DesignDocument, catalog: Catalog, componentId: string, mutate: () => void): Set<string> {
+  const touched = new Set<string>();
+  const component = design.components.find((c) => c.id === componentId);
+  if (!component) {
+    mutate();
+    return touched;
+  }
+  const before = buildModel(design, catalog);
+  const attached = attachedEnds(before, componentId);
+  if (!attached.length) {
+    mutate();
+    return touched;
+  }
+
+  /** 引脚原来的板内坐标，用来算"跟着平移多少"。 */
+  const oldPinLocal = new Map<string, PointUm>();
+  for (const pc of before.components.values()) {
+    if (pc.instance.id !== componentId) continue;
+    for (const pin of pc.pins) {
+      if (!pin.hole) continue;
+      const local = before.boards.get(pin.hole.board_id)?.resolved.holes.get(pin.hole.hole)?.local_um;
+      if (local) oldPinLocal.set(`${pc.instance.id}.${pin.name}`, [local[0], local[1]]);
+    }
+  }
+
+  mutate();
+
+  const after = buildModel(design, catalog);
+  const placed = after.components.get(componentId);
+  if (!placed) return touched;
+
+  // 旧孔 → 占着它的端点。孔上那根线一旦搬走，这个孔就腾出来了：一列里好几根线
+  // 依次让位（都往同一方向挪一格）时，必须按"谁先腾空"的顺序推进，否则每根线都
+  // 会看见邻居还占着自己想去的位置，最后谁都不动。
+  const occupant = new Map<string, string>();
+  for (const item of attached) if (item.hole) occupant.set(item.hole, endKey(item));
+  const freed = new Set<string>();
+  // 这次搬运已经许出去的孔。同一列里挂在一个引脚上的好几根线都会挑"最近的空孔"，
+  // 不记下来它们会全部挑中同一个。
+  const claimed = new Set<string>();
+  // 这次搬运已经落定的端点：用来判断某个孔是"还被没搬的邻居占着"（值得等）
+  // 还是"已经被别人拿走了"（不能再等）。
+  const settled = new Set<string>();
+
+  const usable = (addr: string): boolean => {
+    if (claimed.has(addr)) return false;
+    const st = after.holes.get(addr);
+    if (!st || st.status !== 'free' || st.component_id) return false;
+    return st.wires.length === 0 || freed.has(addr);
+  };
+
+  const pinNameOf = (item: AttachedEnd): string | null => parseAddress(item.pin)?.name ?? null;
+  const pinHoleOf = (item: AttachedEnd) => {
+    const name = pinNameOf(item);
+    return name ? placed.pins.find((p) => p.name === name)?.hole ?? null : null;
+  };
+
+  const plan = new Map<string, string | null>();
+  const pending: AttachedEnd[] = [];
+  for (const item of attached) {
+    if (!pinHoleOf(item)) {
+      // 引脚已经不在板上了：改接端子，线不会因为元件被拖下来而断。
+      plan.set(endKey(item), null);
+      if (item.hole) freed.add(item.hole);
+      continue;
+    }
+    pending.push(item);
+  }
+
+  /**
+   * 端点该落到哪个孔：保住相对位置（整个平移同样的距离）。`fallback` 为假时，
+   * 目标孔还被同一次搬运里的别的线占着就先不搬 —— 那根线下一轮就让开了，急着退到
+   * "最近的空孔"会把整串线挤到别的行上去。为真时才退到新孔组最近的空孔。
+   */
+  const targetHole = (item: AttachedEnd, fallback: boolean): string | null => {
+    const pin = pinHoleOf(item);
+    if (!pin) return null;
+    const board = after.boards.get(pin.board_id);
+    const newLocal = board?.resolved.holes.get(pin.hole)?.local_um;
+    const oldPin = oldPinLocal.get(item.pin);
+    if (item.hole && board && newLocal && oldPin) {
+      const parsed = parseAddress(item.hole);
+      const oldBoard = parsed ? after.boards.get(parsed.owner) : undefined;
+      // 搬到另一块板子上时，只有两块板是同一个型号（同一份定义 = 同一套孔的局部
+      // 坐标）才能按位移换算；型号不同的话局部坐标不可比，只能退到空孔。
+      const comparable = oldBoard && oldBoard.def.id === board.def.id && oldBoard.def.version === board.def.version;
+      const oldLocal = parsed && comparable ? oldBoard.resolved.holes.get(parsed.name)?.local_um : undefined;
+      if (oldLocal) {
+        const want = holeAtLocal(board.resolved, [oldLocal[0] + newLocal[0] - oldPin[0], oldLocal[1] + newLocal[1] - oldPin[1]]);
+        const wantAddr = want ? holeAddress(board.instance.id, want.name) : null;
+        if (wantAddr === item.hole) return wantAddr;
+        if (wantAddr && usable(wantAddr)) return wantAddr;
+        const holder = wantAddr ? occupant.get(wantAddr) : undefined;
+        if (!fallback && holder && !settled.has(holder)) return null; // 等占着的那根先让开
+      }
+    }
+    if (!fallback) return null;
+    for (const hole of accessibleHolesForPin(after, componentId, parseAddress(item.pin)!.name)) if (usable(hole)) return hole;
+    return null;
+  };
+
+  const runRounds = (fallback: boolean): void => {
+    // 轮数上限要按开始时的条数算：每轮至少落定一根，最坏情况就是一串每轮让出一根。
+    // 用 pending.length 当上限会让上限随着条数减少而缩水，长链的尾巴就被丢下了。
+    const maxRounds = pending.length;
+    for (let round = 0; pending.length && round <= maxRounds; round++) {
+      let moved = false;
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const item = pending[i]!;
+        const addr = targetHole(item, fallback);
+        if (!addr) continue;
+        plan.set(endKey(item), addr);
+        claimed.add(addr);
+        settled.add(endKey(item));
+        if (item.hole && item.hole !== addr) freed.add(item.hole);
+        pending.splice(i, 1);
+        moved = true;
+      }
+      if (!moved) break;
+    }
+  };
+
+  // 先按"相对位置"搬：搬不动的等下一轮，别抢别人的位置。
+  runRounds(false);
+  // 剩下的（例如整块板子换了型号，没有可平移的目标）再退到最近的空孔。
+  runRounds(true);
+
+  for (const item of attached) {
+    const key = endKey(item);
+    if (!plan.has(key)) continue; // 没找到落脚点：留在原地，让校验去报告
+    const addr = plan.get(key)!;
+    const wire = design.wires.find((w) => w.id === item.wire.id);
+    if (!wire) continue;
+    if (addr === null) {
+      if (!item.hole) continue; // 本来就是端子，没什么可改
+      if (item.end === 'from') wire.from = { terminal: item.pin };
+      else wire.to = { terminal: item.pin };
+      touched.add(wire.id);
+      continue;
+    }
+    if (addr === item.hole) continue;
+    if (item.end === 'from') wire.from = { hole: addr };
+    else wire.to = { hole: addr };
+    touched.add(wire.id);
+  }
+  return touched;
+}
+
 interface OpContext {
   changed: Set<string>;
   reports: OpReport[];
@@ -330,7 +547,10 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
     case 'move_component': {
       const c = mustFind(design.components, op.id, '元件');
       ensureUnlocked(c, '元件');
-      c.placement = op.placement;
+      for (const id of carryAttachedWires(design, catalog, op.id, () => {
+        c.placement = op.placement;
+      }))
+        changed.add(id);
       changed.add(op.id);
       return;
     }
@@ -338,7 +558,10 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const c = mustFind(design.components, op.id, '元件');
       ensureUnlocked(c, '元件');
       const r = op.rotation_deg ?? normalizeRotation(c.placement.rotation_deg + (op.by_deg ?? 90));
-      c.placement = { ...c.placement, rotation_deg: r };
+      for (const id of carryAttachedWires(design, catalog, op.id, () => {
+        c.placement = { ...c.placement, rotation_deg: r };
+      }))
+        changed.add(id);
       changed.add(op.id);
       return;
     }

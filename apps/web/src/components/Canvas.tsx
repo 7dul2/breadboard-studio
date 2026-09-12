@@ -56,7 +56,12 @@ type DragMode =
   | { kind: 'pan'; startX: number; startY: number; view: View }
   | { kind: 'marquee'; start: [number, number]; current: [number, number] }
   | { kind: 'objects'; ids: string[]; startMm: [number, number]; moved: boolean; pointerId: number }
-  | { kind: 'waypoint'; wireId: string; index: number; pointerId: number };
+  | { kind: 'waypoint'; wireId: string; index: number; pointerId: number }
+  /**
+   * 拖一根已经接好的线的端点。`from` 是拖起来那一刻的端点，用来判断"拖回原地"
+   * 与"两端撞到同一个孔"，也让取消（松手前没动）什么都不改。
+   */
+  | { kind: 'wire-end'; wireId: string; end: WireEnd; startMm: [number, number]; from: WireEndpoint; moved: boolean; pointerId: number };
 
 interface Preview {
   ops: Op[];
@@ -64,6 +69,9 @@ interface Preview {
   model: DesignModel;
   blocking: RuleResult[];
 }
+
+/** 一根导线的两端。`from` 画在第一个点上，`to` 画在最后一个点上。 */
+type WireEnd = 'from' | 'to';
 
 
 export function Canvas() {
@@ -104,6 +112,8 @@ export function Canvas() {
   /** Same value as `cursorMm`, readable from the window bridge without re-running its effect. */
   const cursorRef = useRef<[number, number] | null>(null);
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
+  /** 正在拖的线端点：跟着指针画一条虚线，并标出候选落点。 */
+  const [endDrag, setEndDrag] = useState<{ wireId: string; end: WireEnd; pos: PointUm } | null>(null);
   const spaceRef = useRef(false);
 
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
@@ -331,6 +341,19 @@ export function Canvas() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      const dragging = dragRef.current;
+      if (e.key === 'Escape' && dragging.kind === 'wire-end') {
+        // 放弃这次改接：先还掉指针捕获，别让随后的 pointerup 又落一个端点。
+        try {
+          svgRef.current?.releasePointerCapture(dragging.pointerId);
+        } catch {
+          // 捕获可能早就被浏览器收回了，忽略。
+        }
+        dragRef.current = { kind: 'none' };
+        setDragState({ kind: 'none' });
+        setEndDrag(null);
+        return;
+      }
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         spaceRef.current = true;
         e.preventDefault();
@@ -408,11 +431,15 @@ export function Canvas() {
   }, [fit]);
 
   // ---- hit testing ----------------------------------------------------------
-  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string } {
+  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string; end?: WireEnd } {
     const el = e.target as Element | null;
     if (!el || !(el instanceof Element)) return {};
     const wp = el.closest('[data-waypoint]') as HTMLElement | null;
     if (wp) return { wire: wp.dataset.wire, waypoint: Number(wp.dataset.waypoint) };
+    // 线端点的抓取圈压在孔上面，所以要先于 data-hole 判断：指针落在插头上时
+    // 用户想拖的是这根线，不是那个孔。
+    const endEl = el.closest('[data-end]') as HTMLElement | null;
+    if (endEl?.dataset.wire) return { wire: endEl.dataset.wire, end: endEl.dataset.end as WireEnd };
     const hole = (el.closest('[data-hole]') as HTMLElement | null)?.dataset.hole;
     if (hole) return { hole };
     const pin = (el.closest('[data-pin]') as HTMLElement | null)?.dataset.pin;
@@ -537,6 +564,18 @@ export function Canvas() {
     // Either way pointer-down still selects — it just never captures the pointer or
     // starts a drag, so the edit is refused *before* it happens, not by a later toast.
     const canEdit = useStore.getState().mode === 'build' && useSimulatorStore.getState().canEditTopology;
+    if (h.wire && h.end) {
+      // 已经接好的线，抓住它的插头就能改接到别的孔/端子 —— 选中照旧发生，
+      // 只有真的拖出去了（moved）才会写设计。
+      select([h.wire]);
+      if (!canEdit) return;
+      const w = design.wires.find((x) => x.id === h.wire);
+      const ep = h.end === 'from' ? w?.from : w?.to;
+      if (!w || !ep) return;
+      svg.setPointerCapture(e.pointerId);
+      setDrag({ kind: 'wire-end', wireId: w.id, end: h.end, startMm: p, from: ep, moved: false, pointerId: e.pointerId });
+      return;
+    }
     if (h.waypoint !== undefined && h.wire) {
       if (!canEdit) return;
       svg.setPointerCapture(e.pointerId);
@@ -591,6 +630,12 @@ export function Canvas() {
       case 'waypoint':
         setWpDrag({ wireId: d.wireId, index: d.index, pos: toUm(p) });
         break;
+      case 'wire-end': {
+        const moved = d.moved || Math.hypot(p[0] - d.startMm[0], p[1] - d.startMm[1]) > 0.8;
+        if (moved !== d.moved) setDrag({ ...d, moved });
+        if (moved) setEndDrag({ wireId: d.wireId, end: d.end, pos: toUm(p) });
+        break;
+      }
     }
   }
 
@@ -647,8 +692,48 @@ export function Canvas() {
         setWpDrag(null);
         break;
       }
+      case 'wire-end': {
+        setEndDrag(null);
+        if (d.moved) {
+          const ep = wireEndTarget(e, d.wireId, d.end);
+          if (ep) apply([{ op: 'update_wire', id: d.wireId, patch: d.end === 'from' ? { from: ep } : { to: ep } }], '改接导线');
+        }
+        break;
+      }
     }
     setDrag({ kind: 'none' });
+  }
+
+  /**
+   * 松手时把指针位置解析成这个端点要改接到的目标。返回 null 表示不改：拖回原地、
+   * 松手在空白处、或者落点非法（非法情况由 endpointFromHit 说明原因）。
+   */
+  function wireEndTarget(e: { target: EventTarget | null; clientX: number; clientY: number }, wireId: string, end: WireEnd): WireEndpoint | null {
+    const w = design.wires.find((x) => x.id === wireId);
+    if (!w) return null;
+    const own = end === 'from' ? w.from : w.to;
+    const other = end === 'from' ? w.to : w.from;
+    const h = hit(e);
+    // 拖回原来的孔/端子：当作没动过，别报"这个孔已经有线了"。
+    if ((h.hole !== undefined && h.hole === own?.hole) || (h.pin !== undefined && h.pin === own?.terminal)) return null;
+    if ((h.hole !== undefined && h.hole === other?.hole) || (h.pin !== undefined && h.pin === other?.terminal)) {
+      toast('error', '同一根线的两端不能接在同一个孔或端子上');
+      return null;
+    }
+    // 导线画在孔上面，指针常常落在线上：按几何退回找下面的孔（与接线模式同一套）。
+    let targetHit: { hole?: string; pin?: string } = h;
+    if (!h.hole && !h.pin) {
+      const global = toUm(toMm(e.clientX, e.clientY));
+      for (const pb of model.boards.values()) {
+        const hole = holeAtLocal(pb.resolved, toLocal(global, pb.transform), SNAP_UM);
+        if (hole) {
+          targetHit = { hole: `${pb.instance.id}.${hole.name}` };
+          break;
+        }
+      }
+    }
+    if (!targetHit.hole && !targetHit.pin) return null; // 松手在空白处 = 取消
+    return endpointFromHit(targetHit);
   }
 
   function endpointFromHit(h: ReturnType<typeof hit>): WireEndpoint | null {
@@ -857,6 +942,24 @@ export function Canvas() {
       const pts = rw.points.map((q) => [q[0], q[1]] as PointUm);
       pts[wpDrag.index + 1] = wpDrag.pos;
       overlays.push(<polyline key="wp" points={pts.map((q) => `${mm(q[0])},${mm(q[1])}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={1} strokeDasharray="1.5 1" style={{ pointerEvents: 'none' }} />);
+    }
+  }
+  if (endDrag) {
+    const rw = model.wires.get(endDrag.wireId);
+    if (rw && rw.points.length >= 2) {
+      // from 画在第一个点上、to 画在最后一个点上，所以不动的那端在另一边。
+      const anchor = endDrag.end === 'from' ? rw.points[rw.points.length - 1]! : rw.points[0]!;
+      const cx = mm(endDrag.pos[0]);
+      const cy = mm(endDrag.pos[1]);
+      overlays.push(
+        <g key="wire-end" style={{ pointerEvents: 'none' }}>
+          <polyline points={`${mm(anchor[0])},${mm(anchor[1])} ${cx},${cy}`} fill="none" stroke={wireColor(rw.instance.color)} strokeWidth={0.9} strokeDasharray="2 1" strokeLinecap="round" opacity={0.9} />
+          <circle cx={cx} cy={cy} r={1.4} fill="none" stroke="#2563eb" strokeWidth={0.35} strokeDasharray="0.9 0.7" />
+          <text x={cx + 2} y={cy - 2} fontSize={2} fill="#1f2937">
+            松开改接到目标孔/端子（Esc 取消）
+          </text>
+        </g>
+      );
     }
   }
   if (drag.kind === 'marquee') {

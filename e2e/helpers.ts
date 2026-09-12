@@ -99,6 +99,24 @@ export async function addFromLibrary(page: Page, modelId: string): Promise<void>
   await page.getByTestId(`lib-${modelId}`).click();
 }
 
+/**
+ * Grab a connected wire's endpoint on the canvas and drop it on another hole or
+ * pin, the way a user re-plugs a jumper without deleting and redrawing the wire.
+ */
+export async function dragWireEnd(page: Page, wireId: string, end: 'from' | 'to', target: string): Promise<void> {
+  const handle = page.locator(`[data-wire="${wireId}"][data-end="${end}"].wire-end-hit`).first();
+  await handle.scrollIntoViewIfNeeded();
+  const a = await handle.boundingBox();
+  expect(a, `导线 ${wireId} 的 ${end} 端应当有可抓取的手柄`).not.toBeNull();
+  const targetEl = page.locator(`[data-hole="${target}"], [data-pin="${target}"]`).first();
+  const b = await targetEl.boundingBox();
+  expect(b, `${target} 应当在画布上`).not.toBeNull();
+  await page.mouse.move(a!.x + a!.width / 2, a!.y + a!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b!.x + b!.width / 2, b!.y + b!.height / 2, { steps: 12 });
+  await page.mouse.up();
+}
+
 export async function loadExample(page: Page, key: string): Promise<void> {
   await page.getByTestId('menu-project').click();
   await page.getByTestId(`example-${key}`).click();
