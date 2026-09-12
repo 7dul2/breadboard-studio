@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Rect } from '../src/geometry.js';
 import { analyzeDesign, applyOps, autoRoute, segmentIntersectsRect } from '../src/index.js';
-import { build, oneBoard } from './helpers.js';
+import { build, oneBoard, loadExample } from './helpers.js';
 
 describe('wires', () => {
   it('crossing wires do not connect; only explicit endpoints do', () => {
@@ -104,6 +104,13 @@ describe('wires', () => {
     const line = { x: -1000, y: 0, w: 3000, h: 0 };
     const points = [start, ...autoRoute(start, end, [line, body]), end];
     for (let i = 1; i < points.length; i++) expect(segmentIntersectsRect(points[i - 1]!, points[i]!, body)).toBe(false);
+  });
+
+  it('changing live playback speed preserves saved wire paths from an older router', () => {
+    const source = loadExample('touch_display.breadboard.json');
+    const r = applyOps(source, [{ op: 'set_simulation_config', patch: { speed: 2 } }]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.design.wires).toEqual(source.wires);
   });
 
   it('an earlier hard jumper only forbids sharing its segment: perpendicular crossings stay legal', () => {

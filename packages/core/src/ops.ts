@@ -624,7 +624,10 @@ export function applyOps(design: DesignDocument, ops: Op[], options: ApplyOption
   if (!schema.ok) {
     return { ok: false, error: { code: 'schema_invalid', message: '修改后的设计不符合 schema', issues: schema.issues.map((i) => ({ path: i.path, message: i.message })) } };
   }
-  normalizeWires(draft, catalog);
+  // Playback speed is a live control. Re-routing legacy saved waypoints here
+  // would alter the simulation snapshot even though the circuit did not change.
+  const speedOnly = ops.length > 0 && ops.every((op) => op.op === 'set_simulation_config' && Object.keys(op.patch).every((key) => key === 'speed'));
+  if (!speedOnly) normalizeWires(draft, catalog);
   const analysis = analyzeDesign(draft, catalog);
   if (analysis.hasBlocking && !options.allow_blocking) {
     const blocking = analysis.results.filter((r) => r.blocking);

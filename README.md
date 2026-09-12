@@ -218,3 +218,7 @@ Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an acc
 The CLI and browser share the same geometry, connectivity graph, and transaction engine. Agents can inspect and edit `.breadboard.json` files directly, or call the same engine as tools over MCP (`bb mcp`; its write tools stay dry-run until asked to write). See the [Agent guide](docs/AGENT_GUIDE.md) for commands, MCP setup, and patch examples.
 
 Programs now run: user code executes in an isolated QuickJS sandbox on a deterministic virtual clock, driving the board's on-board RGB, the serial console and — over a real controller-level I²C bus — the SSD1315 OLED, with pause, single-step, reset and playback speed. Buttons and touch input work on the canvas and reach the program through the real wiring. Cut a wire, use the wrong address or leave the panel unpowered and each fails differently, with a diagnostic that names the fix. Current checks do not replace verification of the actual hardware. Contributions of component definitions, measurements, examples, and fixes are welcome. MIT licensed.
+
+### 视图与线色操作
+
+导线工具和属性面板可直接点选 12 种线色，也可用取色器自定义。缩放按钮支持键盘单击和按住连续缩放；Ctrl/⌘ + 滚轮连续缩放。视图旋转按钮左键顺时针 90°、右键反向，旋转后可用「适应全部」重新居中；只改变视图，不修改元件位置或导出设计。

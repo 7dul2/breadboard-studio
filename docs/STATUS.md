@@ -1,6 +1,6 @@
 # 进度与验证状态
 
-最后更新：2026-09-11。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
+最后更新：2026-09-12。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。
 
 ## 里程碑
 
@@ -116,3 +116,36 @@
 ## 可信度 milestone 2（本地实现）
 
 对应 #5–#8：evidence 范围、等级与复核门槛覆盖目录/内嵌导入；无证据的电阻 electrical_status 降为 approximate。I²C 使用直接节点识别内外上拉，GPIO multiplex 静态提示与自动避让；实测指南与 issue 模板对非代码贡献者开放。本轮验证（2026-09-11）：`pnpm typecheck` 通过，`pnpm test` 54 个文件 / 519 项通过（新增可信度测试 13 项），`pnpm build` 通过，`git diff --check` 通过。本轮未改画布交互，未运行浏览器 e2e；没有新增实物 verified 声明。
+
+
+## 集成收尾审计（2026-09-12，PR #16 + #17）
+
+本地 `codex/milestone-closeout` 合入两个 PR 并修复以下问题：
+
+- 路由端点落在已有线段上时，快捷车道必须同时避让元件；可见性网格为线状障碍提供偏移车道。新增反例先失败后通过。
+- 斜向杜邦飞线也计算飞越元件成本；整束按同方向分组，中段共享方向、错开平行车道，两端不动，每根增加长度不超过 min(5%, 8 mm)。整束增加的长度计入贪心/全局两边的比较。
+- 重放置总共最多 6 个候选，与初始规划共用时间预算；锁定元件不动，候选与最终布线都查阻断错误；报告精确 placement。总长下降率不再冒充目标函数下降率。预算为协作式，不能中断正在计算的单个贪心计划；超时返回无建议并说明。
+- 检查未请求电源源时按真实导通节点判断，避免插在孔组里的电源误报悬空，也不把悬空草稿线当成有效接线。
+- 新路由算法会改变旧文件的自动拐点，因此纯仿真倍速事务跳过导线重写，避免误触发快照过期。浏览器反例复现停止后修复。
+- PR #17 的线色选择、连续缩放和视图旋转已合入；缩放长按仅响应主键。新增浏览器验证覆盖四方向 fit/孔位命中、设计哈希不变、键盘/长按/滚轮锚点和线色保存/撤销。
+
+复现：`pnpm exec tsx scripts/audit-autowire.ts`。脚本拆线后执行完整事务，并以最终模型的实际折线测量，输出 SVG/JSON 到 `/tmp/bbs-autowire-audit`，不改示例。下表前值引用原 PR 留存的 main 基线，本轮后值为重新执行结果：
+
+| 示例 | 原硬/杜/总长 | 收尾后硬/杜/总长 | unresolved / error |
+| --- | --- | --- | --- |
+| desk_device | 8 / 3 / 331 mm | 11 / 0 / 361 mm | 0 / 0 |
+| touch_display | 8 / 3 / 206 mm | 11 / 0 / 207 mm | 0 / 0 |
+| environment_node | 12 / 7 / 638 mm | 15 / 5 / 655 mm | 0 / 0 |
+
+取舍：desk_device 用多约 30 mm（9%）硬线换掉全部杜邦；environment_node 增长约 2.7%。不能将“杜邦更少”表述为“总长更短”。
+
+### 尚未满足的原始验收条件
+
+**#12 的每根 ≤35 mm / 电源线总长减半在固定布局下未达到，不应按原条件关闭。** SEN66 的 VDD/GND/SEL 端子 y=115.60 mm，而两块板的最下外缘 y=53.34 mm；到板外缘的纵向距离已是 62.26 mm，到轨孔更长。实际 GND/SEL 约 68.4 mm，VDD 约 77.8 mm。电源模块保留 needs_review 提示，不擅自并联主控输出。要达到该数值必须允许移动 SEN66/面包板，或修正原 issue 的几何前提。
+
+#15 已有实际可行建议：SEN66 从 (95,75) mm 上移到 (95,35) mm，重跑并通过放置/布线检查，总长约 507 mm，较 655 mm 降 22.6%；只报告不自动移动。原 issue 指定的“移动 XIAO 疏通走廊”不是本次结果，不能声称已验证该特定候选。
+
+本轮验证：`pnpm typecheck`、`pnpm test`（55 个文件 / 531 项）、生产构建、`pnpm check:dist` 和 `pnpm test:e2e`（58 项）均通过；`git diff --check` 通过。整束对照为同一方案、同一电气端点，仅比较中间拐点：
+
+![整束前](screenshots/autowire-unbundled.png)
+![整束后](screenshots/autowire-bundled.png)

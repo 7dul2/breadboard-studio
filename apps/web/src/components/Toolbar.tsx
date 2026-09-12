@@ -49,7 +49,7 @@ function ZoomButton({
   return (
     <button
       onClick={() => canvasApi()?.zoomBy(factor)}
-      onPointerDown={start}
+      onPointerDown={(e) => { if (e.button === 0) start(); }}
       onPointerUp={stop}
       onPointerLeave={stop}
       onPointerCancel={stop}

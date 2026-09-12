@@ -1834,12 +1834,28 @@ function bundleElevatedFans(ctx: Ctx, notes: string[]): void {
   const byComponent = new Map<string, AutoWireConnection[]>();
   for (const c of ctx.connections) {
     if (c.route !== 'elevated' || !c.to) continue;
-    byComponent.set(c.component, [...(byComponent.get(c.component) ?? []), c]);
+    const a = endpointGlobal(ctx, c.from);
+    const b = endpointGlobal(ctx, c.to);
+    if (!a || !b) continue;
+    const direction = Math.round(Math.atan2(b[1] - a[1], b[0] - a[0]) / (Math.PI / 4));
+    const key = `${c.component}:${direction}`;
+    byComponent.set(key, [...(byComponent.get(key) ?? []), c]);
   }
   let bundled = 0;
   for (const conns of byComponent.values()) {
     if (conns.length < 2) continue;
-    const sorted = [...conns].sort((a, b) => (a.from < b.from ? -1 : 1));
+    const delta = conns.reduce((v, c) => {
+      const a = endpointGlobal(ctx, c.from)!; const b = endpointGlobal(ctx, c.to!)!;
+      return [v[0] + b[0] - a[0], v[1] + b[1] - a[1]] as PointUm;
+    }, [0, 0] as PointUm);
+    const span = Math.hypot(...delta);
+    if (!span) continue;
+    const u: PointUm = [delta[0] / span, delta[1] / span];
+    const n: PointUm = [-u[1], u[0]];
+    const project = (p: PointUm, axis: PointUm) => p[0] * axis[0] + p[1] * axis[1];
+    const laneOf = (c: AutoWireConnection) => (project(endpointGlobal(ctx, c.from)!, n) + project(endpointGlobal(ctx, c.to!)!, n)) / 2;
+    const sorted = [...conns].sort((a, b) => laneOf(a) - laneOf(b) || a.from.localeCompare(b.from));
+    const middleLane = conns.reduce((sum, c) => sum + laneOf(c), 0) / conns.length;
     sorted.forEach((c, k) => {
       const source = endpointGlobal(ctx, c.from);
       const target = endpointGlobal(ctx, c.to!);
@@ -1848,17 +1864,21 @@ function bundleElevatedFans(ctx: Ctx, notes: string[]): void {
       const dy = target[1] - source[1];
       const len = Math.hypot(dx, dy);
       if (len < 3 * BUNDLE_EXIT_UM) return;
-      const u: PointUm = [dx / len, dy / len];
-      const n: PointUm = [-u[1], u[0]];
-      const offset = (k - (sorted.length - 1) / 2) * BUNDLE_STAGGER_UM;
-      const bend: PointUm = [Math.round(source[0] + u[0] * BUNDLE_EXIT_UM + n[0] * offset), Math.round(source[1] + u[1] * BUNDLE_EXIT_UM + n[1] * offset)];
+      // A shared direction and equally spaced lanes give the group parallel
+      // middle segments; the short end fans retain the original electrical taps.
+      const lane = middleLane + (k - (sorted.length - 1) / 2) * BUNDLE_STAGGER_UM;
+      const start = project(source, u) + BUNDLE_EXIT_UM;
+      const end = project(target, u) - BUNDLE_EXIT_UM;
+      if (end <= start) return;
+      const point = (along: number): PointUm => [Math.round(u[0] * along + n[0] * lane), Math.round(u[1] * along + n[1] * lane)];
+      const bends = [point(start), point(end)];
       const straight = distance(source, target);
-      const after = Math.hypot(bend[0] - source[0], bend[1] - source[1]) + Math.hypot(target[0] - bend[0], target[1] - bend[1]);
+      const after = polylineLength([source, ...bends, target]);
       if (after - straight > Math.min(BUNDLE_MAX_ADDED_UM, straight * 0.05)) return;
       const op = ctx.wires.find((w) => w.op === 'add_wire' && w.wire.id === c.wire_id);
       if (!op || op.op !== 'add_wire') return;
       op.wire.path_mode = 'manual';
-      op.wire.waypoints_um = [bend];
+      op.wire.waypoints_um = bends;
       ctx.objective += Math.round(after) - c.length_um;
       c.length_um = Math.round(after);
       bundled++;
@@ -2097,6 +2117,8 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
     const failure = connectMember(greedy, m);
     if (failure) greedy.unresolved.push(failure);
   }
+  const greedyBundleNotes: string[] = [];
+  if (!req.route || req.route === 'auto') bundleElevatedFans(greedy, greedyBundleNotes);
   let chosen = greedy;
   let globalObjective: number | null = null;
   let exhaustive = false;
@@ -2106,6 +2128,7 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
     const global = makeCtx(model, conn, host, req, design, skipped, estimateCache);
     const members = classifyAll(global, peripherals);
     const r = planGlobal(global, members, notes, deadline);
+    if (!req.route || req.route === 'auto') bundleElevatedFans(global, notes);
     globalObjective = global.objective;
     exhaustive = r.exhaustive;
     // A plan that connects fewer pins is never preferred, whatever its objective says.
@@ -2120,7 +2143,7 @@ export function planAutoWire(design: DesignDocument, catalog: Catalog, req: Auto
   // Dupont wires from one module leave as a cable, not as coincident spans.
   // An explicit `route=elevated` request remains the documented two-point
   // straight-span mode; bundling is only an auto-mode polish pass.
-  if (!req.route || req.route === 'auto') bundleElevatedFans(ctx, notes);
+  if (chosen === greedy) notes.push(...greedyBundleNotes);
 
   const ops: Op[] = [...ctx.configOps, ...ctx.wires, ...((req.net_intents ?? true) ? intentOps(ctx, design) : [])];
   const results: RuleResult[] = [...ctx.results, ...floatingPowerSources(ctx, new Set(req.components))];

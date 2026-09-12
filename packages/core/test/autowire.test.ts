@@ -164,6 +164,7 @@ describe('auto wire', () => {
     expect(bundled.length).toBeGreaterThanOrEqual(2);
     expect(first.design.wires).toEqual(second.design.wires);
     const model = analyzeDesign(first.design).model;
+    for (const c of [...first.plan.connections, ...first.plan.bridges]) expect(c.length_um, c.wire_id).toBe(model.wires.get(c.wire_id)!.length_um);
     for (const w of bundled) {
       const rw = model.wires.get(w.id)!;
       const report = first.plan.connections.find((c) => c.wire_id === w.id)!;
@@ -200,6 +201,23 @@ describe('auto wire', () => {
     });
     expect(expired.suggestions).toEqual([]);
     expect(expired.results.some((r) => r.code === 'auto_wire_placement_budget_exhausted')).toBe(true);
+  });
+
+  it('charges flyover cost when a diagonal Dupont span crosses another component', () => {
+    const source = build([
+      { op: 'add_component', component: { id: 'mcu', model: 'esp32s3_n16r8_dual_usb@1', placement: { kind: 'off_board', position_um: [0, 0], rotation_deg: 0 } } },
+      { op: 'add_component', component: { id: 'touch', model: 'ttp223_module@1', placement: { kind: 'off_board', position_um: [100000, 100000], rotation_deg: 0 } } }
+    ]);
+    const request = { host: 'mcu', components: ['touch'], route: 'elevated' as const, optimize: 'greedy' as const, signal_pins: { 'touch.IO': 'GPIO4' } };
+    const before = planAutoWire(source, builtinCatalog(), request);
+    const model = analyzeDesign(source).model;
+    const a = model.components.get('touch')!.pins.find((p) => p.name === 'IO')!.global_um;
+    const b = model.components.get('mcu')!.pins.find((p) => p.name === 'GPIO4')!.global_um;
+    const middle: [number, number] = [Math.round((a[0] + b[0]) / 2) - 2500, Math.round((a[1] + b[1]) / 2) - 2500];
+    const blocked = build([{ op: 'add_component', component: { id: 'obstacle', model: 'led_5mm@1', placement: { kind: 'off_board', position_um: middle, rotation_deg: 0 } } }], source);
+    const after = planAutoWire(blocked, builtinCatalog(), request);
+    expect(after.connections.map((c) => c.length_um)).toEqual(before.connections.map((c) => c.length_um));
+    expect(after.optimization.objective_um - before.optimization.objective_um).toBeGreaterThanOrEqual(4000);
   });
 
   it('does not double-wire a terminal that is already connected elsewhere and refuses to parallel a peripheral supply', () => {
