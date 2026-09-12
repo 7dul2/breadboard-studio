@@ -94,7 +94,13 @@ a { color: var(--accent); }
 .lib-actions { padding: 0 10px 6px; align-items: center; flex-wrap: nowrap; }
 .library-list { flex: 1; overflow: auto; padding: 0 6px 6px; }
 .lib-cat { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 4px 2px; }
-.lib-item { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; padding: 6px 8px; margin-bottom: 3px; }
+.lib-item { display: flex; flex-direction: row; align-items: stretch; width: 100%; margin-bottom: 3px; border: 1px solid var(--border); border-radius: 6px; background: #fff; overflow: hidden; }
+.lib-item.active { border-color: var(--accent); background: var(--accent-bg); }
+.lib-pick { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; text-align: left; padding: 6px 8px; border: none; border-radius: 0; background: transparent; }
+.lib-pick:hover { background: #f1f3f7; }
+/* 内嵌定义才有的删除按钮；仍被用着的会被禁用 */
+.lib-del { align-self: center; margin: 0 5px; padding: 1px 6px; font-size: 12px; line-height: 1.4; border-color: transparent; background: transparent; color: var(--muted); }
+.lib-del:hover:not(:disabled) { color: var(--error); background: #fee2e2; }
 .lib-name { font-weight: 500; }
 .lib-meta { font-size: 11px; color: var(--muted); }
 .hint { margin: 0 10px 6px; padding: 6px 8px; background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; font-size: 12px; }
@@ -123,8 +129,8 @@ a { color: var(--accent); }
 .wire-chip-text { font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 自定义面包板对话框：和属性面板用同一套 .field 排版，只补两行间距。 */
-.custom-board-form { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
-.custom-board-form .field { flex: none; }
+.board-form { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
+.board-form .field { flex: none; }
 .inline-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #374151; }
 .inline-check input { margin: 0; }
 .model-detail-layer { position: fixed; inset: 49px 340px 0 260px; z-index: 30; display: flex; align-items: flex-start; justify-content: flex-start; padding: clamp(24px, 8vh, 84px) 24px; background: #eef2f708; }

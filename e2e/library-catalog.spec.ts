@@ -28,48 +28,39 @@ test.describe('内置元件库新增件', () => {
 });
 
 /**
- * 自定义面包板：给列数/行数现算一份板定义并内嵌到设计。
- * 断言的是"真的生成了一块能用的板"——定义进了 embedded_catalog、规则跑出 0 error、
- * 孔位按列数/行数出现，而不是只看弹窗里的文字。
+ * 拼装面包板：用目录里可拼接的 400 孔模块拼出大板（不是新造定义）。
+ * 断言的是"真的拼上了"——块数、尺寸、规则无 error，而不是只看弹窗里的字。
  */
-test.describe('自定义面包板', () => {
-  test('按列数/行数生成，定义内嵌且规则无 error', async ({ page }) => {
+test.describe('拼装面包板', () => {
+  test('按块数拼出来：全是标准件，尺寸对得上且规则无 error', async ({ page }) => {
     await fresh(page);
-    await page.getByTestId('custom-board-open').click();
-    await page.getByTestId('custom-board-columns').fill('20');
-    await page.getByTestId('custom-board-rows').selectOption('3');
-    // 弹窗里的预估随输入变（20 列 × 6 行 = 120 个接线孔 + 4 条 14 孔电源轨）
-    await expect(page.getByTestId('custom-board-card')).toContainText('breadboard_custom_20x6_rail_split@1');
-    await expect(page.getByTestId('custom-board-card')).toContainText('176');
-    await page.getByTestId('custom-board-create').click();
+    await page.getByTestId('splice-board-open').click();
+    await page.getByTestId('splice-across').selectOption('2');
+    await page.getByTestId('splice-down').selectOption('1');
+    await expect(page.getByTestId('splice-board-card')).toContainText('60 列 × 10 行');
+    await page.getByTestId('splice-create').click();
     await expect(page.getByTestId('toast-success')).toBeVisible();
 
-    const model = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: { model: string }[]; embedded_catalog?: { boards?: { id: string }[] } } } }).__bbs.getDesign());
-    expect(model.boards.map((b) => b.model)).toEqual(['breadboard_custom_20x6_rail_split@1']);
-    expect((model.embedded_catalog?.boards ?? []).map((b) => b.id)).toEqual(['breadboard_custom_20x6_rail_split']);
+    const design = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: { model: string }[]; embedded_catalog?: unknown } } }).__bbs.getDesign());
+    expect(design.boards).toHaveLength(2);
+    expect(design.boards.map((b) => b.model)).toEqual(['breadboard_400@1', 'breadboard_400@1']);
+    // 用的是内置件，不该往设计里塞新定义
+    expect(design.embedded_catalog).toBeUndefined();
     expect((await analysis(page)).summary.error).toBe(0);
-
-    // 3 行/半区、20 列：a1/f1 在，e1（第 5 行）和 a21（第 21 列）不在
-    await expect(page.locator('[data-hole="bb_1.a1"]')).toBeVisible();
-    await expect(page.locator('[data-hole="bb_1.f1"]')).toBeVisible();
-    expect(await page.locator('[data-hole="bb_1.e1"]').count()).toBe(0);
-    expect(await page.locator('[data-hole="bb_1.a21"]').count()).toBe(0);
   });
 
-  test('同一个尺寸重复生成不会堆出第二份定义', async ({ page }) => {
+  test('纵向带电源条：块数 = 板 + 条，且都吸附在同一套网格上', async ({ page }) => {
     await fresh(page);
-    for (let i = 0; i < 2; i++) {
-      await page.getByTestId('custom-board-open').click();
-      await page.getByTestId('custom-board-columns').fill('16');
-      await page.getByTestId('custom-board-create').click();
-      // 两条 toast 会同时挂着，所以按板数等而不是按 toast 等
-      await expect
-        .poll(() => page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: unknown[] } } }).__bbs.getDesign().boards.length))
-        .toBe(i + 1);
-    }
-    const defs = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { embedded_catalog?: { boards?: { id: string }[] } } } }).__bbs.getDesign().embedded_catalog?.boards ?? []);
-    expect(defs.map((d) => d.id)).toEqual(['breadboard_custom_16x10_rail_split']);
-    const boards = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: unknown[] } } }).__bbs.getDesign().boards);
-    expect(boards).toHaveLength(2);
+    await page.getByTestId('splice-board-open').click();
+    await page.getByTestId('splice-across').selectOption('1');
+    await page.getByTestId('splice-down').selectOption('2');
+    await page.getByTestId('splice-strip').check();
+    await expect(page.getByTestId('splice-board-card')).toContainText('30 列 × 20 行');
+    await page.getByTestId('splice-create').click();
+    await expect(page.getByTestId('toast-success')).toBeVisible();
+
+    const models = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: { model: string }[] } } }).__bbs.getDesign().boards.map((b) => b.model));
+    expect(models).toEqual(['breadboard_400@1', 'breadboard_power_strip_25@1', 'breadboard_400@1']);
+    expect((await analysis(page)).summary.error).toBe(0);
   });
 });

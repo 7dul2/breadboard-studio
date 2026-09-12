@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
-import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent, type Op } from '@breadboard-studio/core';
+import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent } from '@breadboard-studio/core';
 import { boardScene, componentScene, mm, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
-import { buildCustomBoard, type CustomBoardSpec } from '../custom-board';
-import { CustomBoardDialog } from './CustomBoardDialog';
+import { spliceOps, type SpliceSpec } from '../splice-board';
+import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
 
 const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
@@ -26,7 +26,7 @@ export function Library() {
   const placing = useStore((s) => s.placing);
   const [filter, setFilter] = useState('');
   const [detailRef, setDetailRef] = useState<string | null>(null);
-  const [customOpen, setCustomOpen] = useState(false);
+  const [spliceOpen, setSpliceOpen] = useState(false);
   const st = useStore.getState();
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const analysis = analysisOf(design);
@@ -82,6 +82,21 @@ export function Library() {
     st.select([id]);
     if (!first) st.requestFit();
   };
+  /**
+   * 删掉设计里的内嵌定义。核心的 `remove_definition` 会拒绝删仍在用的，
+   * 所以按钮本身也按"有没有人在用"禁用，并把原因写在 title 里。
+   */
+  const removeDefinition = (ref: string, users: string[]) => {
+    if (users.length) {
+      st.toast('error', `${ref} 仍被 ${users.join('、')} 用着，先删掉它们`);
+      return;
+    }
+    const r = st.apply([{ op: 'remove_definition', ref }], '删除内嵌定义');
+    if (r.ok) {
+      setDetailRef(null);
+      st.toast('success', `已从设计中删除 ${ref}`);
+    }
+  };
   const openDetail = (ref: string) => {    if (performance.now() < suppressHoverUntil.current) return;
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     setDetailRef(ref);
@@ -107,26 +122,26 @@ export function Library() {
     return `${prefix}${n}`;
   };
   /**
-   * 自定义面包板：定义随设计内嵌，板本身照常加。同一个尺寸给同一个 id，
-   * 所以重复生成不会堆出多份同尺寸定义。
+   * 拼装面包板：全是目录里的标准件，只是按 attach_to 连起来。
+   * 同一批里要自己发号，nextId 只看设计、批内会重号。
    */
-  const createCustomBoard = (spec: CustomBoardSpec) => {
-    const def = buildCustomBoard(spec);
-    const id = nextId('bb_');
+  const createSpliceBoard = (spec: SpliceSpec) => {
+    const used = new Set([...design.boards, ...design.components, ...design.wires].map((o) => o.id));
+    const allocId = () => {
+      let n = 1;
+      while (used.has(`bb_${n}`)) n++;
+      const id = `bb_${n}`;
+      used.add(id);
+      return id;
+    };
     const last = design.boards[design.boards.length - 1];
-    const ops: Op[] = [
-      { op: 'add_definition', definition: def },
-      {
-        op: 'add_board',
-        board: { id, model: `${def.id}@${def.version}`, ...(last ? { attach_to: { board_id: last.id, side: 'right' as const, grid_align: true } } : { position_um: [0, 0] as [number, number] }) }
-      }
-    ];
-    const r = st.apply(ops, '自定义面包板');
-    setCustomOpen(false);
+    const { ops, ids } = spliceOps(spec, allocId, last ? { attach_to: { board_id: last.id, side: 'right' } } : { position_um: [0, 0] });
+    const r = st.apply(ops, '拼装面包板');
+    setSpliceOpen(false);
     if (r.ok) {
-      st.select([id]);
+      st.select(ids, true);
       st.requestFit();
-      st.toast('success', `已添加 ${def.name}`);
+      st.toast('success', `已拼出 ${ids.length} 块（横向 ${spec.across} × 纵向 ${spec.down}）`);
     }
   };
 
@@ -136,7 +151,7 @@ export function Library() {
       <div className="row lib-actions">
         <input className="search" placeholder="搜索型号…" value={filter} onChange={(e) => setFilter(e.target.value)} data-testid="library-search" />
         <button title="导入自定义元件/面包板定义 JSON（内嵌到当前设计）" onClick={() => fileRef.current?.click()} data-testid="import-definition">导入定义</button>
-        <button title="按给定列数/行数现算一块面包板（定义内嵌到当前设计）" onClick={() => setCustomOpen(true)} data-testid="custom-board-open">自定义面包板…</button>
+        <button title="用可拼接的 400 孔模块自动拼出一块大板" onClick={() => setSpliceOpen(true)} data-testid="splice-board-open">拼装面包板…</button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="definition-input" onChange={(e) => { void importDefinition(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
       {placing && (
@@ -150,24 +165,39 @@ export function Library() {
             <div className="lib-cat">{CATEGORY_NAMES[cat] ?? cat}</div>
             {items.map((d) => {
               const ref = `${d.id}@${d.version}`;
+              const embedded = embeddedRefs.has(ref);
+              const users = [...design.boards, ...design.components].filter((o) => o.model === ref).map((o) => o.id);
               return (
-                <button
-                  key={ref}
-                  className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}
-                  data-testid={`lib-${d.id}`}
-                  title={d.description ?? d.name}
-                  onMouseEnter={() => openDetail(ref)}
-                  onMouseLeave={closeDetailSoon}
-                  onFocus={() => openDetail(ref)}
-                  onBlur={closeDetailSoon}
-                  onClick={() => chooseModel(d)}
-                >
-                  <span className="lib-name">{d.name}</span>
-                  <span className="lib-meta">
-                    {ref}{embeddedRefs.has(ref) ? ' · 内嵌' : ''}
-                    {d.kind === 'component' && d.mount === 'off_board' ? ' · 板外/线缆' : ''}
-                  </span>
-                </button>
+                <div key={ref} className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}>
+                  <button
+                    className="lib-pick"
+                    data-testid={`lib-${d.id}`}
+                    title={d.description ?? d.name}
+                    onMouseEnter={() => openDetail(ref)}
+                    onMouseLeave={closeDetailSoon}
+                    onFocus={() => openDetail(ref)}
+                    onBlur={closeDetailSoon}
+                    onClick={() => chooseModel(d)}
+                  >
+                    <span className="lib-name">{d.name}</span>
+                    <span className="lib-meta">
+                      {ref}{embedded ? ' · 内嵌' : ''}
+                      {d.kind === 'component' && d.mount === 'off_board' ? ' · 板外/线缆' : ''}
+                      {users.length ? ` · 用中 ${users.length}` : ''}
+                    </span>
+                  </button>
+                  {embedded && (
+                    <button
+                      className="lib-del"
+                      data-testid={`lib-del-${d.id}`}
+                      disabled={users.length > 0}
+                      title={users.length ? `仍被 ${users.join('、')} 用着，先把它们删掉` : `从设计里删掉这份内嵌定义（不影响内置元件库）`}
+                      onClick={() => removeDefinition(ref, users)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -176,7 +206,7 @@ export function Library() {
       <div className="panel-footer muted">
         已放置：面包板 {analysis.model.boards.size}，元件 {analysis.model.components.size}，导线 {analysis.model.wires.size}
       </div>
-      {customOpen && <CustomBoardDialog onClose={() => setCustomOpen(false)} onCreate={createCustomBoard} />}
+      {spliceOpen && <SpliceBoardDialog onClose={() => setSpliceOpen(false)} onCreate={createSpliceBoard} />}
       {detail && (
         <ModelDetailCard
           def={detail}
