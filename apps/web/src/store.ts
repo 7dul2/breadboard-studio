@@ -114,6 +114,8 @@ interface State {
   showHoleLabels: boolean;
   showPinLabels: boolean;
   connectivityHighlight: boolean;
+  /** 选中元件/孔时，把无关的导线压暗，只留直连的那几根显眼。 */
+  dimUnhighlighted: boolean;
   mode: AppMode;
   clipboard: ClipboardPayload | null;
   rightTab: RightTab;
@@ -147,6 +149,7 @@ interface State {
   toggleHoleLabels: () => void;
   togglePinLabels: () => void;
   toggleConnectivityHighlight: () => void;
+  toggleDimUnhighlighted: () => void;
   setRightTab: (t: RightTab) => void;
   setMode: (m: AppMode) => void;
   setBuildStep: (i: number) => void;
@@ -253,6 +256,7 @@ const useStore = create<State>((set, get) => {
     showHoleLabels: false,
     showPinLabels: true,
     connectivityHighlight: true,
+  dimUnhighlighted: true,
     mode: 'build',
     clipboard: loadClipboard<ClipboardPayload>(),
     rightTab: 'properties',
@@ -365,6 +369,9 @@ const useStore = create<State>((set, get) => {
     },
     toggleConnectivityHighlight() {
       set({ connectivityHighlight: !get().connectivityHighlight });
+    },
+    toggleDimUnhighlighted() {
+      set({ dimUnhighlighted: !get().dimUnhighlighted });
     },
     setRightTab(t) {
       set({ rightTab: t, ...(t === 'wiring' ? { buildStep: 0 } : {}) });

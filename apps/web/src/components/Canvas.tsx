@@ -57,6 +57,7 @@ export function Canvas() {
   const showHoleLabels = useStore((s) => s.showHoleLabels);
   const showPinLabels = useStore((s) => s.showPinLabels);
   const connectivityHighlight = useStore((s) => s.connectivityHighlight);
+  const dimUnhighlighted = useStore((s) => s.dimUnhighlighted);
   const highlightEndpoints = useStore((s) => s.highlightEndpoints);
   const fitRequest = useStore((s) => s.fitRequest);
   const mode = useStore((s) => s.mode);
@@ -109,6 +110,37 @@ export function Canvas() {
           if (ep.kind === 'hole') holes.add(ep.address);
           else pins.add(ep.address);
         }
+        continue;
+      }
+      // 选中的是元件/面包板：把"插在它身上"的导线挑出来。
+      //
+      // 这里刻意**不**用电学导通组来判断。像 GND / 3V3 这种共用网络，用导通组
+      // 会把所有接在电源轨上的线全点亮（选一个旋钮就连屏幕的电源线都亮），
+      // 那就不是"直连"了。物理上"直连"= 导线端点落在该元件引脚所在的那一列
+      // 面包板孔里，所以用 groupHoles（板内导通组）而不是 connectivity（整网）。
+      if (model.components.has(id) || model.boards.has(id)) {
+        comps.add(id);
+        const own = new Set<string>();
+        const pc = model.components.get(id);
+        if (pc) {
+          for (const p of pc.pins) {
+            if (!p.hole) continue;
+            const addr = `${p.hole.board_id}.${p.hole.hole}`;
+            own.add(addr);
+            for (const h of groupHoles(model, addr)) own.add(h);
+          }
+        }
+        if (model.boards.has(id)) {
+          for (const h of model.holes.keys()) {
+            if (parseAddress(h)?.owner === id) own.add(h);
+          }
+        }
+        if (own.size) {
+          for (const w of model.wires.values()) {
+            const wired = [w.from, w.to].some((ep) => ep && own.has(ep.address));
+            if (wired) wires.add(w.instance.id);
+          }
+        }
       }
     }
     for (const ep of highlightEndpoints) {
@@ -142,9 +174,11 @@ export function Canvas() {
         highlightPins: highlight.pins,
         highlightWires: highlight.wires,
         highlightComponents: highlight.comps,
-        selectedIds: new Set(selectedIds)
+        selectedIds: new Set(selectedIds),
+        // 有选中项时才压暗，否则整张图会一直是灰的
+        dimUnhighlighted: dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole))
       }),
-    [model, showHoleLabels, showPinLabels, highlight, selectedIds]
+    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted]
   );
 
   // ---- coordinate helpers ---------------------------------------------------

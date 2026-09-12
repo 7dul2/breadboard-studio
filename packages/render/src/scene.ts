@@ -26,6 +26,11 @@ export interface SceneOptions {
   highlightWires?: Set<string>;
   highlightComponents?: Set<string>;
   selectedIds?: Set<string>;
+  /**
+   * 当有东西被选中时，把没被高亮的导线压暗，只留下关心的那几根。
+   * 由调用方决定什么时候开（一般 = 有选中项 且 用户没关掉这个开关）。
+   */
+  dimUnhighlighted?: boolean;
 }
 
 export const mm = (um: number): number => Math.round(um / 10) / 100;
@@ -283,7 +288,9 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
       children.push({ t: 'rect', x: mm(p[0]) - 0.8, y: mm(p[1]) - 0.8, w: 1.6, h: 1.6, fill: '#ffffff', stroke: '#2563eb', sw: 0.3, cls: 'waypoint', data: { wire: w.id, waypoint: String(i) } });
     }
   }
-  return { t: 'group', id: `wire:${w.id}`, cls: 'wire-group', data: { wire: w.id }, children };
+  // 聚焦模式：没被高亮也没被选中的导线整体压暗（连编号一起淡掉）
+  const dimmed = Boolean(opts.dimUnhighlighted) && !hl && !selected;
+  return { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, opacity: dimmed ? 0.16 : undefined, children };
 }
 
 export interface Scene {
