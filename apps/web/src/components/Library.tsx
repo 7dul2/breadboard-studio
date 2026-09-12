@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
-import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent } from '@breadboard-studio/core';
+import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent, type Op } from '@breadboard-studio/core';
 import { boardScene, componentScene, mm, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
+import { buildCustomBoard, type CustomBoardSpec } from '../custom-board';
+import { CustomBoardDialog } from './CustomBoardDialog';
 import { SceneNodes } from './SceneView';
 
 const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
@@ -24,6 +26,7 @@ export function Library() {
   const placing = useStore((s) => s.placing);
   const [filter, setFilter] = useState('');
   const [detailRef, setDetailRef] = useState<string | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
   const st = useStore.getState();
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const analysis = analysisOf(design);
@@ -79,8 +82,7 @@ export function Library() {
     st.select([id]);
     if (!first) st.requestFit();
   };
-  const openDetail = (ref: string) => {
-    if (performance.now() < suppressHoverUntil.current) return;
+  const openDetail = (ref: string) => {    if (performance.now() < suppressHoverUntil.current) return;
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     setDetailRef(ref);
   };
@@ -104,6 +106,29 @@ export function Library() {
     while (used.has(`${prefix}${n}`)) n++;
     return `${prefix}${n}`;
   };
+  /**
+   * 自定义面包板：定义随设计内嵌，板本身照常加。同一个尺寸给同一个 id，
+   * 所以重复生成不会堆出多份同尺寸定义。
+   */
+  const createCustomBoard = (spec: CustomBoardSpec) => {
+    const def = buildCustomBoard(spec);
+    const id = nextId('bb_');
+    const last = design.boards[design.boards.length - 1];
+    const ops: Op[] = [
+      { op: 'add_definition', definition: def },
+      {
+        op: 'add_board',
+        board: { id, model: `${def.id}@${def.version}`, ...(last ? { attach_to: { board_id: last.id, side: 'right' as const, grid_align: true } } : { position_um: [0, 0] as [number, number] }) }
+      }
+    ];
+    const r = st.apply(ops, '自定义面包板');
+    setCustomOpen(false);
+    if (r.ok) {
+      st.select([id]);
+      st.requestFit();
+      st.toast('success', `已添加 ${def.name}`);
+    }
+  };
 
   return (
     <div className="library">
@@ -111,6 +136,7 @@ export function Library() {
       <div className="row lib-actions">
         <input className="search" placeholder="搜索型号…" value={filter} onChange={(e) => setFilter(e.target.value)} data-testid="library-search" />
         <button title="导入自定义元件/面包板定义 JSON（内嵌到当前设计）" onClick={() => fileRef.current?.click()} data-testid="import-definition">导入定义</button>
+        <button title="按给定列数/行数现算一块面包板（定义内嵌到当前设计）" onClick={() => setCustomOpen(true)} data-testid="custom-board-open">自定义面包板…</button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="definition-input" onChange={(e) => { void importDefinition(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
       {placing && (
@@ -150,6 +176,7 @@ export function Library() {
       <div className="panel-footer muted">
         已放置：面包板 {analysis.model.boards.size}，元件 {analysis.model.components.size}，导线 {analysis.model.wires.size}
       </div>
+      {customOpen && <CustomBoardDialog onClose={() => setCustomOpen(false)} onCreate={createCustomBoard} />}
       {detail && (
         <ModelDetailCard
           def={detail}

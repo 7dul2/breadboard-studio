@@ -121,6 +121,12 @@ a { color: var(--accent); }
 .wire-chip { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 3px 6px; border-radius: 6px; font-size: 11px; }
 .wire-chip:hover { background: #eef2f7; }
 .wire-chip-text { font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 自定义面包板对话框：和属性面板用同一套 .field 排版，只补两行间距。 */
+.custom-board-form { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
+.custom-board-form .field { flex: none; }
+.inline-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #374151; }
+.inline-check input { margin: 0; }
 .model-detail-layer { position: fixed; inset: 49px 340px 0 260px; z-index: 30; display: flex; align-items: flex-start; justify-content: flex-start; padding: clamp(24px, 8vh, 84px) 24px; background: #eef2f708; }
 .model-detail-card { position: relative; width: min(440px, calc(100vw - 64px)); max-height: calc(100vh - 105px); overflow: auto; background: #fff; border: 1px solid #cfd5df; border-radius: 14px; box-shadow: 0 20px 55px #0f172a2e, 0 3px 12px #0f172a1a; }
 .model-detail-close { position: absolute; top: 9px; right: 9px; z-index: 1; width: 30px; height: 30px; padding: 0; border-radius: 999px; font-size: 21px; line-height: 1; background: #fffffff2; }
