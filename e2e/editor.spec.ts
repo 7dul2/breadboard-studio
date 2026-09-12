@@ -129,10 +129,10 @@ test.describe('editor core flows', () => {
 
     // 4. wire tool: GND group → inner rail, VCC group → outer rail
     await page.getByTestId('tool-wire').click();
-    await page.getByTestId('wire-color').selectOption('red');
+    await page.getByTestId('wire-color').locator('[data-color="red"]').click();
     await clickHole(page, 'bb_1.g9');
     await clickHole(page, 'bb_1.top_inner_5');
-    await page.getByTestId('wire-color').selectOption('black');
+    await page.getByTestId('wire-color').locator('[data-color="black"]').click();
     await clickHole(page, 'bb_1.g10');
     await clickHole(page, 'bb_1.top_outer_6');
     d = await design(page);
@@ -319,7 +319,7 @@ test.describe('editor core flows', () => {
     await page.locator('[data-component="touch"].component-body').first().click({ force: true, modifiers: ['Shift'] });
     await expect(page.getByTestId('autowire-panel')).toBeVisible();
     await expect(page.getByTestId('autowire-host')).toHaveValue('mcu');
-    // Default "auto": short rail taps and feeders are hard jumpers, the long I²C/IO runs across the DevKit are Dupont wires.
+    // Default auto now finds clear hard-jumper corridors for this entire fixture.
     await expect(page.getByTestId('autowire-route')).toHaveValue('auto');
     await expect(page.getByTestId('autowire-global')).toBeChecked();
     await page.getByTestId('autowire-run').click();
@@ -329,7 +329,7 @@ test.describe('editor core flows', () => {
     await expect(done).toContainText('目标值');
     const auto = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { wires: { name?: string; route: string; from: { hole?: string }; to?: { hole?: string } }[]; net_intents: { name: string }[] } } }).__bbs.getDesign());
     expect(auto.wires.filter((w) => w.route === 'flat').length).toBeGreaterThan(0);
-    expect(auto.wires.filter((w) => w.route === 'elevated').length).toBeGreaterThan(0);
+    expect(auto.wires.filter((w) => w.route === 'elevated')).toHaveLength(0);
     expect(auto.wires.filter((w) => w.name?.includes('馈线')).length).toBe(2);
     expect(auto.wires.filter((w) => w.name?.includes('桥线')).length).toBe(2);
     expect(auto.net_intents.map((n) => n.name).sort()).toEqual(['3V3', 'GND', 'SCL', 'SDA', 'TOUCH_IO']);

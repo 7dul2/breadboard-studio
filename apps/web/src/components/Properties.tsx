@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { JsonValue, WireEndpoint, WireRoute } from '@breadboard-studio/schema';
 import { accessibleHolesForPin, attachBoardPosition, conductiveSet, groupHoles, netOfAddress, umToMm, type Op } from '@breadboard-studio/core';
-import { WIRE_COLORS } from '@breadboard-studio/render';
 import { analysisOf, useStore } from '../store';
 import { ArtworkEditor } from './ArtworkEditor';
+import { WireColorPicker } from './WireColorPicker';
 
 function TextField({ label, value, onCommit, placeholder, multiline, testId }: { label: string; value: string; onCommit: (v: string) => void; placeholder?: string; multiline?: boolean; testId?: string }) {
   const [v, setV] = useState(value);
@@ -491,11 +491,9 @@ export function Properties() {
         <div className="panel-title">导线 {wire.id}</div>
         <TextField label="名称" value={wire.name ?? ''} onCommit={(v) => setProp(wire.id, 'name', v)} testId="prop-name" />
         <div className="row">
-          <label className="field"><span>颜色</span>
-            <select value={wire.color} onChange={(e) => setProp(wire.id, 'color', e.target.value)} data-testid="prop-color">
-              {Object.keys(WIRE_COLORS).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
+          <div className="field"><span>颜色</span>
+            <WireColorPicker value={wire.color} onChange={(c) => setProp(wire.id, 'color', c)} testId="prop-color" />
+          </div>
           <label className="field"><span>走线</span>
             <select value={wire.route} onChange={(e) => setProp(wire.id, 'route', e.target.value)}>
               <option value="flat">硬质跳线（路径不重叠）</option>

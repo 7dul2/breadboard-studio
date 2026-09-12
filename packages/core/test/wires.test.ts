@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import type { Rect } from '../src/geometry.js';
 import { analyzeDesign, applyOps, autoRoute, segmentIntersectsRect } from '../src/index.js';
-import { build, oneBoard } from './helpers.js';
+import { build, oneBoard, loadExample } from './helpers.js';
 
 describe('wires', () => {
   it('crossing wires do not connect; only explicit endpoints do', () => {
@@ -94,5 +95,44 @@ describe('wires', () => {
     const a = analyzeDesign(d);
     expect(a.results.some((r) => r.code === 'wire_dangling')).toBe(true);
     expect(a.model.wires.get('w1')!.conducts).toBe(false);
+  });
+
+  it('avoids bodies even when an endpoint starts on an earlier wire', () => {
+    const start: [number, number] = [0, 0];
+    const end: [number, number] = [10000, 0];
+    const body = { x: 4000, y: -1000, w: 2000, h: 2000 };
+    const line = { x: -1000, y: 0, w: 3000, h: 0 };
+    const points = [start, ...autoRoute(start, end, [line, body]), end];
+    for (let i = 1; i < points.length; i++) expect(segmentIntersectsRect(points[i - 1]!, points[i]!, body)).toBe(false);
+  });
+
+  it('changing live playback speed preserves saved wire paths from an older router', () => {
+    const source = loadExample('touch_display.breadboard.json');
+    const r = applyOps(source, [{ op: 'set_simulation_config', patch: { speed: 2 } }]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.design.wires).toEqual(source.wires);
+  });
+
+  it('an earlier hard jumper only forbids sharing its segment: perpendicular crossings stay legal', () => {
+    // A vertical earlier jumper right across the corridor: the straight path
+    // crosses it perpendicularly — legal on a real board, no detour needed.
+    const crossing: Rect = { x: 50_000, y: -20_000, w: 0, h: 40_000 };
+    expect(autoRoute([0, 0], [100_000, 0], [crossing])).toEqual([]);
+    // A horizontal earlier jumper ON the corridor: collinear sharing is what a
+    // hard jumper must never do, so the route jogs into its own lane.
+    const collinear: Rect = { x: 40_000, y: 0, w: 20_000, h: 0 };
+    const jogged = autoRoute([0, 0], [100_000, 0], [collinear]);
+    expect(jogged.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < jogged.length; i++) {
+      const a = jogged[i - 1]!;
+      const b = jogged[i]!;
+      expect(a[0] === b[0] || a[1] === b[1]).toBe(true);
+      // No segment of the new path may overlap the occupied segment.
+      if (a[1] === 0 && b[1] === 0) {
+        const lo = Math.min(a[0], b[0]);
+        const hi = Math.max(a[0], b[0]);
+        expect(Math.max(lo, collinear.x) < Math.min(hi, collinear.x + collinear.w)).toBe(false);
+      }
+    }
   });
 });

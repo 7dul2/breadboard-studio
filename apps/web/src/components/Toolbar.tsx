@@ -1,11 +1,65 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EXAMPLES, useStore, type AppMode } from '../store';
 import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
-import { WIRE_COLORS } from '@breadboard-studio/render';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
+import { WireColorPicker } from './WireColorPicker';
 
-const COLOR_NAMES: Record<string, string> = { red: '红', black: '黑', blue: '蓝', yellow: '黄', green: '绿', white: '白', orange: '橙', purple: '紫', brown: '棕', gray: '灰' };
+/** 每次点击的缩放倍率。够小才不"跳"，长按可以连续缩放。 */
+const ZOOM_STEP_IN = 1.15;
+const ZOOM_STEP_OUT = 1 / ZOOM_STEP_IN;
+/** 长按多久开始连续缩放，以及连发间隔（ms）。 */
+const ZOOM_HOLD_DELAY = 260;
+const ZOOM_HOLD_INTERVAL = 55;
+
+/**
+ * 缩放按钮：点一下走一步，按住不放则无极连续缩放。
+ * 单击仍走 `onClick`，所以键盘（Enter/空格）和读屏器不受影响。
+ */
+function ZoomButton({
+  label,
+  factor,
+  title,
+  testId
+}: {
+  label: string;
+  factor: number;
+  title: string;
+  testId: string;
+}) {
+  const delay = useRef<number | null>(null);
+  const repeat = useRef<number | null>(null);
+
+  const stop = () => {
+    if (delay.current !== null) window.clearTimeout(delay.current);
+    if (repeat.current !== null) window.clearInterval(repeat.current);
+    delay.current = null;
+    repeat.current = null;
+  };
+
+  const start = () => {
+    stop();
+    delay.current = window.setTimeout(() => {
+      repeat.current = window.setInterval(() => canvasApi()?.zoomBy(factor), ZOOM_HOLD_INTERVAL);
+    }, ZOOM_HOLD_DELAY);
+  };
+
+  useEffect(() => stop, []);
+
+  return (
+    <button
+      onClick={() => canvasApi()?.zoomBy(factor)}
+      onPointerDown={(e) => { if (e.button === 0) start(); }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      title={title}
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
 
 /**
  * The one control that says which half of the app you are in. Switching back to
@@ -50,8 +104,16 @@ function ModeSwitch({ mode }: { mode: AppMode }) {
   );
 }
 
-function canvasApi() {
-  return (window as unknown as { __bbsCanvas?: { fit: () => void; zoomBy: (f: number) => void; zoomTo: (z: number) => void } }).__bbsCanvas;
+interface CanvasApi {
+  fit: () => void;
+  zoomBy: (f: number) => void;
+  zoomTo: (z: number) => void;
+  rotateBy: (deltaDeg: number) => void;
+  rotateTo: (deg: number) => void;
+}
+
+function canvasApi(): CanvasApi | undefined {
+  return (window as unknown as { __bbsCanvas?: CanvasApi }).__bbsCanvas;
 }
 
 export function Toolbar() {
@@ -133,15 +195,8 @@ export function Toolbar() {
         </div>
         {tool === 'wire' && (
           <div className="tool-group wire-opts">
-            <label>
-              颜色
-              <select value={wireColor} onChange={(e) => st.setWireColor(e.target.value)} data-testid="wire-color">
-                {Object.keys(WIRE_COLORS).filter((c) => c !== 'grey' && c !== 'cyan' && c !== 'pink').map((c) => (
-                  <option key={c} value={c}>{COLOR_NAMES[c] ?? c}（{c}）</option>
-                ))}
-              </select>
-            </label>
-            <span className="swatch" style={{ background: WIRE_COLORS[wireColor] }} />
+            <span className="wire-color-label">颜色</span>
+            <WireColorPicker value={wireColor} onChange={st.setWireColor} testId="wire-color" />
             <label>
               走线
               <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
@@ -164,8 +219,16 @@ export function Toolbar() {
         <span className="muted small" data-testid="hardware-hint">实机：连接一块真板看它的输出，画布只读</span>
       )}
       <span className="sep" />
-      <button onClick={() => canvasApi()?.zoomBy(1.25)} title="放大">＋</button>
-      <button onClick={() => canvasApi()?.zoomBy(0.8)} title="缩小">－</button>
+      <ZoomButton label="＋" factor={ZOOM_STEP_IN} title="放大（按住连续缩放）" testId="zoom-in" />
+      <ZoomButton label="－" factor={ZOOM_STEP_OUT} title="缩小（按住连续缩放）" testId="zoom-out" />
+      <button
+        onClick={() => canvasApi()?.rotateBy(90)}
+        onContextMenu={(e) => { e.preventDefault(); canvasApi()?.rotateBy(-90); }}
+        title="视图旋转 90°（右键反向转；只影响显示，不改设计数据）"
+        data-testid="rotate-view"
+      >
+        ⟳ 旋转
+      </button>
       <button onClick={() => canvasApi()?.fit()} title="适应全部 (F)" data-testid="fit">适应全部</button>
       <span className="sep" />
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
