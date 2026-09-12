@@ -1,0 +1,252 @@
+{
+  "kind": "component",
+  "id": "encoder_ky040",
+  "version": 1,
+  "name": "旋转编码器模块（EC11 / KY-040 类，5 针）",
+  "manufacturer": "generic",
+  "model": "Incremental rotary encoder breakout with push switch (KY-040 style)",
+  "variant": "5 针单排 2.54 mm：CLK / DT / SW / + / GND",
+  "description": "带轴按下开关的增量式旋转编码器模块。5 个引脚排成一行、间距 2.54 mm，丝印自左向右为 CLK / DT / SW / + / GND。CLK 与 DT 是 A/B 两相正交输出，转动一格产生 4 个状态跳变；SW 是轴按下开关，按下时对地导通。",
+  "category": "input",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": {
+    "type": "single_row_header",
+    "edge": "top",
+    "inset_um": 1270
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 5,
+        "maxItems": 5,
+        "description": "自左向右针名（正视丝印面）"
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "type": "string",
+        "enum": [
+          "upright",
+          "flat"
+        ]
+      }
+    }
+  },
+  "params_default": {
+    "pin_names": [
+      "CLK",
+      "DT",
+      "SW",
+      "VCC",
+      "GND"
+    ],
+    "body_size_um": [
+      12700,
+      15000
+    ],
+    "mount_orientation": "upright"
+  },
+  "body": {
+    "size_um": [
+      12700,
+      15000
+    ],
+    "height_um": 12000,
+    "standoff_um": 0,
+    "corner_radius_um": 400
+  },
+  "pins": [],
+  "pin_meta": {
+    "CLK": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": [
+        "A",
+        "ENC_A",
+        "SCL"
+      ],
+      "notes": "A 相。多数模块板载 10k 上拉，MCU 侧用 INPUT 即可；裸编码器则要开 INPUT_PULLUP。"
+    },
+    "DT": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": [
+        "B",
+        "ENC_B",
+        "SDA"
+      ],
+      "notes": "B 相。"
+    },
+    "SW": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "open_drain",
+      "aliases": [
+        "BTN",
+        "KEY",
+        "SWITCH"
+      ],
+      "notes": "轴按下开关，按下对地导通；MCU 侧建议 INPUT_PULLUP，按下读到低电平。"
+    },
+    "VCC": {
+      "role": "power_in",
+      "voltage_v": null,
+      "aliases": [
+        "+",
+        "VIN",
+        "3V3",
+        "VDD"
+      ],
+      "notes": "模块丝印是 +。"
+    },
+    "GND": {
+      "role": "ground"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": {
+      "min": 3.3,
+      "max": 5
+    },
+    "supply_current_ma": {
+      "typical": 2,
+      "peak": null
+    },
+    "io_voltage_v": 3.3,
+    "i2c": null
+  },
+  "features": [
+    {
+      "type": "button",
+      "label": "旋钮（可按下）",
+      "rect_um": {
+        "x": 2350,
+        "y": 5000,
+        "w": 8000,
+        "h": 8000
+      }
+    }
+  ],
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 12700,
+      "h": 15000,
+      "rx": 400,
+      "fill": "#7f1d1d",
+      "stroke": "#450a0a",
+      "sw": 200
+    },
+    {
+      "t": "circle",
+      "cx": 6350,
+      "cy": 9000,
+      "r": 4000,
+      "fill": "#9ca3af",
+      "stroke": "#4b5563",
+      "sw": 150
+    },
+    {
+      "t": "circle",
+      "cx": 6350,
+      "cy": 9000,
+      "r": 1900,
+      "fill": "#4b5563"
+    },
+    {
+      "t": "rect",
+      "x": 5500,
+      "y": 8300,
+      "w": 1700,
+      "h": 1400,
+      "fill": "#1f2937"
+    },
+    {
+      "t": "text",
+      "x": 6350,
+      "y": 14200,
+      "text": "ENC",
+      "size": 1100,
+      "fill": "#fee2e2",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 1270,
+      "y": -400,
+      "text": "CLK",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 3810,
+      "y": -400,
+      "text": "DT",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 6350,
+      "y": -400,
+      "text": "SW",
+      "size": 800,
+      "fill": "#e5e7eb",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 8890,
+      "y": -400,
+      "text": "+",
+      "size": 800,
+      "fill": "#fca5a5",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 11430,
+      "y": -400,
+      "text": "GND",
+      "size": 800,
+      "fill": "#93c5fd",
+      "anchor": "middle"
+    }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "外形与针序按常见 KY-040 模块（15×20 mm 板体、5 针 2.54 mm 单排）。不同卖家的针序可能是 CLK/DT/SW/+/GND 或 GND/+/SW/DT/CLK，接线前请核对丝印。",
+  "sources": [
+    {
+      "title": "Common KY-040 rotary encoder module listings",
+      "note": "5-pin 2.54 mm header; onboard 10k pull-ups on CLK/DT/SW."
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}

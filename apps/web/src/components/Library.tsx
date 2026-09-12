@@ -7,7 +7,17 @@ import { useStore, analysisOf } from '../store';
 import { SceneNodes } from './SceneView';
 
 const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
-const VISIBLE_BUILTIN_IDS = new Set(['breadboard_400', 'breadboard_400_terminal', 'breadboard_power_strip_25', 'breadboard_830', 'esp32s3_n16r8_dual_usb', 'oled_0_96_ssd1315_i2c']);
+const VISIBLE_BUILTIN_IDS = new Set([
+  'breadboard_400',
+  'breadboard_400_terminal',
+  'breadboard_power_strip_25',
+  'breadboard_830',
+  'esp32s3_n16r8_dual_usb',
+  'oled_0_96_ssd1315_i2c',
+  'tft_1_77_st7735_spi',
+  'encoder_ky040',
+  'tactile_6x6'
+]);
 
 export function Library() {
   const design = useStore((s) => s.design);

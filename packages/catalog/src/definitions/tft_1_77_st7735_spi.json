@@ -1,0 +1,217 @@
+{
+  "kind": "component",
+  "id": "tft_1_77_st7735_spi",
+  "version": 1,
+  "name": "1.77\" TFT 模块（ST7735S，SPI，8 针）",
+  "manufacturer": "generic",
+  "model": "1.77 inch 128x160 SPI TFT module with ST7735S driver",
+  "variant": "8 针主接口 + 6 针 TF 卡接口，34.0 x 53.7 mm",
+  "description": "1.77 寸 128x160 SPI TFT 模块，驱动 IC ST7735S。模块丝印给出的接口定义：1 GND / 2 VCC / 3 SCK / 4 SDA / 5 RES / 6 RS / 7 CS / 8 LEDA 为一排 8 针；9-14（LEDA / CT-CS / CT-SI / CT-SO / CT-SCL / GND）是 TF 卡接口，本定义未建模。",
+  "category": "display",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": {
+    "type": "single_row_header",
+    "edge": "top",
+    "inset_um": 1270
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 8,
+        "maxItems": 8,
+        "description": "自左向右针名（正视丝印面）"
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "type": "string",
+        "enum": [
+          "upright",
+          "flat"
+        ]
+      }
+    }
+  },
+  "params_default": {
+    "pin_names": [
+      "GND",
+      "VCC",
+      "SCK",
+      "SDA",
+      "RES",
+      "RS",
+      "CS",
+      "LEDA"
+    ],
+    "body_size_um": [
+      34000,
+      53700
+    ],
+    "mount_orientation": "flat"
+  },
+  "body": {
+    "size_um": [
+      34000,
+      53700
+    ],
+    "height_um": 3000,
+    "standoff_um": 0,
+    "corner_radius_um": 600
+  },
+  "pins": [],
+  "pin_meta": {
+    "GND": {
+      "role": "ground"
+    },
+    "VCC": {
+      "role": "power_in",
+      "voltage_v": null,
+      "notes": "商品页标称模块供电 3–5 V"
+    },
+    "SCK": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "notes": "SPI 时钟"
+    },
+    "SDA": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "notes": "SPI MOSI（模块丝印写作 SDA）"
+    },
+    "RES": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "notes": "复位，低有效"
+    },
+    "RS": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "notes": "命令/数据选择，即 DC / A0"
+    },
+    "CS": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "notes": "片选，低有效"
+    },
+    "LEDA": {
+      "role": "power_in",
+      "voltage_v": null,
+      "notes": "背光 LED 阳极；模块板载限流电阻，接 3.3 V 常亮"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": {
+      "min": 3,
+      "max": 5
+    },
+    "supply_current_ma": {
+      "typical": 30,
+      "peak": null
+    },
+    "io_voltage_v": 3.3,
+    "i2c": null
+  },
+  "render": [
+    {
+      "t": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 34000,
+      "h": 53700,
+      "rx": 600,
+      "fill": "#0b3b6f",
+      "stroke": "#082847",
+      "sw": 300
+    },
+    {
+      "t": "rect",
+      "x": 2000,
+      "y": 9500,
+      "w": 30000,
+      "h": 43700,
+      "rx": 300,
+      "fill": "#123f2a",
+      "stroke": "#0d2f20",
+      "sw": 220
+    },
+    {
+      "t": "rect",
+      "x": 2985,
+      "y": 13830,
+      "w": 28030,
+      "h": 35040,
+      "rx": 120,
+      "fill": "#07131c",
+      "stroke": "#1e4a63",
+      "sw": 180
+    },
+    {
+      "t": "text",
+      "x": 17000,
+      "y": 5600,
+      "text": "1.77\" TFT",
+      "size": 2600,
+      "fill": "#cfe8ff",
+      "anchor": "middle"
+    },
+    {
+      "t": "text",
+      "x": 17000,
+      "y": 51800,
+      "text": "ST7735S",
+      "size": 2200,
+      "fill": "#8fb8d8",
+      "anchor": "middle"
+    }
+  ],
+  "pin_render": {
+    "shape": "circle",
+    "show_labels": false,
+    "size_um": 1750,
+    "fill": "#b8bdc0",
+    "stroke": "#f1f3f4",
+    "stroke_width_um": 150,
+    "hole_fill": "#34393d",
+    "hole_size_um": 620
+  },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "尺寸取自商品参数页（驱动 IC ST7735S、模块 34.00×53.70×11.30 mm、有效区 28.03×35.04 mm），针序与针名取自模块丝印的接口定义表。未用卡尺或万用表实测。",
+  "sources": [
+    {
+      "title": "商品参数页：驱动 IC ST7735S，模块尺寸 34.00*53.70*11.30 mm，有效区域 28.03*35.04 mm",
+      "accessed": "2026-09-12"
+    },
+    {
+      "title": "模块实物丝印接口定义：1 GND / 2 VCC / 3 SCK / 4 SDA / 5 RES / 6 RS / 7 CS / 8 LEDA",
+      "accessed": "2026-09-12"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}

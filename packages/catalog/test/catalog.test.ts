@@ -6,7 +6,7 @@ describe('built-in catalog', () => {
     const c = builtinCatalog();
     expect(c.listBoards().map((b) => b.id).sort()).toEqual(['breadboard_400', 'breadboard_400_terminal', 'breadboard_830', 'breadboard_power_strip_25']);
     const ids = c.listComponents().map((d) => d.id);
-    for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3']) {
+    for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3', 'tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6']) {
       expect(ids).toContain(id);
     }
   });
