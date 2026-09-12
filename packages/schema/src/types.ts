@@ -522,6 +522,8 @@ export interface ComponentDefinition {
   simulation?: SimulationDefinition;
   /** Original vector drawing in body-local µm (unrotated). */
   render: RenderPrimitiveDef[];
+  /** Optional backside vector drawing for library previews, in the same local coordinate system. */
+  back_render?: RenderPrimitiveDef[];
   evidence?: DefinitionEvidence[];
   geometry_status: ModelStatus;
   electrical_status: ModelStatus;

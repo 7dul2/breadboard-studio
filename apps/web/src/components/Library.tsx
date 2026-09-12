@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
 import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent } from '@breadboard-studio/core';
-import { boardScene, componentScene, mm, type SceneNode } from '@breadboard-studio/render';
+import { boardScene, componentScene, mm, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
 import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
@@ -18,7 +18,8 @@ const VISIBLE_BUILTIN_IDS = new Set([
   'oled_0_96_ssd1315_i2c',
   'tft_1_77_st7735_spi',
   'encoder_ky040',
-  'tactile_6x6'
+  'tactile_6x6',
+  'ttp224_module'
 ]);
 
 export function Library() {
@@ -97,7 +98,8 @@ export function Library() {
       st.toast('success', `已从设计中删除 ${ref}`);
     }
   };
-  const openDetail = (ref: string) => {    if (performance.now() < suppressHoverUntil.current) return;
+  const openDetail = (ref: string) => {
+    if (performance.now() < suppressHoverUntil.current) return;
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     setDetailRef(ref);
   };
@@ -231,16 +233,30 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
     : resolveComponent(def).pins.length;
   const voltage = def.kind === 'component' ? def.electrical.supply_voltage_v : null;
   const category = def.kind === 'board' ? '面包板' : CATEGORY_NAMES[def.category] ?? def.category;
+  const hasBack = Boolean(preview?.back);
 
   return (
     <div className="model-detail-layer" onPointerDown={onClose} data-testid="model-detail-layer">
-      <article className="model-detail-card" role="dialog" aria-modal="false" aria-labelledby="model-detail-title" onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} data-testid="model-detail-card">
+      <article className={`model-detail-card${hasBack ? ' has-back' : ''}`} role="dialog" aria-modal="false" aria-labelledby="model-detail-title" onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} data-testid="model-detail-card">
         <button className="model-detail-close" onClick={onClose} aria-label="关闭模型详情" title="关闭">×</button>
-        <div className="model-preview" aria-label={`${def.name} 模型预览`}>
+        <div className={`model-preview${hasBack ? ' two-sided' : ''}`} aria-label={`${def.name} 模型预览`}>
           {preview ? (
-            <svg viewBox={preview.viewBox} role="img" aria-label={`${def.name} 矢量模型`} preserveAspectRatio="xMidYMid meet">
-              <SceneNodes nodes={preview.nodes} />
-            </svg>
+            <>
+              <div className="model-preview-face" data-testid="model-preview-front">
+                {hasBack && <span className="model-preview-label">正面</span>}
+                <svg viewBox={preview.front.viewBox} role="img" aria-label={`${def.name} 正面矢量模型`} preserveAspectRatio="xMidYMid meet">
+                  <SceneNodes nodes={preview.front.nodes} />
+                </svg>
+              </div>
+              {preview.back && (
+                <div className="model-preview-face" data-testid="model-preview-back">
+                  <span className="model-preview-label">反面</span>
+                  <svg viewBox={preview.back.viewBox} role="img" aria-label={`${def.name} 反面矢量模型`} preserveAspectRatio="xMidYMid meet">
+                    <SceneNodes nodes={preview.back.nodes} />
+                  </svg>
+                </div>
+              )}
+            </>
           ) : <span className="muted">暂时无法生成预览</span>}
         </div>
         <div className="model-detail-body">
@@ -266,7 +282,12 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
   );
 }
 
-function modelPreview(def: CatalogDefinition, catalog: Catalog): { nodes: SceneNode[]; viewBox: string } | null {
+interface PreviewFace {
+  nodes: SceneNode[];
+  viewBox: string;
+}
+
+function modelPreview(def: CatalogDefinition, catalog: Catalog): { front: PreviewFace; back?: PreviewFace } | null {
   const ref = `${def.id}@${def.version}`;
   const id = '__preview__';
   const empty = createEmptyDesign('模型预览');
@@ -283,8 +304,17 @@ function modelPreview(def: CatalogDefinition, catalog: Catalog): { nodes: SceneN
   const node = def.kind === 'board'
     ? boardScene(placed as NonNullable<ReturnType<typeof model.boards.get>>, model, { showHoleLabels: false, showUnverifiedBadges: false })
     : componentScene(placed as NonNullable<ReturnType<typeof model.components.get>>, { showPinLabels: false, showUnverifiedBadges: false });
-  return {
+  const front = {
     nodes: [node],
     viewBox: `${mm(bounds.x) - padding} ${mm(bounds.y) - padding} ${mm(bounds.w) + padding * 2} ${mm(bounds.h) + padding * 2}`
+  };
+  if (def.kind !== 'component' || !def.back_render?.length) return { front };
+  const body = resolveComponent(def).body.size_um;
+  return {
+    front,
+    back: {
+      nodes: [{ t: 'group', id: `component:${id}:back`, cls: 'component component-back', children: def.back_render.map(primitiveToNode) }],
+      viewBox: `${-padding} ${-padding} ${mm(body[0]) + padding * 2} ${mm(body[1]) + padding * 2}`
+    }
   };
 }

@@ -6,15 +6,32 @@ import { analysis, fresh } from './helpers';
  * 现在进了内置元件库：新建设计也能直接放。
  */
 test.describe('内置元件库新增件', () => {
-  test('屏幕 / 旋钮 / 轻触开关直接可见，并且可以开始放置', async ({ page }) => {
+  test('屏幕 / 旋钮 / 轻触开关 / 四路触摸模块直接可见，并且可以开始放置', async ({ page }) => {
     await fresh(page);
-    for (const id of ['tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6']) {
+    for (const id of ['tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6', 'ttp224_module']) {
       await expect(page.getByTestId(`lib-${id}`)).toBeVisible();
     }
 
     // 选中就进入放置态：元件库认得它，不需要先导入定义。
-    await page.getByTestId('lib-tactile_6x6').click();
-    await expect(page.getByTestId('placing-hint')).toContainText('轻触按键');
+    await page.getByTestId('lib-ttp224_module').click();
+    await expect(page.getByTestId('placing-hint')).toContainText('TTP224 四路电容触摸模块');
+  });
+
+  test('有反面绘图时同时预览正反面，旧元件仍只显示一面', async ({ page }) => {
+    await fresh(page);
+    await page.getByTestId('lib-ttp224_module').hover();
+    const card = page.getByTestId('model-detail-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId('model-preview-front')).toBeVisible();
+    await expect(card.getByTestId('model-preview-back')).toBeVisible();
+    await expect(card.locator('.model-preview svg')).toHaveCount(2);
+    await expect(card).toContainText('正面');
+    await expect(card).toContainText('反面');
+
+    await page.getByTestId('lib-encoder_ky040').hover();
+    await expect(card.getByTestId('model-preview-front')).toBeVisible();
+    await expect(card.getByTestId('model-preview-back')).toHaveCount(0);
+    await expect(card.locator('.model-preview svg')).toHaveCount(1);
   });
 
   test('元件详情卡能生成预览（说明几何数据完整）', async ({ page }) => {

@@ -349,6 +349,7 @@ export const componentDefinitionSchema = {
     },
     simulation,
     render: { type: 'array', items: renderPrimitive },
+    back_render: { type: 'array', items: renderPrimitive },
     evidence,
     geometry_status: status,
     electrical_status: status,
