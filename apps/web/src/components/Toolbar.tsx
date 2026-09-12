@@ -100,6 +100,15 @@ function ModeSwitch({ mode }: { mode: AppMode }) {
       >
         实机
       </button>
+      <button
+        className={mode === 'preview3d' ? 'active' : ''}
+        aria-pressed={mode === 'preview3d'}
+        onClick={() => set('preview3d')}
+        title="3D 预览：把同一份设计渲染成实体，看高度和走线（只读，不改设计）"
+        data-testid="mode-preview3d"
+      >
+        3D 预览
+      </button>
     </div>
   );
 }
@@ -216,21 +225,27 @@ export function Toolbar() {
         </>
       ) : mode === 'sim' ? (
         <SimulatorToolbar />
+      ) : mode === 'preview3d' ? (
+        <span className="muted small" data-testid="preview3d-hint">3D 预览：只读视角，编辑请切回「搭建」</span>
       ) : (
         <span className="muted small" data-testid="hardware-hint">实机：连接一块真板看它的输出，画布只读</span>
       )}
-      <span className="sep" />
-      <ZoomButton label="＋" factor={ZOOM_STEP_IN} title="放大（按住连续缩放）" testId="zoom-in" />
-      <ZoomButton label="－" factor={ZOOM_STEP_OUT} title="缩小（按住连续缩放）" testId="zoom-out" />
-      <button
-        onClick={() => canvasApi()?.rotateBy(90)}
-        onContextMenu={(e) => { e.preventDefault(); canvasApi()?.rotateBy(-90); }}
-        title="视图旋转 90°（右键反向转；只影响显示，不改设计数据）"
-        data-testid="rotate-view"
-      >
-        ⟳ 旋转
-      </button>
-      <button onClick={() => canvasApi()?.fit()} title="适应全部 (F)" data-testid="fit">适应全部</button>
+      {mode !== 'preview3d' && (
+        <>
+          <span className="sep" />
+          <ZoomButton label="＋" factor={ZOOM_STEP_IN} title="放大（按住连续缩放）" testId="zoom-in" />
+          <ZoomButton label="－" factor={ZOOM_STEP_OUT} title="缩小（按住连续缩放）" testId="zoom-out" />
+          <button
+            onClick={() => canvasApi()?.rotateBy(90)}
+            onContextMenu={(e) => { e.preventDefault(); canvasApi()?.rotateBy(-90); }}
+            title="视图旋转 90°（右键反向转；只影响显示，不改设计数据）"
+            data-testid="rotate-view"
+          >
+            ⟳ 旋转
+          </button>
+          <button onClick={() => canvasApi()?.fit()} title="适应全部 (F)" data-testid="fit">适应全部</button>
+        </>
+      )}
       <span className="sep" />
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
       <label className="toggle"><input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} />针脚名</label>

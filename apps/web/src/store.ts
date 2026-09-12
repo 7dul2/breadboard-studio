@@ -24,7 +24,7 @@ export type LeftTab = 'library' | 'selected';
  * reachable in both because the write-run loop needs it; saving source ends the
  * session (stale snapshot) instead of pretending the run still matches the code.
  */
-export type AppMode = 'build' | 'sim' | 'hardware';
+export type AppMode = 'build' | 'sim' | 'hardware' | 'preview3d';
 
 /**
  * 实机 is a third thing, not a third simulator. It has a cable and a wall clock; it
@@ -394,6 +394,7 @@ const useStore = create<State>((set, get) => {
       const tab = get().rightTab;
       const away: RightTab = tab === 'simulation' || tab === 'hardware' ? 'properties' : tab;
       const rightTab: RightTab = m === 'sim' ? 'simulation' : m === 'hardware' ? 'hardware' : away;
+      // 3D 预览是只读视图：进来时把编辑工具收掉（下面统一处理），不碰设计
       set({ mode: m, rightTab, ...(m === 'build' ? {} : { tool: 'select' as Tool }) });
     },
     setBuildStep(i) {

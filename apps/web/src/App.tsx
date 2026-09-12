@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { Library } from './components/Library';
 import { PlacedComponents } from './components/PlacedComponents';
@@ -10,6 +10,8 @@ import { WiringGuide } from './components/WiringGuide';
 import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
 import { HardwarePanel } from './hardware/HardwarePanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
+// three.js 只在这个模式下需要，走动态分包：不用它的人不会下载。
+const ThreeView = lazy(() => import('./viewer3d/ThreeView'));
 import { useStore } from './store';
 
 /** Pointer position on the canvas in µm, so a paste lands where the user is looking. */
@@ -148,9 +150,19 @@ export function App() {
           </aside>
         )}
         <section className="center">
-          <Canvas />
-          <CodeEditor />
-          <Validation />
+          {mode === 'preview3d' ? (
+            // 3D 预览自己占满中间：它不编辑设计，也不需要 2D 画布那套工具。
+            // three.js 走 lazy，主包不受影响。
+            <Suspense fallback={<div className="three-view"><p className="muted" style={{ padding: 16 }}>正在加载 3D 预览…</p></div>}>
+              <ThreeView />
+            </Suspense>
+          ) : (
+            <>
+              <Canvas />
+              <CodeEditor />
+              <Validation />
+            </>
+          )}
         </section>
         <aside className="right">
           {/* 属性 edits the document, so it is a 搭建 panel: 仿真 has one panel and needs no tabs. */}
