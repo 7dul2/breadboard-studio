@@ -19,6 +19,7 @@ import oled096 from './definitions/oled_0_96_i2c.json';
 import oled096Ssd1315 from './definitions/oled_0_96_ssd1315_i2c.json';
 import oled091 from './definitions/oled_0_91_i2c.json';
 import ttp223 from './definitions/ttp223_module.json';
+import ttp224 from './definitions/ttp224_module.json';
 import sht41 from './definitions/sht41_breakout.json';
 import bmp390 from './definitions/bmp390_breakout.json';
 import ltr390 from './definitions/ltr390_breakout.json';
@@ -42,6 +43,7 @@ const rawComponents: unknown[] = [
   oled096Ssd1315,
   oled091,
   ttp223,
+  ttp224,
   sht41,
   bmp390,
   ltr390,

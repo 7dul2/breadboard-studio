@@ -1,0 +1,287 @@
+{
+  "kind": "component",
+  "id": "ttp224_module",
+  "version": 1,
+  "name": "TTP224 四路电容触摸模块",
+  "manufacturer": "Generic",
+  "model": "TTP224 4-channel capacitive touch sensor module",
+  "variant": "6 针单排：OUT1 / OUT2 / OUT3 / OUT4 / GND / VCC",
+  "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。正面为触摸与元件面，反面为走线与焊盘面；模式焊盘和针序请按手中实物复核。",
+  "category": "input",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "preferred_rotation_deg": 0,
+  "generator": {
+    "type": "single_row_header",
+    "edge": "top",
+    "inset_um": 1270
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 6,
+        "maxItems": 6
+      },
+      "body_size_um": {
+        "type": "array",
+        "items": { "type": "integer" },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "type": "string",
+        "enum": ["upright", "flat"]
+      }
+    }
+  },
+  "params_default": {
+    "pin_names": ["OUT1", "OUT2", "OUT3", "OUT4", "GND", "VCC"],
+    "body_size_um": [35000, 29000],
+    "mount_orientation": "flat"
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "output_mode": {
+        "type": "string",
+        "enum": ["active_high", "active_low"],
+        "description": "输出有效电平，由模块模式焊盘决定"
+      },
+      "key_mode": {
+        "type": "string",
+        "enum": ["momentary", "toggle"],
+        "description": "点动或自锁输出，由模块模式焊盘决定"
+      },
+      "supply_v": {
+        "type": ["number", "null"],
+        "description": "实际供电电压；输出高电平通常随供电电压"
+      }
+    }
+  },
+  "config_default": {
+    "output_mode": "active_high",
+    "key_mode": "momentary",
+    "supply_v": null
+  },
+  "body": {
+    "size_um": [35000, 29000],
+    "height_um": 3500,
+    "standoff_um": 0,
+    "corner_radius_um": 500
+  },
+  "pin_render": {
+    "shape": "circle",
+    "show_labels": true,
+    "size_um": 1850,
+    "fill": "#d6b96d",
+    "stroke": "#e5e7eb",
+    "stroke_width_um": 160,
+    "hole_fill": "#1f2937",
+    "hole_size_um": 850
+  },
+  "pins": [],
+  "pin_meta": {
+    "OUT1": {
+      "role": "signal_out",
+      "io_voltage_v": null,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": ["CH1", "KEY1"],
+      "notes": "通道 1 数字输出；高电平通常随 VCC，接入主控前核对供电与模式焊盘。"
+    },
+    "OUT2": {
+      "role": "signal_out",
+      "io_voltage_v": null,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": ["CH2", "KEY2"],
+      "notes": "通道 2 数字输出；高电平通常随 VCC，接入主控前核对供电与模式焊盘。"
+    },
+    "OUT3": {
+      "role": "signal_out",
+      "io_voltage_v": null,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": ["CH3", "KEY3"],
+      "notes": "通道 3 数字输出；高电平通常随 VCC，接入主控前核对供电与模式焊盘。"
+    },
+    "OUT4": {
+      "role": "signal_out",
+      "io_voltage_v": null,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": ["CH4", "KEY4"],
+      "notes": "通道 4 数字输出；高电平通常随 VCC，接入主控前核对供电与模式焊盘。"
+    },
+    "GND": { "role": "ground" },
+    "VCC": {
+      "role": "power_in",
+      "voltage_v": null,
+      "notes": "参考商品图标注工作电压 2.4–5.5 V。"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 2.4, "max": 5.5 },
+    "supply_current_ma": { "typical": null, "peak": null },
+    "io_voltage_v": null,
+    "i2c": null,
+    "notes": "四路输出模式、有效电平与响应方式可由板上焊盘配置；不同批次布局可能不同。"
+  },
+  "features": [
+    { "type": "button", "label": "触摸 1", "rect_um": { "x": 900, "y": 20700, "w": 7600, "h": 7300 } },
+    { "type": "button", "label": "触摸 2", "rect_um": { "x": 9400, "y": 20700, "w": 7600, "h": 7300 } },
+    { "type": "button", "label": "触摸 3", "rect_um": { "x": 17900, "y": 20700, "w": 7600, "h": 7300 } },
+    { "type": "button", "label": "触摸 4", "rect_um": { "x": 26400, "y": 20700, "w": 7600, "h": 7300 } },
+    { "type": "led", "label": "状态灯 1", "rect_um": { "x": 900, "y": 6600, "w": 1900, "h": 1300 } },
+    { "type": "led", "label": "状态灯 2", "rect_um": { "x": 900, "y": 8800, "w": 1900, "h": 1300 } },
+    { "type": "led", "label": "状态灯 3", "rect_um": { "x": 900, "y": 11000, "w": 1900, "h": 1300 } },
+    { "type": "led", "label": "状态灯 4", "rect_um": { "x": 900, "y": 13200, "w": 1900, "h": 1300 } }
+  ],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 35000, "h": 29000, "rx": 500, "fill": "#0b4f8a", "stroke": "#082f5a", "sw": 260 },
+    { "t": "line", "x1": 0, "y1": 19700, "x2": 35000, "y2": 19700, "stroke": "#8ac7e8", "sw": 170 },
+    { "t": "circle", "cx": 2500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 2500, "cy": 3500, "r": 630, "fill": "#334155" },
+    { "t": "circle", "cx": 32500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 32500, "cy": 3500, "r": 630, "fill": "#334155" },
+    { "t": "text", "x": 17500, "y": 4300, "text": "TTP224", "size": 1400, "fill": "#dbeafe", "anchor": "middle", "weight": "bold" },
+    { "t": "text", "x": 34500, "y": 8500, "text": "4 KEY TOUCH", "size": 780, "fill": "#bfdbfe", "anchor": "middle", "rotate": -90 },
+
+    { "t": "rect", "x": 800, "y": 6500, "w": 2100, "h": 1450, "rx": 160, "fill": "#e5e7eb", "stroke": "#dbeafe", "sw": 100 },
+    { "t": "rect", "x": 1150, "y": 6750, "w": 1400, "h": 950, "rx": 120, "fill": "#fde68a" },
+    { "t": "rect", "x": 800, "y": 8700, "w": 2100, "h": 1450, "rx": 160, "fill": "#e5e7eb", "stroke": "#dbeafe", "sw": 100 },
+    { "t": "rect", "x": 1150, "y": 8950, "w": 1400, "h": 950, "rx": 120, "fill": "#fde68a" },
+    { "t": "rect", "x": 800, "y": 10900, "w": 2100, "h": 1450, "rx": 160, "fill": "#e5e7eb", "stroke": "#dbeafe", "sw": 100 },
+    { "t": "rect", "x": 1150, "y": 11150, "w": 1400, "h": 950, "rx": 120, "fill": "#fde68a" },
+    { "t": "rect", "x": 800, "y": 13100, "w": 2100, "h": 1450, "rx": 160, "fill": "#e5e7eb", "stroke": "#dbeafe", "sw": 100 },
+    { "t": "rect", "x": 1150, "y": 13350, "w": 1400, "h": 950, "rx": 120, "fill": "#fde68a" },
+    { "t": "text", "x": 3900, "y": 7650, "text": "D1", "size": 650, "fill": "#dbeafe", "anchor": "middle", "rotate": -90 },
+    { "t": "text", "x": 3900, "y": 9850, "text": "D2", "size": 650, "fill": "#dbeafe", "anchor": "middle", "rotate": -90 },
+    { "t": "text", "x": 3900, "y": 12050, "text": "D3", "size": 650, "fill": "#dbeafe", "anchor": "middle", "rotate": -90 },
+    { "t": "text", "x": 3900, "y": 14250, "text": "D4", "size": 650, "fill": "#dbeafe", "anchor": "middle", "rotate": -90 },
+
+    { "t": "rect", "x": 5200, "y": 6700, "w": 2600, "h": 1050, "rx": 120, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 5700, "y": 6900, "w": 1600, "h": 650, "fill": "#64748b" },
+    { "t": "rect", "x": 5200, "y": 8900, "w": 2600, "h": 1050, "rx": 120, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 5700, "y": 9100, "w": 1600, "h": 650, "fill": "#64748b" },
+    { "t": "rect", "x": 5200, "y": 11100, "w": 2600, "h": 1050, "rx": 120, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 5700, "y": 11300, "w": 1600, "h": 650, "fill": "#64748b" },
+    { "t": "rect", "x": 5200, "y": 13300, "w": 2600, "h": 1050, "rx": 120, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 5700, "y": 13500, "w": 1600, "h": 650, "fill": "#64748b" },
+
+    { "t": "rect", "x": 14000, "y": 7600, "w": 7300, "h": 5600, "rx": 250, "fill": "#111827", "stroke": "#475569", "sw": 160 },
+    { "t": "text", "x": 17650, "y": 10550, "text": "TTP224", "size": 850, "fill": "#94a3b8", "anchor": "middle" },
+    { "t": "line", "x1": 14000, "y1": 8200, "x2": 12800, "y2": 8200, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 14000, "y1": 9300, "x2": 12800, "y2": 9300, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 14000, "y1": 10400, "x2": 12800, "y2": 10400, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 14000, "y1": 11500, "x2": 12800, "y2": 11500, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 14000, "y1": 12600, "x2": 12800, "y2": 12600, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 21300, "y1": 8200, "x2": 22500, "y2": 8200, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 21300, "y1": 9300, "x2": 22500, "y2": 9300, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 21300, "y1": 10400, "x2": 22500, "y2": 10400, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 21300, "y1": 11500, "x2": 22500, "y2": 11500, "stroke": "#d6b96d", "sw": 420 },
+    { "t": "line", "x1": 21300, "y1": 12600, "x2": 22500, "y2": 12600, "stroke": "#d6b96d", "sw": 420 },
+
+    { "t": "rect", "x": 25800, "y": 6500, "w": 6500, "h": 4500, "rx": 220, "fill": "none", "stroke": "#dbeafe", "sw": 170 },
+    { "t": "circle", "cx": 27100, "cy": 7700, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "circle", "cx": 29050, "cy": 7700, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "circle", "cx": 31000, "cy": 7700, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "circle", "cx": 27100, "cy": 9600, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "circle", "cx": 29050, "cy": 9600, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "circle", "cx": 31000, "cy": 9600, "r": 500, "fill": "#d6b96d", "stroke": "#f8fafc", "sw": 110 },
+    { "t": "text", "x": 29000, "y": 12200, "text": "AHLB", "size": 750, "fill": "#dbeafe", "anchor": "middle" },
+
+    { "t": "rect", "x": 10800, "y": 15300, "w": 5000, "h": 1800, "rx": 180, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 11700, "y": 15700, "w": 3200, "h": 1000, "fill": "#334155" },
+    { "t": "rect", "x": 22400, "y": 15300, "w": 5000, "h": 1800, "rx": 180, "fill": "#e5e7eb" },
+    { "t": "rect", "x": 23300, "y": 15700, "w": 3200, "h": 1000, "fill": "#334155" },
+
+    { "t": "rect", "x": 900, "y": 20700, "w": 7600, "h": 7300, "fill": "#126aa8", "stroke": "#63b3d8", "sw": 170 },
+    { "t": "rect", "x": 9400, "y": 20700, "w": 7600, "h": 7300, "fill": "#126aa8", "stroke": "#63b3d8", "sw": 170 },
+    { "t": "rect", "x": 17900, "y": 20700, "w": 7600, "h": 7300, "fill": "#126aa8", "stroke": "#63b3d8", "sw": 170 },
+    { "t": "rect", "x": 26400, "y": 20700, "w": 7600, "h": 7300, "fill": "#126aa8", "stroke": "#63b3d8", "sw": 170 },
+    { "t": "text", "x": 4700, "y": 25600, "text": "1", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" },
+    { "t": "text", "x": 13200, "y": 25600, "text": "2", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" },
+    { "t": "text", "x": 21700, "y": 25600, "text": "3", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" },
+    { "t": "text", "x": 30200, "y": 25600, "text": "4", "size": 2600, "fill": "#bfdbfe", "anchor": "middle" }
+  ],
+  "back_render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 35000, "h": 29000, "rx": 500, "fill": "#0a4a82", "stroke": "#082f5a", "sw": 260 },
+    { "t": "circle", "cx": 2500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 2500, "cy": 3500, "r": 630, "fill": "#334155" },
+    { "t": "circle", "cx": 32500, "cy": 3500, "r": 1050, "fill": "#d7dde1", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 32500, "cy": 3500, "r": 630, "fill": "#334155" },
+
+    { "t": "circle", "cx": 11150, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 11150, "cy": 1270, "r": 390, "fill": "#1f2937" },
+    { "t": "circle", "cx": 13690, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 13690, "cy": 1270, "r": 390, "fill": "#1f2937" },
+    { "t": "circle", "cx": 16230, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 16230, "cy": 1270, "r": 390, "fill": "#1f2937" },
+    { "t": "circle", "cx": 18770, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 18770, "cy": 1270, "r": 390, "fill": "#1f2937" },
+    { "t": "circle", "cx": 21310, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 21310, "cy": 1270, "r": 390, "fill": "#1f2937" },
+    { "t": "circle", "cx": 23850, "cy": 1270, "r": 900, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 150 },
+    { "t": "circle", "cx": 23850, "cy": 1270, "r": 390, "fill": "#1f2937" },
+
+    { "t": "rect", "x": 2700, "y": 6700, "w": 7500, "h": 9700, "rx": 180, "fill": "none", "stroke": "#89b9d1", "sw": 150 },
+    { "t": "circle", "cx": 4100, "cy": 8200, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 6450, "cy": 8200, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 8800, "cy": 8200, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 4100, "cy": 10600, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 6450, "cy": 10600, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 8800, "cy": 10600, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 4100, "cy": 13000, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 6450, "cy": 13000, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 8800, "cy": 13000, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 4100, "cy": 15400, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 6450, "cy": 15400, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+    { "t": "circle", "cx": 8800, "cy": 15400, "r": 650, "fill": "#c9aa58", "stroke": "#e5e7eb", "sw": 130 },
+
+    { "t": "line", "x1": 11150, "y1": 2000, "x2": 13200, "y2": 5700, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 13200, "y1": 5700, "x2": 16200, "y2": 10300, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 13690, "y1": 2000, "x2": 15800, "y2": 5900, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 15800, "y1": 5900, "x2": 19200, "y2": 11200, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 16230, "y1": 2000, "x2": 18400, "y2": 6100, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 18400, "y1": 6100, "x2": 22200, "y2": 12400, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 18770, "y1": 2000, "x2": 21000, "y2": 6300, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 21000, "y1": 6300, "x2": 25000, "y2": 13700, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 21310, "y1": 2000, "x2": 23600, "y2": 6500, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 23600, "y1": 6500, "x2": 27900, "y2": 15100, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 23850, "y1": 2000, "x2": 26200, "y2": 6700, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 26200, "y1": 6700, "x2": 31000, "y2": 16400, "stroke": "#1774a7", "sw": 260 },
+    { "t": "line", "x1": 4100, "y1": 16400, "x2": 7200, "y2": 19800, "stroke": "#1774a7", "sw": 240 },
+    { "t": "line", "x1": 7200, "y1": 19800, "x2": 9200, "y2": 22600, "stroke": "#1774a7", "sw": 240 },
+
+    { "t": "circle", "cx": 16200, "cy": 10300, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 19200, "cy": 11200, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 22200, "cy": 12400, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 25000, "cy": 13700, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 27900, "cy": 15100, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 31000, "cy": 16400, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 },
+    { "t": "circle", "cx": 9200, "cy": 22600, "r": 350, "fill": "#0b3155", "stroke": "#4f9bc0", "sw": 120 }
+  ],
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "外形尺寸、安装孔与工作电压来自用户提供的商品尺寸图；正反面布局依据用户提供的实物照片重绘。针序、走线细节、模式焊盘和元件位置因图片清晰度与批次差异均为近似值，接线前须核对实物丝印。",
+  "sources": [
+    {
+      "title": "用户提供的 TTP224 四路触摸模块商品尺寸图",
+      "note": "标注板尺寸 35×29 mm、孔径 2 mm、孔中心距 30 mm、工作电压 2.4–5.5 V；用于原创正面矢量重绘。"
+    },
+    {
+      "title": "用户提供的 TTP224 模块实物安装照片",
+      "note": "显示蓝色 PCB 反面焊盘与走线；用于原创反面矢量重绘，未嵌入原始位图。"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original front and back vector drawings by Breadboard Studio contributors"
+  }
+}

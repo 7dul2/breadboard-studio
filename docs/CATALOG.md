@@ -1,6 +1,6 @@
 # 元件目录与建模指南
 
-目录定义是 `packages/catalog/src/definitions/*.json` 中的纯 JSON，schema 见 `packages/schema/src/definition.schema.ts`。每个定义包含：唯一 `id`、`version`、名称、厂商/型号/版本、外形 `body`、局部原点（左上角）、引脚坐标或参数化生成器、安装方式 `mount`、电气属性 `electrical` 与 `pin_meta`、原创绘图 `render`、来源 `sources`、许可 `license`、以及分开记录的 `geometry_status` / `electrical_status`。
+目录定义是 `packages/catalog/src/definitions/*.json` 中的纯 JSON，schema 见 `packages/schema/src/definition.schema.ts`。每个定义包含：唯一 `id`、`version`、名称、厂商/型号/版本、外形 `body`、局部原点（左上角）、引脚坐标或参数化生成器、安装方式 `mount`、电气属性 `electrical` 与 `pin_meta`、原创正面绘图 `render`、可选反面绘图 `back_render`、来源 `sources`、许可 `license`、以及分开记录的 `geometry_status` / `electrical_status`。
 
 ## 证据状态
 
@@ -27,13 +27,14 @@
 | `esp32s3_n16r8_dual_usb@1` | approximate | approximate | 27.94×57.15 mm 双 Type-C 44 针黑色开发板；N16R8、CH343、RGB、BOOT/RST，25.40 mm 排距跨面包板沟槽。 |
 | `oled_0_96_i2c@1` / `oled_0_91_i2c@1` | approximate | approximate | 4 针单排 I²C 转接板，针序 `pin_names` 必须按丝印确认；地址 0x3C/0x3D。 |
 | `oled_0_96_ssd1315_i2c@1` | approximate | approximate | 参考图中的 27×26.5 mm SSD1315 四针平躺模块；黑色屏幕，`display_color` 可切换白色/蓝色示例显示；`address_options` 0x3C/0x3D。 |
-
-主控定义的 `electrical.i2c` 除 `sda_pin`/`scl_pin` 外可写 `controllers`（独立 I²C 控制器数量，ESP32-S3 为 2）与 `mappable: true`（额外总线可用任意 GPIO 角色引脚）；额外总线由实例 `config.i2c_buses` 声明。器件定义的 `address_options` 列出可通过跳线/电阻选择的地址，自动排线只会在这些选项里改地址。
 | `ttp223_module@1` | approximate | approximate | 3 针；输出电平随供电，`config.supply_v` 决定电平检查。 |
+| `ttp224_module@1` | approximate | approximate | 35×29 mm 四路电容触摸模块，6 针；带原创正反面绘图，针序与模式焊盘须按实物复核。 |
 | `sht41_breakout@1` / `bmp390_breakout@1` / `ltr390_breakout@1` | unknown | approximate | 通用 I²C 转接板模板 + 芯片地址；转接板尺寸/针序/稳压未知。 |
 | `sen66@1` | approximate | approximate | 板外线缆器件，6 端子 JST-GH；平均电流 ~90 mA，峰值未录入。 |
 | `power_module_3v3@1` | unknown | unknown | 3V3/GND 输出占位；能力在 `config.capacity_ma` 填写。 |
 | `resistor_axial@1` / `led_5mm@1` | approximate | approximate | 基础两端元件；两端之间不是短路。 |
+
+主控定义的 `electrical.i2c` 除 `sda_pin`/`scl_pin` 外可写 `controllers`（独立 I²C 控制器数量，ESP32-S3 为 2）与 `mappable: true`（额外总线可用任意 GPIO 角色引脚）；额外总线由实例 `config.i2c_buses` 声明。器件定义的 `address_options` 列出可通过跳线/电阻选择的地址，自动排线只会在这些选项里改地址。
 
 来源链接写在各定义的 `sources` 字段中，可用 `pnpm bb catalog inspect <ref> --json` 查看。
 
@@ -101,7 +102,7 @@
 
 ## 绘图与许可
 
-`render` 中的图形是原创矢量（矩形/圆/文字/路径），单位 µm，坐标相对元件左上角。`pin_render` 可将自动生成的针脚改成圆形焊点、设置焊孔与颜色，或在模型自行绘制丝印时隐藏默认针脚名。不要复制 Tinkercad/Fritzing/厂商的图片或 SVG；引用第三方资产必须确认再分发许可并在 `license.attribution` 与 `THIRD_PARTY_NOTICES.md` 中注明。
+`render` 中的图形是原创正面矢量（矩形/圆/文字/路径），单位 µm，坐标相对元件左上角。元件可选用同样格式和坐标系的 `back_render` 描绘反面；存在时元件库悬停详情会同时显示正反面，不存在时仍只显示正面。`pin_render` 可将自动生成的针脚改成圆形焊点、设置焊孔与颜色，或在模型自行绘制丝印时隐藏默认针脚名。不要复制 Tinkercad/Fritzing/厂商的图片或 SVG；引用第三方资产必须确认再分发许可并在 `license.attribution` 与 `THIRD_PARTY_NOTICES.md` 中注明。
 
 ## 外观编辑器（在浏览器里修正绘图）
 
