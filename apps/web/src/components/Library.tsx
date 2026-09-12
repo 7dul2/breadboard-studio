@@ -4,7 +4,7 @@ import type { CatalogDefinition } from '@breadboard-studio/schema';
 import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent } from '@breadboard-studio/core';
 import { boardScene, componentScene, mm, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
-import { spliceOps, type SpliceSpec } from '../splice-board';
+import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
 
@@ -141,7 +141,8 @@ export function Library() {
     if (r.ok) {
       st.select(ids, true);
       st.requestFit();
-      st.toast('success', `已拼出 ${ids.length} 块（横向 ${spec.across} × 纵向 ${spec.down}）`);
+      const sum = spliceSummary(spec);
+      st.toast('success', `已拼出 ${sum.modules} 块中间接线板${sum.strips ? ` + ${sum.strips} 条电源条` : ''}（横向 ${spec.across} × 纵向 ${spec.down}）`);
     }
   };
 
@@ -151,7 +152,7 @@ export function Library() {
       <div className="row lib-actions">
         <input className="search" placeholder="搜索型号…" value={filter} onChange={(e) => setFilter(e.target.value)} data-testid="library-search" />
         <button title="导入自定义元件/面包板定义 JSON（内嵌到当前设计）" onClick={() => fileRef.current?.click()} data-testid="import-definition">导入定义</button>
-        <button title="用可拼接的 400 孔模块自动拼出一块大板" onClick={() => setSpliceOpen(true)} data-testid="splice-board-open">拼装面包板…</button>
+        <button title="用可拼接的中间接线板 + 电源条自动拼出一块大板" onClick={() => setSpliceOpen(true)} data-testid="splice-board-open">拼装面包板…</button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="definition-input" onChange={(e) => { void importDefinition(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
       {placing && (
