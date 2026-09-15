@@ -307,6 +307,32 @@ test.describe('editor core flows', () => {
     await expect(page.getByTestId('build-panel')).toContainText('1/11 已完成');
   });
 
+  test('the wiring guide dims every wire except the current step and restores on exit', async ({ page }) => {
+    await fresh(page);
+    await loadExample(page, 'desk_device');
+    // 无选中项时打开向导：聚焦直接生效，不要求先在画布上选中导线或孔位。
+    await page.getByTestId('tab-wiring').click();
+    const wires = page.locator('g[data-wire]');
+    const dimmed = page.locator('g[data-wire].wire-dimmed');
+    const focused = page.locator('g[data-wire]:not(.wire-dimmed)');
+    const total = await wires.count();
+    expect(total).toBeGreaterThan(1);
+    await expect(dimmed).toHaveCount(total - 1);
+    const first = await focused.getAttribute('data-wire');
+    // 「下一根」立即切换聚焦，旧线不再保持高亮。
+    await page.getByTestId('build-next').click();
+    const second = await focused.getAttribute('data-wire');
+    expect(second).not.toBe(first);
+    await expect(dimmed).toHaveCount(total - 1);
+    // 点向导列表里的任意一行同样触发聚焦。
+    await page.locator('.step-list li').first().click();
+    const again = await focused.getAttribute('data-wire');
+    expect(again).toBe(first);
+    // 离开向导后整张画布恢复，不会永久变淡。
+    await page.getByTestId('tab-properties').click();
+    await expect(dimmed).toHaveCount(0);
+  });
+
   test('multi-selection auto-wires components to one host with selectable Dupont or hard jumpers', async ({ page }) => {
     await fresh(page);
     await loadExample(page, 'desk_device');
