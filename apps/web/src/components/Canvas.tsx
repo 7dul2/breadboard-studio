@@ -119,6 +119,15 @@ export function Canvas() {
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const model = analysis.model;
 
+  /** 与接线向导 buildSteps 相同的排序：保证 buildStep 下标对应同一根线。 */
+  const sortedWires = useMemo(
+    () => [...model.wires.values()].sort((a, b) => a.instance.id.localeCompare(b.instance.id, undefined, { numeric: true })),
+    [model]
+  );
+  /** 向导聚焦生效 = 向导面板打开 且 当前步骤确有一根线（线被删光/下标越界时自动退回普通高亮）。 */
+  const wizardStep = wiringGuide ? sortedWires[buildStep] : undefined;
+  const wizardFocus = Boolean(wizardStep);
+
   /**
    * 孔 → 插在这个孔里的引脚。一根线插进一个空孔时，光看导线是看不出它接到谁的：
    * 电气上它接的是同一列导通组里的那个引脚，这张表就是把这句话还原出来。
@@ -164,6 +173,23 @@ export function Canvas() {
     const pins = new Set<string>();
     const wires = new Set<string>();
     const comps = new Set<string>();
+    /** 点亮一根导线的两端：孔 → 同组导通孔 → 插在同一列里的引脚。 */
+    const addWireEndpoints = (rw: { from: { kind: string; address: string } | null; to: { kind: string; address: string } | null }) => {
+      for (const ep of [rw.from, rw.to]) {
+        if (!ep) continue;
+        if (ep.kind === 'hole') {
+          holes.add(ep.address);
+          // 不知道接到哪里时，答案是"这一列上插着谁"。
+          for (const h of groupHoles(model, ep.address)) {
+            const owner = pinAtHole.get(h);
+            if (owner) {
+              pins.add(owner.pin);
+              comps.add(owner.comp);
+            }
+          }
+        } else pins.add(ep.address);
+      }
+    };
     if (selectedHole) {
       const set = connectivityHighlight ? conductiveSet(model, analysis.connectivity, selectedHole) : { holes: groupHoles(model, selectedHole), pins: [] };
       set.holes.forEach((h) => holes.add(h));
@@ -182,20 +208,7 @@ export function Canvas() {
     for (const id of selectedIds) {
       const rw = model.wires.get(id);
       if (rw) {
-        for (const ep of [rw.from, rw.to]) {
-          if (!ep) continue;
-          if (ep.kind === 'hole') {
-            holes.add(ep.address);
-            // 选中一根线时，把两端各自"插到谁身上"一并点亮 —— 这是"不知道接到哪里"的答案。
-            for (const h of groupHoles(model, ep.address)) {
-              const owner = pinAtHole.get(h);
-              if (owner) {
-                pins.add(owner.pin);
-                comps.add(owner.comp);
-              }
-            }
-          } else pins.add(ep.address);
-        }
+        addWireEndpoints(rw);
         continue;
       }
       // 选中的是元件/面包板：把"插在它身上"的导线挑出来。
@@ -234,20 +247,18 @@ export function Canvas() {
       if (parsed && model.boards.has(parsed.owner)) holes.add(ep);
       else pins.add(ep);
     }
-    if (wiringGuide) {
-      const steps = [...model.wires.values()].sort((a, b) => a.instance.id.localeCompare(b.instance.id, undefined, { numeric: true }));
-      const cur = steps[buildStep];
-      if (cur) {
-        wires.add(cur.instance.id);
-        for (const ep of [cur.from, cur.to]) {
-          if (!ep) continue;
-          if (ep.kind === 'hole') holes.add(ep.address);
-          else pins.add(ep.address);
-        }
-      }
+    if (wizardStep) {
+      // 向导聚焦以当前步骤为准：清掉之前画布选择/整网高亮的干扰，
+      // 只留当前这根线（含编号）和它的两端。
+      holes.clear();
+      pins.clear();
+      wires.clear();
+      comps.clear();
+      wires.add(wizardStep.instance.id);
+      addWireEndpoints(wizardStep);
     }
     return { holes, pins, wires, comps };
-  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wiringGuide, buildStep, pinAtHole]);
+  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wizardStep, pinAtHole]);
 
   const scene = useMemo(
     () =>
@@ -260,11 +271,13 @@ export function Canvas() {
         highlightPins: highlight.pins,
         highlightWires: highlight.wires,
         highlightComponents: highlight.comps,
-        selectedIds: new Set(selectedIds),
-        // 有选中项时才压暗，否则整张图会一直是灰的
-        dimUnhighlighted: dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole))
+        // 向导聚焦时清空选中轮廓：当前步骤是唯一的主角，
+        // 连之前选中的那根线的蓝色 halo 也一起让位压暗。
+        selectedIds: wizardFocus ? new Set<string>() : new Set(selectedIds),
+        // 有选中项时压暗；接线向导聚焦时无条件压暗其余导线
+        dimUnhighlighted: wizardFocus || (dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole)))
       }),
-    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted]
+    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted, wizardFocus]
   );
 
   // ---- coordinate helpers ---------------------------------------------------
