@@ -4,6 +4,7 @@ import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
 import { WireColorPicker } from './WireColorPicker';
+import { useTheme, type ThemePreference } from '../theme';
 
 /** 每次点击的缩放倍率。够小才不"跳"，长按可以连续缩放。 */
 const ZOOM_STEP_IN = 1.15;
@@ -110,6 +111,33 @@ interface CanvasApi {
   zoomTo: (z: number) => void;
   rotateBy: (deltaDeg: number) => void;
   rotateTo: (deg: number) => void;
+}
+
+/** 主题三档：浅色 / 深色 / 跟随系统（issue #23）。偏好持久保存在 localStorage。 */
+const THEME_OPTIONS: { value: ThemePreference; label: string; title: string }[] = [
+  { value: 'light', label: '浅色', title: '浅色主题' },
+  { value: 'dark', label: '深色', title: '深色主题' },
+  { value: 'system', label: '系统', title: '跟随系统主题，系统切换时自动跟随' }
+];
+
+function ThemeSwitch() {
+  const { preference, resolved, setPreference } = useTheme();
+  return (
+    <div className="mode-switch theme-switch" role="group" aria-label="主题" data-testid="theme-switch" title={`当前主题：${resolved === 'dark' ? '深色' : '浅色'}`}>
+      {THEME_OPTIONS.map((o) => (
+        <button
+          key={o.value}
+          className={preference === o.value ? 'active' : ''}
+          aria-pressed={preference === o.value}
+          onClick={() => setPreference(o.value)}
+          title={o.title}
+          data-testid={`theme-${o.value}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function canvasApi(): CanvasApi | undefined {
@@ -237,6 +265,7 @@ export function Toolbar() {
       <label className="toggle"><input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮</label>
       <label className="toggle" title="选中元件或孔时，把无关的导线压暗，只留下直连的那几根"><input type="checkbox" checked={dimUnhighlighted} onChange={st.toggleDimUnhighlighted} data-testid="toggle-dim" />聚焦选中</label>
       <span className="spacer" />
+      <ThemeSwitch />
       <ModeSwitch mode={mode} />
       <span className={`storage ${storage.state}`} data-testid="storage-status">{storageText}</span>
     </div>
