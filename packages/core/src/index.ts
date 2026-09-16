@@ -15,3 +15,4 @@ export * from './analyze.js';
 export * from './ops.js';
 export * from './autowire.js';
 export * from './programs.js';
+export * from './board-resize.js';

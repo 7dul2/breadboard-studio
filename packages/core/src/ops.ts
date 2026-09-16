@@ -1,9 +1,10 @@
-import type { ComponentInstance, Constraint, DesignDocument, DesignMetadata, JsonValue, NetIntent, Placement, PointUm, ProgramAsset, ProgramLanguage, RotationDeg, SimulationConfig, WireEndpoint, WireInstance, WireRoute, WirePathMode } from '@breadboard-studio/schema';
+import type { BoardDefinition, ComponentInstance, Constraint, DesignDocument, DesignMetadata, JsonValue, NetIntent, Placement, PointUm, ProgramAsset, ProgramLanguage, RotationDeg, SimulationConfig, WireEndpoint, WireInstance, WireRoute, WirePathMode } from '@breadboard-studio/schema';
 import { PROGRAM_LANGUAGES, SIMULATION_SPEEDS, migrateDesign, validateDesignSchema } from '@breadboard-studio/schema';
-import { Catalog, builtinCatalog } from '@breadboard-studio/catalog';
+import { Catalog, builtinCatalog, parseModelRef } from '@breadboard-studio/catalog';
 import { parseAddress, holeAddress } from './address.js';
 import { analyzeDesign } from './analyze.js';
-import { holeAtLocal } from './board.js';
+import { holeAtLocal, resolveBoard } from './board.js';
+import { boardShape, customDefId, resizeBoardDefinition, resizePlanError } from './board-resize.js';
 import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
@@ -38,6 +39,13 @@ export type Op =
   | { op: 'remove_board'; id: string; cascade?: boolean }
   | { op: 'move_board'; id: string; position_um: PointUm }
   | { op: 'rotate_board'; id: string; rotation_deg?: RotationDeg; by_deg?: number }
+  /**
+   * 尺寸编辑（issue #22）：把一块面包板改成新的列数/行数。内部从这块板**当前
+   * 的原型号**派生一份自定义定义并内嵌（同 add_definition 的语义），再把板挂到
+   * 新定义上 —— 一次 op = 一次撤销。多次编辑同一块板总是从原型号重新派生，
+   * 旧的自定义定义无人引用时会被顺手清掉。
+   */
+  | { op: 'resize_board'; id: string; columns: number; rows: number }
   | { op: 'add_component'; component: Omit<ComponentInstance, 'placement'> & { placement?: Placement } }
   | { op: 'remove_component'; id: string; cascade?: boolean }
   | { op: 'move_component'; id: string; placement: Placement }
@@ -120,6 +128,18 @@ function mustFind<T extends { id: string }>(list: T[], id: string, kind: string)
   const x = list.find((i) => i.id === id);
   if (!x) throw new OpError(`${kind} "${id}" 不存在`);
   return x;
+}
+
+/** 设计里已经占用的 definition id（内嵌目录 + 本项目正在用的型号）。 */
+function takenDefIds(design: DesignDocument, sourceId: string): Set<string> {
+  const taken = new Set<string>();
+  for (const d of [...(design.embedded_catalog?.boards ?? []), ...(design.embedded_catalog?.components ?? [])]) taken.add(d.id);
+  for (const o of [...design.boards, ...design.components]) {
+    const id = parseModelRef(o.model)?.id;
+    if (id) taken.add(id);
+  }
+  taken.delete(sourceId);
+  return taken;
 }
 
 function ensureUnlocked(obj: { locked?: boolean; id: string }, what: string): void {
@@ -520,6 +540,78 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       ensureUnlocked(b, '面包板');
       b.rotation_deg = op.rotation_deg ?? normalizeRotation(b.rotation_deg + (op.by_deg ?? 90));
       changed.add(op.id);
+      return;
+    }
+    case 'resize_board': {
+      const b = mustFind(design.boards, op.id, '面包板');
+      ensureUnlocked(b, '面包板');
+      // 尺寸编辑总是从这条派生链的**原型**重新派生：把 id 尾部的 `_custom` /
+      // `_custom2` / …（可能叠了好几层）全部剥掉，先在内置目录里找原型，再在
+      // 本项目内嵌目录里找。于是同一块板反复调整都是「原型 → `…_custom@原型+1`」，
+      // id 不加长、版本不链式增长、旧的自定义定义无人引用时顺手清掉。
+      // 导入/内嵌的型号（内置目录里没有）也走同一条路：原型就是内嵌的那份原始
+      // 定义，不会每编辑一次就多一层 `_custom`。
+      const modelId = parseModelRef(b.model)?.id ?? b.model;
+      const rootId = modelId.replace(/(_custom\d*)+$/, '');
+      const builtinSource = builtinCatalog().listBoards().find((d) => d.id === rootId) ?? builtinCatalog().listBoards().find((d) => d.id === modelId);
+      const embeddedBoards = design.embedded_catalog?.boards ?? [];
+      const embeddedSource = embeddedBoards.find((d) => d.id === rootId) ?? embeddedBoards.find((d) => `${d.id}@${d.version}` === b.model);
+      const source = builtinSource ?? embeddedSource ?? catalog.getBoard(b.model);
+      if (!source) throw new OpError(`找不到面包板型号 ${b.model}`);
+      const shape = boardShape(source);
+      if (!shape) throw new OpError(`${source.name} 没有「行 × 列」形态的接线块，不能按行列数缩放`);
+      // 越界的行列数直接拒绝，不静默改成别的尺寸（CLI / agent 接口是公开契约）。
+      const planError = resizePlanError({ columns: op.columns, rows: op.rows }, shape);
+      if (planError) throw new OpError(planError);
+      const sourceId = source.id;
+      // 这块板自己正挂着的旧自定义 id 会被替换掉，不算占用。
+      const taken = takenDefIds(design, sourceId);
+      taken.delete(modelId);
+      let def: BoardDefinition;
+      try {
+        def = resizeBoardDefinition(source, { columns: op.columns, rows: op.rows }, customDefId(sourceId, taken));
+      } catch (e) {
+        throw new OpError((e as Error).message);
+      }
+      const sourceBlock = source.terminal_blocks[0]!;
+      const derivedBlock = def.terminal_blocks[0]!;
+      if (def.size_um[0] === source.size_um[0] && def.size_um[1] === source.size_um[1] && derivedBlock.columns === sourceBlock.columns && derivedBlock.rows.length === sourceBlock.rows.length) {
+        throw new OpError('尺寸没有变化');
+      }
+      // 裁剪保护：新板上不再存在的孔号若仍被组件锚点 / 导线端点 / 网络意图引用，
+      // 拒绝并给出明确孔号 —— 不做静默数据丢失。
+      const stillThere = resolveBoard(def).holes;
+      const lost = new Set<string>();
+      for (const c of design.components) {
+        const pl = c.placement;
+        if (pl.kind === 'board' && pl.board_id === op.id && !stillThere.has(pl.anchor_hole)) lost.add(pl.anchor_hole);
+      }
+      for (const w of design.wires) {
+        for (const ep of [w.from, w.to] as WireEndpoint[]) {
+          if (!ep?.hole) continue;
+          const dot = ep.hole.indexOf('.');
+          if (dot > 0 && ep.hole.slice(0, dot) === op.id && !stillThere.has(ep.hole.slice(dot + 1))) lost.add(ep.hole.slice(dot + 1));
+        }
+      }
+      for (const intent of design.net_intents) {
+        for (const endpoint of intent.endpoints) {
+          if (endpoint.startsWith(`${op.id}.`) && !stillThere.has(endpoint.slice(op.id.length + 1))) lost.add(endpoint.slice(op.id.length + 1));
+        }
+      }
+      if (lost.size) {
+        throw new OpError(`裁剪会失去已连接的孔位：${[...lost].sort().join('、')}。先把该孔上的元件或导线移走，或改用更大的尺寸`);
+      }
+      // 派生 → 内嵌 → 挂上；同一块板之前那份自定义定义（同源派生）已无人引用：移除。
+      const emb = design.embedded_catalog ?? {};
+      const ref = `${def.id}@${def.version}`;
+      if (b.model !== `${sourceId}@${source.version}`) {
+        emb.boards = (emb.boards ?? []).filter((d) => `${d.id}@${d.version}` !== b.model);
+      }
+      emb.boards = [...(emb.boards ?? []).filter((d) => `${d.id}@${d.version}` !== ref), def];
+      design.embedded_catalog = emb;
+      b.model = ref;
+      changed.add(op.id);
+      changed.add(ref);
       return;
     }
     case 'add_component': {

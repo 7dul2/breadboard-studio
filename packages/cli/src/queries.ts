@@ -90,6 +90,7 @@ export function opsData() {
     { op: 'remove_board', fields: 'id, cascade?' },
     { op: 'move_board', fields: 'id, position_um' },
     { op: 'rotate_board', fields: 'id, rotation_deg? | by_deg?' },
+    { op: 'resize_board', fields: "id, columns, rows —— 从该板原型号派生一份自定义尺寸定义并内嵌（一次撤销）。列数 5–120 的整数，行数是每块接线块的行数（1–原行数）；越界直接报错，不会静默改数。新尺寸会裁掉仍被元件/导线引用的孔位时拒绝" },
     { op: 'add_component', fields: 'component{id, model, name?, placement?, params?, config?, notes?}' },
     { op: 'remove_component', fields: 'id, cascade?' },
     { op: 'move_component', fields: 'id, placement{kind: board|off_board, ...}' },
