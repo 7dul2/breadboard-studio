@@ -685,7 +685,8 @@ const useStore = create<State>((set, get) => {
         if (placement) snapOps.push({ op: 'move_component', id, placement });
       }
       if (newBoardIds.length === 1 && !newComponentIds.length) {
-        snapOps.push({ op: 'move_board', id: newBoardIds[0], position_um: snapBoardPosition(model, newBoardIds[0], [0, 0]) });
+        const pasted = model.boards.get(newBoardIds[0]!);
+        if (pasted?.def.render.style !== 'perfboard') snapOps.push({ op: 'move_board', id: newBoardIds[0], position_um: snapBoardPosition(model, newBoardIds[0], [0, 0]) });
       }
 
       const r = get().apply([...addOps, ...snapOps], '粘贴');

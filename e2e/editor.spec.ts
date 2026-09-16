@@ -9,14 +9,16 @@ const BOARD_DEF = JSON.parse(
 ) as { render: { g?: string }[] };
 
 test.describe('editor core flows', () => {
-  test('shows the curated library with integrated and modular breadboard groups', async ({ page }) => {
+  test('shows the curated library with breadboard and perfboard groups', async ({ page }) => {
     await fresh(page);
-    await expect(page.locator('.library-list .lib-item')).toHaveCount(10);
-    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '主控', '显示', '输入']);
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(12);
+    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '洞洞板', '主控', '显示', '输入']);
     await expect(page.getByTestId('lib-breadboard_400')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_400_terminal')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_power_strip_25')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_830')).toBeVisible();
+    await expect(page.getByTestId('lib-perfboard_5x7')).toBeVisible();
+    await expect(page.getByTestId('lib-perfboard_7x9')).toBeVisible();
     await expect(page.getByTestId('lib-esp32s3_n16r8_dual_usb')).toBeVisible();
     await expect(page.getByTestId('lib-oled_0_96_ssd1315_i2c')).toBeVisible();
     await expect(page.getByTestId('lib-ttp224_module')).toBeVisible();

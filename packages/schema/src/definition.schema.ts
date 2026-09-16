@@ -60,7 +60,7 @@ export const boardDefinitionSchema = {
         additionalProperties: false,
         properties: {
           id: { type: 'string' },
-          rows: { type: 'array', items: { type: 'string', pattern: '^[a-z]$' }, minItems: 1 },
+          rows: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z]+$' }, minItems: 1 },
           first_column: { type: 'integer', minimum: 1 },
           columns: { type: 'integer', minimum: 1 },
           origin_um: point
@@ -100,6 +100,7 @@ export const boardDefinitionSchema = {
       required: ['body_color'],
       additionalProperties: false,
       properties: {
+        style: { type: 'string', enum: ['breadboard', 'perfboard'] },
         body_color: { type: 'string' },
         edge_color: { type: 'string' },
         hole_color: { type: 'string' },

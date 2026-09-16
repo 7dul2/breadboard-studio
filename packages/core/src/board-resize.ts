@@ -12,7 +12,8 @@ import type { BoardDefinition, PointUm } from '@breadboard-studio/schema';
  *
  * 几何规则（以下标 0 的接线块为基准）：
  * - 孔距 pitch 恒定（真实尺寸由 2.54 mm 网格决定）；
- * - 「行数」指**每块接线块的行数**（400 板 a–e / f–j 各 5 行 → rows ∈ [1..5]）：
+ * - 面包板的「行数」指**每块接线块的行数**（400 板 a–e / f–j 各 5 行 → rows ∈ [1..5]）；
+ *   洞洞板则把每个物理行建模成一个单行接线块，因此 rows 是整块板的物理行数：
  *   各块保留自己行字母的前缀（上块 a–e 截前 n 行、下块 f–j 截前 n 行），孔号稳定；
  * - 列号是数字，增减都支持，列名天然稳定；
  * - 电源轨孔数按列数等比缩放，分段形态（如 MB-102 的中间断开）按比例保留；
@@ -60,7 +61,7 @@ export function resizePlanError(plan: BoardResizePlan, shape: BoardShape): strin
     return `列数必须是 ${min}–${max} 之间的整数（收到 ${JSON.stringify(plan.columns)}）`;
   }
   if (!Number.isInteger(plan.rows) || plan.rows < 1 || plan.rows > shape.rows) {
-    return `行数必须是 1–${shape.rows} 之间的整数（收到 ${JSON.stringify(plan.rows)}）；「行数」是每块接线块的行数`;
+    return `行数必须是 1–${shape.rows} 之间的整数（收到 ${JSON.stringify(plan.rows)}）`;
   }
   return null;
 }
@@ -69,6 +70,7 @@ export function resizePlanError(plan: BoardResizePlan, shape: BoardShape): strin
 export function canResizeBoard(def: BoardDefinition): boolean {
   const first = def.terminal_blocks[0];
   if (!first) return false;
+  if (def.render.style === 'perfboard') return def.terminal_blocks.every((b) => b.columns === first.columns && b.rows.length === 1);
   return def.terminal_blocks.every((b) => b.columns === first.columns && b.rows.length === first.rows.length);
 }
 
@@ -76,6 +78,7 @@ export function canResizeBoard(def: BoardDefinition): boolean {
 export function boardShape(def: BoardDefinition): BoardShape | null {
   const block = def.terminal_blocks[0];
   if (!block) return null;
+  if (def.render.style === 'perfboard') return { columns: block.columns, rows: def.terminal_blocks.length };
   return { columns: block.columns, rows: block.rows.length };
 }
 
@@ -102,11 +105,29 @@ export function resizeBoardDefinition(source: BoardDefinition, rawPlan: BoardRes
   def.id = newId;
   def.version = source.version + 1;
   def.variant = '自定义尺寸';
-  def.description = `由 ${source.name}（${source.id}@${source.version}）自定义尺寸派生：${plan.columns} 列 × ${plan.rows} 行（每块）。孔距、导通规则与原型号一致。`;
+  def.description = `由 ${source.name}（${source.id}@${source.version}）自定义尺寸派生：${plan.columns} 列 × ${plan.rows} 行${source.render.style === 'perfboard' ? '（整板）' : '（每块）'}。孔距、导通规则与原型号一致。`;
 
   const pitch = def.pitch_um;
   const oldColumns = shape.columns;
   const oldRows = shape.rows;
+
+  if (source.render.style === 'perfboard') {
+    const rows = source.terminal_blocks.slice(0, plan.rows).map((block) => ({
+      ...block,
+      first_column: 1,
+      columns: plan.columns,
+      rows: [...block.rows]
+    }));
+    def.terminal_blocks = rows;
+    def.rails = [];
+    def.ravines = [];
+    const [oldW, oldH] = source.size_um;
+    def.size_um = [Math.round(oldW - (oldColumns - 1) * pitch + (plan.columns - 1) * pitch), Math.round(oldH - (oldRows - plan.rows) * pitch)];
+    def.geometry_status = 'approximate';
+    def.sources = [{ title: `Derived from ${source.id}@${source.version} by the in-canvas size editor (issue #22)` }];
+    return def;
+  }
+
   const blockCount = def.terminal_blocks.length;
   /** 每块接线块被去掉的行数（行数只能减不能加，所以 ≥ 0）。 */
   const droppedRows = oldRows - plan.rows;

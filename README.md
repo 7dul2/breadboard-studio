@@ -1,6 +1,6 @@
 # Breadboard Studio
 
-在浏览器里拼面包板、摆元件、自动接线，再按图搭建你的电路。
+在浏览器里拼面包板或洞洞板、摆元件、自动接线，再按图搭建你的电路。
 
 Breadboard Studio 是一个开源的面包板布局工具：你可以直接操作画布，也可以让 AI Agent 通过 CLI 和 JSON 设计文件参与搭建。两种方式共用孔位、导通关系和校验规则。
 
@@ -29,11 +29,12 @@ Breadboard Studio 是一个开源的面包板布局工具：你可以直接操�
 
 ### 按实物结构拼板
 
-支持一体式 400 / 830 孔面包板，也支持完全拆开的中间接线板与 `+/−` 电源条。板件可以独立移动、旋转、复制和拼接。
+支持一体式 400 / 830 孔面包板、完全拆开的中间接线板与 `+/−` 电源条，也支持 5×7 cm / 7×9 cm 洞洞板。板件可以独立移动、旋转和复制；可拆面包板模块还支持机械拼接。
 
 - 一体式 400 孔板上下拼接，当前模型支持 ESP32-S3 N16R8 跨上板 `j` / 下板 `a` 行。
 - 可拆拼装式由 300 孔中间板和 2×25 孔电源条组成；两块中间板之间夹一条电源条，支持跨 `h` / `b` 行。
 - 拼接只改变物理位置；相邻板件的电源轨不会自动导通。
+- 洞洞板的每个镀锡焊盘默认独立不导通；元件可直接焊在孔位，导线或焊锡桥接任意两个孔。画布可切换元件面与焊接面。
 
 引脚随锚点落孔，编辑器会区分占用孔与板体遮挡区域，并报告脱格、同孔冲突和板体碰撞。不同实物型号的尺寸仍需核对。
 
@@ -57,6 +58,7 @@ I²C 地址冲突时，规划器可根据型号能力分配另一条总线或调
 | --- | --- |
 | 一体式面包板 | 400 孔半尺寸、830 孔全尺寸 |
 | 可拆拼装式 | 300 孔中间接线板、独立 `+/−` 电源条 |
+| 洞洞板 | 5×7 cm（18×24 孔）、7×9 cm（27×35 孔） |
 | 主控 | ESP32-S3 N16R8，双 Type-C、44 针 |
 | 显示 | 0.96 英寸 SSD1315 OLED，4 针 |
 | 输入 | KY-040 旋转编码器、6×6 mm 轻触按键、TTP224 四路电容触摸模块 |
@@ -212,7 +214,7 @@ MIT 许可证，见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES
 
 **Plan your breadboard circuit in the browser, route its wires, and follow the layout at your workbench.**
 
-Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, pin-to-hole placement, manual and automatic routing, copy/paste that drops parts into the holes under your pointer, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in three: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other — and 实机 (real board) opens a Web Serial connection to actual hardware to read its log, which is deliberately not a simulation backend. Export your project as JSON, SVG, or PNG.
+Breadboard Studio is an open-source layout editor for people and AI agents. It includes modular breadboards, independent-pad perfboards, pin-to-hole placement, manual and automatic routing, copy/paste that drops parts into the holes under your pointer, connectivity highlighting, static validation, an artwork editor, and wire-by-wire build instructions. A switch in the toolbar splits the app in three: 搭建 (build) edits the circuit, 仿真 (simulate) runs it — leaving 仿真 ends the session, so the design is always editable on the build side and always frozen on the other — and 实机 (real board) opens a Web Serial connection to actual hardware to read its log, which is deliberately not a simulation backend. Export your project as JSON, SVG, or PNG.
 
 Try the [online demo](https://7dul2.github.io/breadboard-studio/) without an account. Load an example from the Project menu to explore a complete design. Projects are saved locally in your browser; JSON export lets you back them up or share them.
 

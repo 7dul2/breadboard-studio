@@ -8,7 +8,7 @@ import { boardShape, customDefId, resizeBoardDefinition, resizePlanError } from 
 import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
-import { accessibleHolesForPin, buildModel, catalogForDesign, groupHoles, pinHoleAddress, type DesignModel } from './model.js';
+import { accessibleHolesForPin, buildModel, catalogForDesign, groupHoles, isSolderableBoard, pinHoleAddress, type DesignModel } from './model.js';
 import { AutoWireError, planAutoWire, type AutoWireOptions, type AutoWirePlan } from './autowire.js';
 import { sortResults, type RuleResult } from './results.js';
 
@@ -247,6 +247,11 @@ function resolveOpEndpoint(design: DesignDocument, catalog: Catalog, ep: OpEndpo
     const pin = pc.pins.find((p) => p.name === parsed.name);
     if (!pin) throw new OpError(`元件 "${parsed.owner}" 没有引脚 "${parsed.name}"（可用：${pc.pins.map((p) => p.name).join(', ')}）`);
     if (!pin.hole) return { terminal: ep.pin };
+    const own = pinHoleAddress(pin);
+    if (own && isSolderableBoard(model, pin.hole.board_id) && !exclude.has(own)) {
+      if (model.holes.get(own)?.wires.length) throw new OpError(`引脚 ${ep.pin} 所在焊盘 ${own} 已经插有导线`);
+      return { hole: own };
+    }
     const candidates = accessibleHolesForPin(model, pc.instance.id, pin.name).filter((h) => !exclude.has(h));
     if (!candidates.length) throw new OpError(`引脚 ${ep.pin} 所在孔组没有可用的空闲孔`);
     return { hole: candidates[0]! };
@@ -575,7 +580,7 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       }
       const sourceBlock = source.terminal_blocks[0]!;
       const derivedBlock = def.terminal_blocks[0]!;
-      if (def.size_um[0] === source.size_um[0] && def.size_um[1] === source.size_um[1] && derivedBlock.columns === sourceBlock.columns && derivedBlock.rows.length === sourceBlock.rows.length) {
+      if (def.size_um[0] === source.size_um[0] && def.size_um[1] === source.size_um[1] && def.terminal_blocks.length === source.terminal_blocks.length && derivedBlock.columns === sourceBlock.columns && derivedBlock.rows.length === sourceBlock.rows.length) {
         throw new OpError('尺寸没有变化');
       }
       // 裁剪保护：新板上不再存在的孔号若仍被组件锚点 / 导线端点 / 网络意图引用，

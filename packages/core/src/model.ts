@@ -271,7 +271,8 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
         return null;
       }
       const st = holes.get(ep.hole)!;
-      if (st.status === 'occupied') {
+      const solderable = pb.def.render.style === 'perfboard';
+      if (st.status === 'occupied' && !solderable) {
         issues.push(
           err('wire_endpoint_occupied', 'wire', `导线 "${w.id}" 的 ${which} 端孔位 ${ep.hole} 已被 ${st.component_id}.${st.pin} 的引脚占用`, [w.id, st.component_id!], {
             endpoints: [ep.hole],
@@ -409,6 +410,11 @@ function rectsIntersect(a: Rect, b: Rect): boolean {
 /** Hole address for a pin, when it is inserted. */
 export function pinHoleAddress(pin: PlacedPin): string | null {
   return pin.hole ? holeAddress(pin.hole.board_id, pin.hole.hole) : null;
+}
+
+/** A perfboard pad remains externally solderable after a component pin is placed in it. */
+export function isSolderableBoard(model: DesignModel, boardId: string): boolean {
+  return model.boards.get(boardId)?.def.render.style === 'perfboard';
 }
 
 /** All holes in the same internal group as `addr` (including itself). */

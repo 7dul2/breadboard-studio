@@ -178,6 +178,8 @@ function BoardJoinControls({ boardId }: { boardId: string }) {
     setTargetId(currentJoin?.target ?? others[0]?.id ?? '');
   }, [boardId, otherIds]);
 
+  if (!board || board.def.render.style === 'perfboard') return null;
+
   const join = (side: keyof typeof JOIN_SIDE_LABELS) => {
     const selected = model.boards.get(boardId);
     const target = model.boards.get(targetId);
@@ -351,7 +353,7 @@ export function Properties() {
     const pb = model.boards.get(board.id);
     return (
       <div className="props" data-testid="props-board">
-        <div className="panel-title">面包板 {board.id}</div>
+        <div className="panel-title">板件 {board.id}</div>
         <p className="muted">{pb?.def.name} · {board.model}</p>
         <TextField label="名称" value={board.name ?? ''} onCommit={(v) => setProp(board.id, 'name', v)} testId="prop-name" />
         <div className="row">
