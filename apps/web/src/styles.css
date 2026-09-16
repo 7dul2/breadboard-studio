@@ -124,17 +124,44 @@ a { color: var(--accent); }
 .hint-text { display: block; color: var(--muted); font-style: normal; font-size: 11px; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
-.toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; position: relative; z-index: 5; }
+/* 应用栏三个稳定区（issue #37）：应用级 · 编辑上下文 · 视图与状态。
+   刻意不换行：1280 / 1500 宽下必须单行放下并留有余量（e2e 断言这两种宽度 ×
+   选中 / 接线两种工具态的单行、不越界、不被裁、有余量）。
+   控件一律 flex-shrink: 0 + nowrap——宁可让整条栏溢出，也不把「选择」压成两行或
+   静默裁掉标签；窄于约 1165px 会退化成页面级横向滚动，这是有意的取舍
+   （桌面工具，不为了不滚动而牺牲标签可读性）。 */
+.toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--border); position: relative; z-index: 5; }
+.toolbar .zone { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.toolbar button, .toolbar select, .toolbar label, .toolbar .brand { white-space: nowrap; }
+/* 叶子控件也不许被压缩：文字是 nowrap，一旦允许收缩就会静默把「选择」裁掉一半。
+   真放不下时应该整条溢出（e2e 的宽度/裁切断言会抓出来），而不是悄悄少几个字。 */
+.toolbar .zone button, .toolbar .zone select, .toolbar .zone label, .toolbar .tool-group button, .toolbar .menu-wrap > button, .toolbar .zoom-cluster button { flex-shrink: 0; }
+.toolbar > .zone, .toolbar .tool-group, .toolbar .zoom-cluster, .toolbar .menu-wrap { flex-shrink: 0; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; }
+.icon { display: block; }
+.zoom-cluster { display: inline-flex; align-items: center; gap: 2px; }
+/* 带色板的「接线选项」按钮：色点与文字对齐；面板里色板独占一行，下拉占满宽 */
+.toolbar .menu-wrap > button { display: inline-flex; align-items: center; gap: 6px; }
+.wire-options-popover .wire-colors { padding: 2px 8px 6px; }
+.wire-options-popover select { width: calc(100% - 16px); margin: 0 8px 4px; }
+.view-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.view-row:hover { background: var(--hover); }
+.view-row input { margin: 0; }
+.menu .view-action { width: 100%; border: none; background: transparent; color: var(--text); }
 .brand { display: flex; gap: 6px; align-items: baseline; margin-right: 8px; }
+/* 窄窗口收起字标（<=1480）：应用栏必须单行放下，省下的宽度留给工具与视图控件，
+   而不是靠压缩控件（压缩会静默裁标签）。1480 是量出来的界：字标在临界点右侧最坏
+   只剩约 150px 余量，再窄一点换个更宽的字库就会溢出。应用名在标签页上仍然可见。 */
+@media (max-width: 1480px) {
+  .toolbar .brand { display: none; }
+}
 .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .spacer { flex: 1; }
-.tool-group { display: flex; gap: 2px; align-items: center; }
-.tool-group.wire-opts { gap: 6px; }
+.tool-group { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
 .tool-group label { display: flex; gap: 4px; align-items: center; color: var(--muted); }
 .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0003; display: inline-block; }
 /* 线色色板：一排色点直接点选，末位是自定义取色器 */
 .wire-colors { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.wire-color-label { color: var(--muted); }
 .wire-color-dot {
   width: 18px; height: 18px; padding: 0; border-radius: 50%;
   border: 1px solid #0003; flex: none; cursor: pointer;
@@ -154,12 +181,12 @@ a { color: var(--accent); }
   padding: 0; border: 0; opacity: 0; cursor: pointer;
 }
 .toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.storage { width: 120px; flex: none; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.storage { width: 72px; flex: none; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 /* The mode switch. It sits at the far right because everything to its left is
    whatever the current mode offers; the two halves are exclusive, so it is drawn
    as one segmented control rather than two independent buttons. */
 .mode-switch { display: inline-flex; gap: 2px; padding: 2px; margin-right: 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); }
-.mode-switch button { padding: 3px 15px; border: none; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; }
+.mode-switch button { padding: 3px 10px; border: none; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; }
 .mode-switch button:hover:not(.active) { background: var(--accent-bg); color: var(--accent); }
 .mode-switch button.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
 .storage.error, .storage.unavailable { color: var(--error); font-weight: 600; }

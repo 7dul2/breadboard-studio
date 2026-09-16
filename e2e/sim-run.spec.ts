@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { design, enterSim, fresh, loadExample, simulator } from './helpers';
+import { design, enterSim, fresh, loadExample, openViewMenu, simulator } from './helpers';
 
 /**
  * M-S1 acceptance (plan §11.1). Every timing assertion polls virtual time
@@ -146,6 +146,7 @@ test.describe('M-S1 · the program actually runs', () => {
     expect(budget!.source?.line).toBeGreaterThan(0);
 
     // the main thread never blocked: the UI still reacts
+    await openViewMenu(page);
     await page.getByTestId('toggle-hole-labels').check();
     await expect(page.getByTestId('toggle-hole-labels')).toBeChecked();
     await expect(page.getByTestId('sim-panel')).toBeVisible();

@@ -4,6 +4,8 @@ import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
 import { WireColorPicker } from './WireColorPicker';
+import { wireColor as resolveWireColor } from '@breadboard-studio/render';
+import { CopyIcon, FitIcon, PasteIcon, RedoIcon, RotateIcon, UndoIcon } from './icons';
 import { useTheme, type ThemePreference } from '../theme';
 
 /** 每次点击的缩放倍率。够小才不"跳"，长按可以连续缩放。 */
@@ -145,25 +147,152 @@ function canvasApi(): CanvasApi | undefined {
   return (window as unknown as { __bbsCanvas?: CanvasApi }).__bbsCanvas;
 }
 
+/**
+ * Outside-click + Esc dismissal for a toolbar popover.
+ *
+ * Esc is stopped in the capture phase **only when the popover owns the focus or
+ * the event came from inside it** — that is what keeps Esc from clearing the
+ * canvas selection while the popover is the thing being dismissed. It must not
+ * swallow Esc app-wide: the code editor, artwork editor and library detail all
+ * handle Esc themselves.
+ */
+function useDismissablePopover(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const owns = (node: Node | null) => Boolean(node && ref.current?.contains(node));
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (owns(e.target as Node | null) || owns(document.activeElement)) e.stopPropagation();
+      onClose();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [open, onClose]);
+  return ref;
+}
+
+/**
+ * 「视图」popover (issue #37). Everything that changes what the canvas *shows* —
+ * and nothing that changes the design — lives here instead of sitting in the main
+ * bar next to the editing actions. Stays open while you flip several switches.
+ */
+function ViewMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => void; onClose: () => void }) {
+  const showHoleLabels = useStore((s) => s.showHoleLabels);
+  const showPinLabels = useStore((s) => s.showPinLabels);
+  const connectivityHighlight = useStore((s) => s.connectivityHighlight);
+  const dimUnhighlighted = useStore((s) => s.dimUnhighlighted);
+  const st = useStore.getState();
+  const ref = useDismissablePopover(open, onClose);
+
+  return (
+    <div className="menu-wrap" ref={ref}>
+      <button
+        className={open ? 'active' : ''}
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls="view-popover"
+        title="视图：画布上显示哪些辅助信息（不改设计数据）"
+        data-testid="view-menu"
+      >
+        视图 ▾
+      </button>
+      {open && (
+        <div className="menu view-popover" id="view-popover" role="group" aria-label="视图">
+          <div className="menu-label">显示</div>
+          <label className="view-row" title="在每个孔旁边标出孔号">
+            <input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号
+          </label>
+          <label className="view-row" title="在元件引脚旁标出引脚名">
+            <input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} data-testid="toggle-pin-labels" />针脚名
+          </label>
+          <label className="view-row" title="选中孔/元件时高亮同一导通组里的孔">
+            <input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮
+          </label>
+          <label className="view-row" title="选中元件或孔时，把无关的导线压暗，只留下直连的那几根">
+            <input type="checkbox" checked={dimUnhighlighted} onChange={st.toggleDimUnhighlighted} data-testid="toggle-dim" />聚焦选中
+          </label>
+          <div className="menu-sep" />
+          <button className="view-row view-action" onClick={() => canvasApi()?.toggleSolderSide()} title="洞洞板翻到焊接面（只影响显示与命中，不写入设计数据）" data-testid="toggle-solder-side">
+            翻转元件面 / 焊接面
+          </button>
+          <div className="menu-label">当前面显示在画布左下角</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 接线选项 popover. The 12-colour palette plus the routing select used to sit
+ * inline and pushed the bar ~480px past a 1280 viewport in wire mode, so they
+ * moved into a contextual popover: the option that belongs to the active tool,
+ * one click away, with the current colour shown on the button itself.
+ */
+function WireOptionsMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => void; onClose: () => void }) {
+  const colour = useStore((s) => s.wireColor);
+  const wireRoute = useStore((s) => s.wireRoute);
+  const st = useStore.getState();
+  const ref = useDismissablePopover(open, onClose);
+  // 同一个解析函数，画布画什么色按钮就显示什么色（含未知名字的兜底色）。
+  const hex = resolveWireColor(colour);
+  return (
+    <div className="menu-wrap" ref={ref}>
+      <button
+        className={open ? 'active' : ''}
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls="wire-options-popover"
+        title="接线选项：导线颜色与走线方式"
+        data-testid="wire-options"
+      >
+        <span className="swatch" style={{ background: hex }} data-testid="wire-options-swatch" />
+        接线选项 ▾
+      </button>
+      {open && (
+        <div className="menu wire-options-popover" id="wire-options-popover" role="group" aria-label="接线选项">
+          <div className="menu-label">导线颜色</div>
+          <WireColorPicker value={colour} onChange={st.setWireColor} testId="wire-color" />
+          <div className="menu-sep" />
+          <div className="menu-label">走线方式</div>
+          <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
+            <option value="flat">硬质跳线（路径不重叠）</option>
+            <option value="elevated">杜邦线（允许重叠/跨越）</option>
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Toolbar() {
   const design = useStore((s) => s.design);
   const tool = useStore((s) => s.tool);
   const past = useStore((s) => s.past.length);
   const future = useStore((s) => s.future.length);
   const showHoleLabels = useStore((s) => s.showHoleLabels);
-  const showPinLabels = useStore((s) => s.showPinLabels);
-  const connectivityHighlight = useStore((s) => s.connectivityHighlight);
-  const dimUnhighlighted = useStore((s) => s.dimUnhighlighted);
-  const wireColor = useStore((s) => s.wireColor);
-  const wireRoute = useStore((s) => s.wireRoute);
+  // 针脚名 / 导通高亮 / 聚焦选中 由 ViewMenu 订阅，线色与走线方式由 WireOptionsMenu 订阅。
+  // 工具栏本体只剩 showHoleLabels（导出 SVG/PNG 要用）——所以勾「孔号」时它确实会重渲染。
   const storage = useStore((s) => s.storage);
   const mode = useStore((s) => s.mode);
   const selectedCount = useStore((s) => s.selectedIds.length);
   const hasClipboard = useStore((s) => !!s.clipboard);
   const canRestore = useStore((s) => s.canRestorePrevious);
   const st = useStore.getState();
-  const [menu, setMenu] = useState<null | 'project' | 'export'>(null);
+  const [menu, setMenu] = useState<null | 'project' | 'export' | 'view' | 'wire'>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 离开接线工具就关掉它的 popover：否则「开面板 → 按 v → 按 w」会让面板在没点过的情况下自己出现。
+  useEffect(() => {
+    if (tool !== 'wire') setMenu((m) => (m === 'wire' ? null : m));
+  }, [tool]);
 
   const onImportFile = async (f: File | undefined) => {
     if (!f) return;
@@ -171,105 +300,107 @@ export function Toolbar() {
     st.importJson(text);
   };
 
-  const storageText = storage.state === 'saved' ? `已本地保存 ${new Date(storage.at).toLocaleTimeString()}` : storage.state === 'error' ? `⚠ ${storage.message}` : storage.state === 'unavailable' ? `⚠ ${storage.message}` : '未保存';
+  // Short label, full story in the tooltip: the bar is for glancing at, and the
+  // old full timestamp ate ~120px of it (issue #37).
+  const storageShort = storage.state === 'saved' ? '已本地保存' : storage.state === 'idle' ? '未保存' : '⚠ 未保存';
+  const storageTitle =
+    storage.state === 'saved'
+      ? `已本地保存于 ${new Date(storage.at).toLocaleTimeString()}`
+      : storage.state === 'idle'
+        ? '尚未写入本地存储'
+        : storage.message;
 
   return (
     <div className="toolbar" onMouseLeave={() => setMenu(null)}>
-      <div className="brand">
-        <strong>Breadboard Studio</strong>
-        <span className="muted">v0.1</span>
-      </div>
-      <div className="menu-wrap">
-        <button className={menu === 'project' ? 'active' : ''} onClick={() => setMenu(menu === 'project' ? null : 'project')} data-testid="menu-project">
-          项目 ▾
-        </button>
-        {menu === 'project' && (
-          <div className="menu" role="menu">
-            <button onClick={() => { st.newProject(); setMenu(null); }} data-testid="menu-new">新建空项目</button>
-            <div className="menu-label">示例</div>
-            {EXAMPLES.map((e) => (
-              <button key={e.key} onClick={() => { st.loadExample(e.key); setMenu(null); }} data-testid={`example-${e.key}`}>
-                {e.name}
-              </button>
-            ))}
-            <div className="menu-sep" />
-            <button onClick={() => { fileRef.current?.click(); setMenu(null); }} data-testid="menu-import">导入 .breadboard.json…</button>
-            <button onClick={() => { exportJsonFile(design); setMenu(null); }} data-testid="menu-export-json">导出 .breadboard.json</button>
-            <button disabled={!canRestore} onClick={() => { st.restorePrevious(); setMenu(null); }} data-testid="menu-restore">恢复上一个项目</button>
-          </div>
-        )}
-        <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="import-input" onChange={(e) => { void onImportFile(e.target.files?.[0]); e.target.value = ''; }} />
-      </div>
-      <div className="menu-wrap">
-        <button className={menu === 'export' ? 'active' : ''} onClick={() => setMenu(menu === 'export' ? null : 'export')} data-testid="menu-export">
-          导出 ▾
-        </button>
-        {menu === 'export' && (
-          <div className="menu">
-            <button onClick={() => { exportSvgFile(design, { showHoleLabels }); setMenu(null); }} data-testid="export-svg">SVG（含图例）</button>
-            <button onClick={() => { void exportPngFile(design, { showHoleLabels }).catch((e) => st.toast('error', `PNG 导出失败：${(e as Error).message}`)); setMenu(null); }} data-testid="export-png">PNG（2×）</button>
-            <button onClick={() => { exportJsonFile(design); setMenu(null); }}>.breadboard.json</button>
-            <div className="menu-label">SVG/PNG 包含孔号开关、图例与未验证徽标</div>
-          </div>
-        )}
-      </div>
-      <span className="sep" />
-      {/* Mode decides what the toolbar offers: 搭建 edits the document, 仿真 drives a session.
-          Nothing that writes the design is rendered in 仿真, so nothing has to be refused later. */}
-      {mode === 'build' ? (
-        <>
-        <div className="tool-group" role="group" aria-label="工具">
-          <button className={tool === 'select' ? 'active' : ''} onClick={() => st.setTool('select')} title="选择/移动 (V)" data-testid="tool-select">选择</button>
-          <button className={tool === 'wire' ? 'active' : ''} onClick={() => st.setTool('wire')} title="接线 (W)" data-testid="tool-wire">接线</button>
-          <button className={tool === 'pan' ? 'active' : ''} onClick={() => st.setTool('pan')} title="平移 (H / 空格拖动)" data-testid="tool-pan">平移</button>
+      {/* 左区 · 应用级：项目与导出。跟具体工具、模式无关。 */}
+      <div className="zone zone-app">
+        <div className="brand">
+          <strong>Breadboard Studio</strong>
+          <span className="muted">v0.1</span>
         </div>
-        {tool === 'wire' && (
-          <div className="tool-group wire-opts">
-            <span className="wire-color-label">颜色</span>
-            <WireColorPicker value={wireColor} onChange={st.setWireColor} testId="wire-color" />
-            <label>
-              走线
-              <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
-                <option value="flat">硬质跳线（路径不重叠）</option>
-                <option value="elevated">杜邦线（允许重叠/跨越）</option>
-              </select>
-            </label>
-          </div>
+        <div className="menu-wrap">
+          <button className={menu === 'project' ? 'active' : ''} aria-expanded={menu === 'project'} onClick={() => setMenu(menu === 'project' ? null : 'project')} data-testid="menu-project">
+            项目 ▾
+          </button>
+          {menu === 'project' && (
+            <div className="menu" role="menu">
+              <button onClick={() => { st.newProject(); setMenu(null); }} data-testid="menu-new">新建空项目</button>
+              <div className="menu-label">示例</div>
+              {EXAMPLES.map((e) => (
+                <button key={e.key} onClick={() => { st.loadExample(e.key); setMenu(null); }} data-testid={`example-${e.key}`}>
+                  {e.name}
+                </button>
+              ))}
+              <div className="menu-sep" />
+              <button onClick={() => { fileRef.current?.click(); setMenu(null); }} data-testid="menu-import">导入 .breadboard.json…</button>
+              <button onClick={() => { exportJsonFile(design); setMenu(null); }} data-testid="menu-export-json">导出 .breadboard.json</button>
+              <button disabled={!canRestore} onClick={() => { st.restorePrevious(); setMenu(null); }} data-testid="menu-restore">恢复上一个项目</button>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="import-input" onChange={(e) => { void onImportFile(e.target.files?.[0]); e.target.value = ''; }} />
+        </div>
+        <div className="menu-wrap">
+          <button className={menu === 'export' ? 'active' : ''} aria-expanded={menu === 'export'} onClick={() => setMenu(menu === 'export' ? null : 'export')} data-testid="menu-export">
+            导出 ▾
+          </button>
+          {menu === 'export' && (
+            <div className="menu">
+              <button onClick={() => { exportSvgFile(design, { showHoleLabels }); setMenu(null); }} data-testid="export-svg">SVG（含图例）</button>
+              <button onClick={() => { void exportPngFile(design, { showHoleLabels }).catch((e) => st.toast('error', `PNG 导出失败：${(e as Error).message}`)); setMenu(null); }} data-testid="export-png">PNG（2×）</button>
+              <button onClick={() => { exportJsonFile(design); setMenu(null); }}>.breadboard.json</button>
+              <div className="menu-label">SVG/PNG 包含孔号开关、图例与未验证徽标</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <span className="sep" />
+      {/* 中区 · 编辑上下文：唯一随模式变化的一段，位置不变，工具栏因此不跳动。
+          仿真不渲染任何写设计的动作，所以这里没有需要事后拒绝的按钮。 */}
+      <div className="zone zone-tools">
+        {mode === 'build' ? (
+          <>
+            <div className="tool-group" role="group" aria-label="工具">
+              <button className={tool === 'select' ? 'active' : ''} onClick={() => st.setTool('select')} title="选择/移动 (V)" data-testid="tool-select">选择</button>
+              <button className={tool === 'wire' ? 'active' : ''} onClick={() => st.setTool('wire')} title="接线 (W)" data-testid="tool-wire">接线</button>
+              <button className={tool === 'pan' ? 'active' : ''} onClick={() => st.setTool('pan')} title="平移 (H / 空格拖动)" data-testid="tool-pan">平移</button>
+            </div>
+            {tool === 'wire' && <WireOptionsMenu open={menu === 'wire'} onToggle={() => setMenu(menu === 'wire' ? null : 'wire')} onClose={() => setMenu((m) => (m === 'wire' ? null : m))} />}
+            <span className="sep" />
+            <button className="icon-btn" onClick={st.undo} disabled={!past} title="撤销 (⌘Z)" aria-label="撤销" data-testid="undo"><UndoIcon /></button>
+            <button className="icon-btn" onClick={st.redo} disabled={!future} title="重做 (⇧⌘Z)" aria-label="重做" data-testid="redo"><RedoIcon /></button>
+            <span className="sep" />
+            <button className="icon-btn" onClick={st.copySelection} disabled={!selectedCount} title="复制选中的元件/面包板 (⌘C)" aria-label="复制" data-testid="copy"><CopyIcon /></button>
+            <button className="icon-btn" onClick={() => st.pasteClipboard(null)} disabled={!hasClipboard} title="粘贴 (⌘V 粘到指针所在的孔位；按钮粘到原位右下方)" aria-label="粘贴" data-testid="paste"><PasteIcon /></button>
+          </>
+        ) : mode === 'sim' ? (
+          <SimulatorToolbar />
+        ) : (
+          <span className="muted small" data-testid="hardware-hint">实机：连接一块真板看它的输出，画布只读</span>
         )}
-        <span className="sep" />
-        <button onClick={st.undo} disabled={!past} title="撤销 (⌘Z)" data-testid="undo">撤销</button>
-        <button onClick={st.redo} disabled={!future} title="重做 (⇧⌘Z)" data-testid="redo">重做</button>
-        <span className="sep" />
-        <button onClick={st.copySelection} disabled={!selectedCount} title="复制选中的元件/面包板 (⌘C)" data-testid="copy">复制</button>
-        <button onClick={() => st.pasteClipboard(null)} disabled={!hasClipboard} title="粘贴 (⌘V 粘到指针所在的孔位；按钮粘到原位右下方)" data-testid="paste">粘贴</button>
-        </>
-      ) : mode === 'sim' ? (
-        <SimulatorToolbar />
-      ) : (
-        <span className="muted small" data-testid="hardware-hint">实机：连接一块真板看它的输出，画布只读</span>
-      )}
-      <span className="sep" />
-      <ZoomButton label="＋" factor={ZOOM_STEP_IN} title="放大（按住连续缩放）" testId="zoom-in" />
-      <ZoomButton label="－" factor={ZOOM_STEP_OUT} title="缩小（按住连续缩放）" testId="zoom-out" />
-      <button
-        onClick={() => canvasApi()?.rotateBy(90)}
-        onContextMenu={(e) => { e.preventDefault(); canvasApi()?.rotateBy(-90); }}
-        title="视图旋转 90°（右键反向转；只影响显示，不改设计数据）"
-        data-testid="rotate-view"
-      >
-        ⟳ 旋转
-      </button>
-      <button onClick={() => canvasApi()?.toggleSolderSide()} title="切换洞洞板元件面/焊接面（只影响显示）" data-testid="toggle-solder-side">焊接面</button>
-      <button onClick={() => canvasApi()?.fit()} title="适应全部 (F)" data-testid="fit">适应全部</button>
-      <span className="sep" />
-      <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>
-      <label className="toggle"><input type="checkbox" checked={showPinLabels} onChange={st.togglePinLabels} />针脚名</label>
-      <label className="toggle"><input type="checkbox" checked={connectivityHighlight} onChange={st.toggleConnectivityHighlight} data-testid="toggle-connectivity" />导通高亮</label>
-      <label className="toggle" title="选中元件或孔时，把无关的导线压暗，只留下直连的那几根"><input type="checkbox" checked={dimUnhighlighted} onChange={st.toggleDimUnhighlighted} data-testid="toggle-dim" />聚焦选中</label>
+      </div>
       <span className="spacer" />
-      <ThemeSwitch />
-      <ModeSwitch mode={mode} />
-      <span className={`storage ${storage.state}`} data-testid="storage-status">{storageText}</span>
+      {/* 右区 · 视图与状态：模式无关，所以它在三种模式下都在同一个位置。 */}
+      <div className="zone zone-view">
+        <ViewMenu open={menu === 'view'} onToggle={() => setMenu(menu === 'view' ? null : 'view')} onClose={() => setMenu((m) => (m === 'view' ? null : m))} />
+        <div className="zoom-cluster" role="group" aria-label="缩放">
+          <ZoomButton label="－" factor={ZOOM_STEP_OUT} title="缩小（按住连续缩放）" testId="zoom-out" />
+          <ZoomButton label="＋" factor={ZOOM_STEP_IN} title="放大（按住连续缩放）" testId="zoom-in" />
+        </div>
+        <button
+          className="icon-btn"
+          onClick={() => canvasApi()?.rotateBy(90)}
+          onContextMenu={(e) => { e.preventDefault(); canvasApi()?.rotateBy(-90); }}
+          title="视图旋转 90°（右键反向转；只影响显示，不改设计数据）"
+          aria-label="旋转视图"
+          data-testid="rotate-view"
+        >
+          <RotateIcon />
+        </button>
+        <button className="icon-btn" onClick={() => canvasApi()?.fit()} title="适应全部 (F)" aria-label="适应全部" data-testid="fit"><FitIcon /></button>
+        <ModeSwitch mode={mode} />
+        <ThemeSwitch />
+        <span className={`storage ${storage.state}`} title={storageTitle} data-testid="storage-status">{storageShort}</span>
+      </div>
     </div>
   );
 }

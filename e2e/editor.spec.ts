@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addFromLibrary, analysis, clickHole, design, dragWireEnd, fit, fresh, loadExample, state } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, dragWireEnd, fit, fresh, loadExample, openWireOptions, state } from './helpers';
 
 const DEFINITIONS_DIR = join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions');
 /** How many built-ins the default library view shows (issue #32: `featured` decides it). */
@@ -139,9 +139,12 @@ test.describe('editor core flows', () => {
 
     // 4. wire tool: GND group → inner rail, VCC group → outer rail
     await page.getByTestId('tool-wire').click();
+    // 线色与走线方式收在「接线选项」popover 里（issue #37）；点画布会关掉它，所以换色时要重新打开。
+    await openWireOptions(page);
     await page.getByTestId('wire-color').locator('[data-color="red"]').click();
     await clickHole(page, 'bb_1.g9');
     await clickHole(page, 'bb_1.top_inner_5');
+    await openWireOptions(page);
     await page.getByTestId('wire-color').locator('[data-color="black"]').click();
     await clickHole(page, 'bb_1.g10');
     await clickHole(page, 'bb_1.top_outer_6');

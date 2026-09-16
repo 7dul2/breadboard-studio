@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addFromLibrary, analysis, clickHole, design, fit, fresh } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, fit, fresh, openViewMenu } from './helpers';
 
 test.describe('洞洞板（issue #27）', () => {
   test('在目录中按独立分类展示两种型号与铜环预览', async ({ page }) => {
@@ -38,6 +38,7 @@ test.describe('洞洞板（issue #27）', () => {
     expect((await analysis(page)).summary.error).toBe(0);
 
     const before = await page.locator('[data-hole="bb_1.A1"].hole').boundingBox();
+    await openViewMenu(page);
     await page.getByTestId('toggle-solder-side').click();
     await expect(page.getByTestId('canvas-hud')).toContainText('焊接面');
     const after = await page.locator('[data-hole="bb_1.A1"].hole').boundingBox();
