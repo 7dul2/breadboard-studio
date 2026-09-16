@@ -100,6 +100,27 @@ export async function addFromLibrary(page: Page, modelId: string): Promise<void>
 }
 
 /**
+ * Open the 视图 popover (issue #37). Display-only switches (孔号 / 针脚名 /
+ * 导通高亮 / 聚焦选中 / 焊接面) live in there now, not in the main bar. It stays
+ * open while you flip several of them; Esc or a click outside closes it.
+ */
+export async function openViewMenu(page: Page): Promise<void> {
+  await page.getByTestId('view-menu').click();
+  await expect(page.locator('.view-popover')).toBeVisible();
+}
+
+/**
+ * Open the 接线选项 popover (issue #37). With the wire tool active, the colour
+ * palette and the routing select moved off the main bar into a contextual
+ * popover, so they have to be opened before use. The popover closes on a canvas
+ * click, so re-open it after drawing if you need to change colour again.
+ */
+export async function openWireOptions(page: Page): Promise<void> {
+  await page.getByTestId('wire-options').click();
+  await expect(page.locator('.wire-options-popover')).toBeVisible();
+}
+
+/**
  * Grab a connected wire's endpoint on the canvas and drop it on another hole or
  * pin, the way a user re-plugs a jumper without deleting and redrawing the wire.
  */

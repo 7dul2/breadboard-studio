@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { analysis, design, enterBuild, enterSim, fit, fresh, loadExample, simulator, state } from './helpers';
+import { analysis, design, enterBuild, enterSim, fit, fresh, loadExample, openViewMenu, simulator, state } from './helpers';
 
 /**
  * M-S2 acceptance (plan §11.2): input has to reach the program through the real
@@ -211,6 +211,7 @@ test.describe('M-S2 · physical input reaches the program through the net', () =
     expect(codes.length, 'the failure was reported').toBeGreaterThan(0);
 
     // the page is still alive and a fresh session can be started
+    await openViewMenu(page);
     await page.getByTestId('toggle-hole-labels').check();
     await expect(page.getByTestId('toggle-hole-labels')).toBeChecked();
     await setProgram(page, WATCH_TOUCH);
