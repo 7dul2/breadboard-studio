@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addFromLibrary, analysis, clickHole, design, dragWireEnd, fit, fresh, loadExample, state } from './helpers';
+
+const DEFINITIONS_DIR = join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions');
+/** How many built-ins the default library view shows (issue #32: `featured` decides it). */
+const FEATURED_COUNT = readdirSync(DEFINITIONS_DIR)
+  .filter((f) => f.endsWith('.json'))
+  .filter((f) => (JSON.parse(readFileSync(join(DEFINITIONS_DIR, f), 'utf8')) as { featured?: boolean }).featured === true).length;
 
 /** The shipped drawing of the board the artwork test edits, read here so a redraw cannot break the test. */
 const BOARD_DEF = JSON.parse(
@@ -11,8 +17,8 @@ const BOARD_DEF = JSON.parse(
 test.describe('editor core flows', () => {
   test('shows the curated library with breadboard and perfboard groups', async ({ page }) => {
     await fresh(page);
-    await expect(page.locator('.library-list .lib-item')).toHaveCount(12);
-    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '洞洞板', '主控', '显示', '输入']);
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(FEATURED_COUNT);
+    await expect(page.locator('.lib-cat')).toContainText(['面包板 · 一体式', '面包板 · 可拆拼装式', '洞洞板', '主控', '显示', '输入', '传感器', '电源', '基础元件']);
     await expect(page.getByTestId('lib-breadboard_400')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_400_terminal')).toBeVisible();
     await expect(page.getByTestId('lib-breadboard_power_strip_25')).toBeVisible();

@@ -2,31 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
 import { applyOps, boardShape, buildModel, canResizeBoard, catalogForDesign, clampResizePlan, createEmptyDesign, resizeBoardDefinition, resolveComponent, RESIZE_LIMITS, type Op } from '@breadboard-studio/core';
-import { boardScene, componentScene, mm, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
+import { boardScene, componentScene, mm, modelStatusText, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
+import { buildLibraryGroups, CATEGORY_LABELS, foldedBuiltinCount, MORE_LABEL, modelRef } from '../library-groups';
 import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
 
-const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', board_perfboard: '洞洞板', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
-const VISIBLE_BUILTIN_IDS = new Set([
-  'breadboard_400',
-  'breadboard_400_terminal',
-  'breadboard_power_strip_25',
-  'breadboard_830',
-  'perfboard_5x7',
-  'perfboard_7x9',
-  'esp32s3_n16r8_dual_usb',
-  'oled_0_96_ssd1315_i2c',
-  'tft_1_77_st7735_spi',
-  'encoder_ky040',
-  'tactile_6x6',
-  'ttp224_module'
-]);
+/** Plain-language meaning of the two evidence statuses, for the card tooltip. */
+const STATUS_WORDS: Record<string, string> = {
+  verified: '有证据且已复核',
+  approximate: '来自资料，未实测',
+  unknown: '未知占位，使用前必须核实'
+};
 
 export function Library() {
   const design = useStore((s) => s.design);
   const placing = useStore((s) => s.placing);
+  const expandedGroups = useStore((s) => s.libraryExpandedGroups);
+  const toggleLibraryGroup = useStore((s) => s.toggleLibraryGroup);
   const [filter, setFilter] = useState('');
   const [detailRef, setDetailRef] = useState<string | null>(null);
   const [spliceOpen, setSpliceOpen] = useState(false);
@@ -36,7 +30,7 @@ export function Library() {
   const fileRef = useRef<HTMLInputElement>(null);
   const closeTimer = useRef<number | null>(null);
   const suppressHoverUntil = useRef(0);
-  const embeddedRefs = useMemo(() => new Set([...(design.embedded_catalog?.boards ?? []), ...(design.embedded_catalog?.components ?? [])].map((d) => `${d.id}@${d.version}`)), [design.embedded_catalog]);
+  const embeddedRefs = useMemo(() => new Set([...(design.embedded_catalog?.boards ?? []), ...(design.embedded_catalog?.components ?? [])].map((d) => modelRef(d))), [design.embedded_catalog]);
   const detail = detailRef ? catalog.get(detailRef) : undefined;
   useEffect(() => {
     if (!detailRef) return;
@@ -62,21 +56,18 @@ export function Library() {
     if (r.ok) st.toast('success', `已导入定义并内嵌到当前设计：${(raw as { id?: string }).id ?? '?'}`);
   };
 
-  const groups = useMemo(() => {
-    const items = catalog.list().filter((d) => {
-      const ref = `${d.id}@${d.version}`;
-      const isVisible = VISIBLE_BUILTIN_IDS.has(d.id) || embeddedRefs.has(ref);
-      return isVisible && (!filter || `${d.id} ${d.name} ${d.model ?? ''}`.toLowerCase().includes(filter.toLowerCase()));
-    });
-    const g = new Map<string, typeof items>();
-    for (const d of items) {
-      const cat = d.kind === 'board'
-        ? (d.render.style === 'perfboard' ? 'board_perfboard' : d.id === 'breadboard_400_terminal' || d.id === 'breadboard_power_strip_25' ? 'board_modular' : 'board_integrated')
-        : d.category;
-      g.set(cat, [...(g.get(cat) ?? []), d]);
-    }
-    return [...g.entries()];
-  }, [catalog, embeddedRefs, filter]);
+  // Data-driven grouping (issue #32): `featured` decides the default view, the
+  // rest is folded per category, and search always covers the whole catalog.
+  const groups = useMemo(
+    () => buildLibraryGroups(catalog.list(), { filter, embeddedRefs, expanded: new Set(expandedGroups) }),
+    [catalog, embeddedRefs, expandedGroups, filter]
+  );
+  const searching = filter.trim().length > 0;
+  // Search-scope numbers are about the catalog, not about the current hits, so
+  // they stay steady while the user types.
+  const builtinCount = useMemo(() => catalog.list().filter((d) => !embeddedRefs.has(modelRef(d))).length, [catalog, embeddedRefs]);
+  const foldedCount = useMemo(() => foldedBuiltinCount(catalog.list(), embeddedRefs), [catalog, embeddedRefs]);
+  const embeddedCount = catalog.list().length - builtinCount;
 
   const addBoard = (model: string, plan?: { columns: number; rows: number }) => {
     const id = nextId('bb_');
@@ -162,6 +153,54 @@ export function Library() {
     }
   };
 
+  /** One library card. Folded items reuse it verbatim, so adding one works the same. */
+  const renderCard = (d: CatalogDefinition) => {
+    const ref = modelRef(d);
+    const embedded = embeddedRefs.has(ref);
+    const users = [...design.boards, ...design.components].filter((o) => o.model === ref).map((o) => o.id);
+    const status = modelStatusText(d.geometry_status, d.electrical_status);
+    // The badge text is the short form the canvas uses; the tooltip spells out each
+    // facet, so a `verified` geometry is never described as "未经实测".
+    const statusTitle = `几何数据：${STATUS_WORDS[d.geometry_status]}；电气数据：${STATUS_WORDS[d.electrical_status]}`;
+    return (
+      <div key={ref} className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}>
+        <button
+          className="lib-pick"
+          data-testid={`lib-${d.id}`}
+          title={d.description ?? d.name}
+          onMouseEnter={() => openDetail(ref)}
+          onMouseLeave={closeDetailSoon}
+          onFocus={() => openDetail(ref)}
+          onBlur={closeDetailSoon}
+          onClick={() => chooseModel(d)}
+        >
+          <span className="lib-name">{d.name}</span>
+          <span className="lib-meta">
+            {ref}{embedded ? ' · 内嵌' : ''}
+            {d.kind === 'component' && d.mount === 'off_board' ? ' · 板外/线缆' : ''}
+            {users.length ? ` · 用中 ${users.length}` : ''}
+          </span>
+        </button>
+        {status && (
+          <span className="lib-status" data-testid={`lib-status-${d.id}`} title={statusTitle}>
+            {status}
+          </span>
+        )}
+        {embedded && (
+          <button
+            className="lib-del"
+            data-testid={`lib-del-${d.id}`}
+            disabled={users.length > 0}
+            title={users.length ? `仍被 ${users.join('、')} 用着，先把它们删掉` : `从设计里删掉这份内嵌定义（不影响内置元件库）`}
+            onClick={() => removeDefinition(ref, users)}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="library">
       <div className="panel-title">元件库</div>
@@ -177,48 +216,32 @@ export function Library() {
         </div>
       )}
       <div className="library-list">
-        {groups.map(([cat, items]) => (
-          <div key={cat} className="lib-group">
-            <div className="lib-cat">{CATEGORY_NAMES[cat] ?? cat}</div>
-            {items.map((d) => {
-              const ref = `${d.id}@${d.version}`;
-              const embedded = embeddedRefs.has(ref);
-              const users = [...design.boards, ...design.components].filter((o) => o.model === ref).map((o) => o.id);
-              return (
-                <div key={ref} className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}>
-                  <button
-                    className="lib-pick"
-                    data-testid={`lib-${d.id}`}
-                    title={d.description ?? d.name}
-                    onMouseEnter={() => openDetail(ref)}
-                    onMouseLeave={closeDetailSoon}
-                    onFocus={() => openDetail(ref)}
-                    onBlur={closeDetailSoon}
-                    onClick={() => chooseModel(d)}
-                  >
-                    <span className="lib-name">{d.name}</span>
-                    <span className="lib-meta">
-                      {ref}{embedded ? ' · 内嵌' : ''}
-                      {d.kind === 'component' && d.mount === 'off_board' ? ' · 板外/线缆' : ''}
-                      {users.length ? ` · 用中 ${users.length}` : ''}
-                    </span>
-                  </button>
-                  {embedded && (
-                    <button
-                      className="lib-del"
-                      data-testid={`lib-del-${d.id}`}
-                      disabled={users.length > 0}
-                      title={users.length ? `仍被 ${users.join('、')} 用着，先把它们删掉` : `从设计里删掉这份内嵌定义（不影响内置元件库）`}
-                      onClick={() => removeDefinition(ref, users)}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+        {searching && (
+          <div className="lib-search-note muted" data-testid="library-search-note">
+            在全部 {builtinCount} 个内置型号里搜索{foldedCount ? `（含默认折叠的 ${foldedCount} 个）` : ''}{embeddedCount ? `，另加 ${embeddedCount} 份内嵌/覆盖定义` : ''}
+          </div>
+        )}
+        {groups.map((group) => (
+          <div key={group.key} className="lib-group">
+            <div className="lib-cat">{CATEGORY_LABELS[group.key] ?? group.key}</div>
+            {group.items.map(renderCard)}
+            {group.foldedTotal > 0 && (
+              <>
+                <button
+                  className="lib-more"
+                  data-testid={`lib-more-${group.key}`}
+                  aria-expanded={expandedGroups.includes(group.key)}
+                  title={expandedGroups.includes(group.key) ? '收起这些内置型号' : '展开这个类目里默认折叠的内置型号'}
+                  onClick={() => toggleLibraryGroup(group.key)}
+                >
+                  {expandedGroups.includes(group.key) ? '▾' : '▸'} {MORE_LABEL}（{group.foldedTotal}）
+                </button>
+                {group.folded.map(renderCard)}
+              </>
+            )}
           </div>
         ))}
+        {groups.length === 0 && <div className="hint" data-testid="library-empty">没有匹配“{filter.trim()}”的型号</div>}
       </div>
       <div className="panel-footer muted">
         已放置：面包板 {analysis.model.boards.size}，元件 {analysis.model.components.size}，导线 {analysis.model.wires.size}
@@ -246,7 +269,7 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
     ? def.terminal_blocks.reduce((sum, block) => sum + block.rows.length * block.columns, 0) + def.rails.reduce((sum, rail) => sum + rail.holes, 0)
     : resolveComponent(def).pins.length;
   const voltage = def.kind === 'component' ? def.electrical.supply_voltage_v : null;
-  const category = def.kind === 'board' ? (def.render.style === 'perfboard' ? '洞洞板' : '面包板') : CATEGORY_NAMES[def.category] ?? def.category;
+  const category = def.kind === 'board' ? (def.render.style === 'perfboard' ? '洞洞板' : '面包板') : CATEGORY_LABELS[def.category] ?? def.category;
   const hasBack = Boolean(preview?.back);
   // 尺寸自定义（issue #22）：创建前先按行列数缩放。默认就是原型号的形状，
   // 数值没动过 = 按原尺寸添加。

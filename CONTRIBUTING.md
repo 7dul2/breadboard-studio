@@ -28,8 +28,9 @@ pnpm typecheck
 1. 复制 `examples/custom_definition_example.json` 或 `pnpm bb catalog inspect <ref> --json` 的输出。
 2. 如实填写 `geometry_status` / `electrical_status`（默认 `approximate` 或 `unknown`），在 `sources` 写明来源链接，在 `license` 写明绘图/数据许可。
 3. 放到 `packages/catalog/src/definitions/`，在 `packages/catalog/src/index.ts` 注册，运行 `pnpm test`。
-4. 升级 verified 前按 [证据流转要求](docs/VERIFICATION.md) 补 evidence 与复核记录；不要用测试通过替代实测。
-5. PR 描述里说明你核对过哪些尺寸/引脚（实测或资料），哪些没有。
+4. 是否进元件库默认视图由定义里的 `featured: true` 决定；不加就折叠在该类目的「更多内置型号」里（搜索仍然能找到）。默认视图是策展结果，除非有意替换精选型号，新定义一般不加。
+5. 升级 verified 前按 [证据流转要求](docs/VERIFICATION.md) 补 evidence 与复核记录；不要用测试通过替代实测。
+6. PR 描述里说明你核对过哪些尺寸/引脚（实测或资料），哪些没有。
 
 ## 提交信息
 

@@ -122,6 +122,12 @@ interface State {
   clipboard: ClipboardPayload | null;
   rightTab: RightTab;
   leftTab: LeftTab;
+  /**
+   * Library category keys whose "更多内置型号" fold is open. Session-only on
+   * purpose: switching left tabs unmounts the library, and a refresh starts
+   * folded again (issue #32).
+   */
+  libraryExpandedGroups: string[];
   buildStep: number;
   dslText: string;
   dslDirty: boolean;
@@ -155,6 +161,7 @@ interface State {
   toggleDimUnhighlighted: () => void;
   setRightTab: (t: RightTab) => void;
   setLeftTab: (t: LeftTab) => void;
+  toggleLibraryGroup: (key: string) => void;
   setMode: (m: AppMode) => void;
   setBuildStep: (i: number) => void;
   toggleBuildDone: (wireId: string) => void;
@@ -265,6 +272,7 @@ const useStore = create<State>((set, get) => {
     clipboard: loadClipboard<ClipboardPayload>(),
     rightTab: 'properties',
     leftTab: 'library',
+    libraryExpandedGroups: [],
     buildStep: 0,
     dslText: serializeDesign(initial),
     dslDirty: false,
@@ -383,6 +391,10 @@ const useStore = create<State>((set, get) => {
     },
     setLeftTab(t) {
       set({ leftTab: t });
+    },
+    toggleLibraryGroup(key) {
+      const open = get().libraryExpandedGroups;
+      set({ libraryExpandedGroups: open.includes(key) ? open.filter((k) => k !== key) : [...open, key] });
     },
     setMode(m) {
       if (get().mode === m) return;

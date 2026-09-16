@@ -1,5 +1,6 @@
 {
   "kind": "board",
+  "featured": true,
   "id": "perfboard_7x9",
   "version": 1,
   "name": "7×9 cm 洞洞板（27×35 孔）",

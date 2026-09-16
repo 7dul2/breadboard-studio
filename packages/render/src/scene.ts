@@ -186,7 +186,13 @@ function statusShort(s: string): string {
   return s === 'approximate' ? '近似' : s === 'unknown' ? '未知' : '';
 }
 
-function statusText(geo: string, elec: string): string {
+/**
+ * Short evidence status text for badges: `几何近似 电气未知`.
+ *
+ * Shared by the canvas badges and the library cards so both speak the same
+ * words. Empty string when both facets are `verified`.
+ */
+export function modelStatusText(geo: string, elec: string): string {
   return `${geo === 'verified' ? '' : '几何' + statusShort(geo)} ${elec === 'verified' ? '' : '电气' + statusShort(elec)}`.trim();
 }
 
@@ -345,11 +351,11 @@ export function buildScene(model: DesignModel, opts: SceneOptions = {}): Scene {
   const annotations: SceneNode[] = [];
   if (opts.showUnverifiedBadges !== false) {
     for (const pb of model.boards.values()) {
-      const text = statusText(pb.def.geometry_status, pb.def.electrical_status);
+      const text = modelStatusText(pb.def.geometry_status, pb.def.electrical_status);
       if (text) annotations.push(badge(mm(pb.bounds.x + pb.bounds.w) - 1.5, mm(pb.bounds.y) + 1, text, 'end', pb.instance.id));
     }
     for (const pc of comps) {
-      const text = statusText(pc.def.geometry_status, pc.def.electrical_status);
+      const text = modelStatusText(pc.def.geometry_status, pc.def.electrical_status);
       if (text) annotations.push(badge(mm(pc.bounds.x), mm(pc.bounds.y + pc.bounds.h) + 0.8, text, 'start', pc.instance.id));
     }
   }

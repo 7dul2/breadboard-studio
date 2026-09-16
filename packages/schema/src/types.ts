@@ -247,6 +247,15 @@ export interface BoardDefinition {
   model?: string;
   variant?: string;
   description?: string;
+  /**
+   * Curated for the default library view.
+   *
+   * The library shows featured parts first and folds the rest behind a
+   * per-category "more built-in models" toggle. Search always covers the whole
+   * catalog, so folding never makes a part unreachable. Absent means not
+   * featured — a new definition does not have to opt out explicitly.
+   */
+  featured?: boolean;
   size_um: PointUm;
   pitch_um: number;
   terminal_blocks: TerminalBlockDef[];
@@ -488,6 +497,8 @@ export interface ComponentDefinition {
   model?: string;
   variant?: string;
   description?: string;
+  /** Curated for the default library view; see `BoardDefinition.featured`. */
+  featured?: boolean;
   category: 'mcu' | 'display' | 'sensor' | 'input' | 'power' | 'passive' | 'connector' | 'other';
   /** Default mounting: pins inserted in a breadboard, or connected with cables only. */
   mount: 'breadboard' | 'off_board';

@@ -1,5 +1,6 @@
 {
   "kind": "board",
+  "featured": true,
   "id": "breadboard_830",
   "version": 1,
   "name": "830 孔面包板（全尺寸，电源轨中间断开）",

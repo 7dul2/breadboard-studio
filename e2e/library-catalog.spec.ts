@@ -1,5 +1,28 @@
 import { expect, test } from '@playwright/test';
-import { analysis, fresh } from './helpers';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { addFromLibrary, analysis, clickHole, design, fresh } from './helpers';
+
+/**
+ * The shipped catalog, read straight from disk. The library is supposed to absorb
+ * new models without code changes (issue #32), so nothing below hardcodes how
+ * many models there are — adding a definition must not turn these tests red.
+ *
+ * Reading the files (rather than importing the catalog package) means the tests
+ * also notice when disk and app disagree — e.g. a definition file that was never
+ * registered in `packages/catalog/src/index.ts`. That is why every id is asserted
+ * individually: the failure names the model instead of just a wrong count.
+ * "Which ids are curated" is pinned once, in packages/catalog/test/catalog.test.ts.
+ */
+const DEFINITIONS_DIR = join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions');
+const CATALOG = readdirSync(DEFINITIONS_DIR)
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => JSON.parse(readFileSync(join(DEFINITIONS_DIR, f), 'utf8')) as { id: string; featured?: boolean });
+const FEATURED = CATALOG.filter((d) => d.featured === true).map((d) => d.id);
+const FOLDED = CATALOG.filter((d) => d.featured !== true).map((d) => d.id);
+
+/** The models the shipped examples lean on — acceptance criterion ① of #32. */
+const EXAMPLE_MODELS = ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'oled_0_96_i2c', 'power_module_3v3', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66'];
 
 /**
  * 这三个元件原来只存在于某一份设计的 embedded_catalog 里（导入那份设计才能用），
@@ -85,5 +108,88 @@ test.describe('拼装面包板', () => {
     const models = await page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => { boards: { model: string }[] } } }).__bbs.getDesign().boards.map((b) => b.model));
     expect(models).toEqual(['breadboard_400_terminal@1', 'breadboard_400_terminal@1', 'breadboard_power_strip_25@1', 'breadboard_power_strip_25@1']);
     expect((await analysis(page)).summary.error).toBe(0);
+  });
+});
+
+/**
+ * issue #32：元件库不再靠硬编码白名单裁剪目录。定义里的 `featured` 决定默认视图，
+ * 其余内置型号折叠进各类目的「更多内置型号」，搜索覆盖整个目录，添加流程完全一样。
+ */
+test.describe('元件库装下整个目录', () => {
+  test('默认视图只列精选型号，其余按类目折叠而不是消失', async ({ page }) => {
+    await fresh(page);
+    // 逐个点名：精选的必须直接可见，折叠的必须不在 DOM 里。数量对不上会先在这里暴露成具体型号，
+    // 而不是一个没有上下文的 count 差异。
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(FEATURED.length);
+    for (const id of FEATURED) await expect(page.getByTestId(`lib-${id}`), `${id} 是精选型号，应当直接可见`).toBeVisible();
+    for (const id of FOLDED) await expect(page.getByTestId(`lib-${id}`), `${id} 不是精选型号，应当默认折叠`).toHaveCount(0);
+
+    // 每个有折叠型号的类目都留了入口，所有入口报的数量加起来 = 目录里非精选的总数。
+    // 不逐个写死数量：目录扩容（#30/#31）不该改这个测试。
+    const labels = await page.locator('.lib-more').allTextContents();
+    const declared = labels.reduce((sum, text) => sum + Number(/（(\d+)）/.exec(text)?.[1] ?? 0), 0);
+    expect(declared, `折叠入口：${labels.join(' | ')}`).toBe(FOLDED.length);
+    expect(labels.length).toBeGreaterThan(0);
+    await expect(page.getByTestId('lib-more-sensor')).toBeVisible();
+  });
+
+  test('搜索覆盖整个目录：示例型号与每一个折叠型号都能直接命中', async ({ page }) => {
+    await fresh(page);
+    // 验收标准 ①：示例里出镜的每一个型号都要能搜到（点名，读起来就是验收条件）。
+    for (const id of EXAMPLE_MODELS) {
+      await page.getByTestId('library-search').fill(id);
+      await expect(page.getByTestId(`lib-${id}`), `示例型号 ${id} 必须能在元件库里搜到`).toBeVisible();
+    }
+    // 以及目录里每一个折叠型号（示例只是抽样，这里是全集）。
+    for (const id of FOLDED) {
+      await page.getByTestId('library-search').fill(id);
+      await expect(page.getByTestId(`lib-${id}`), `折叠的 ${id} 必须能被搜到，折叠不能是死路`).toBeVisible();
+    }
+
+    await expect(page.getByTestId('library-search-note')).toContainText(`全部 ${CATALOG.length} 个内置型号`);
+    await expect(page.getByTestId('library-search-note')).toContainText(`含默认折叠的 ${FOLDED.length} 个`);
+
+    await page.getByTestId('library-search').fill('xiao');
+    // 只留命中项：没被搜到的精选型号也一起让位。
+    await expect(page.getByTestId('lib-esp32s3_n16r8_dual_usb')).toHaveCount(0);
+
+    await page.getByTestId('library-search').fill('no_such_part');
+    await expect(page.getByTestId('library-empty')).toBeVisible();
+  });
+
+  test('展开类目 → 添加被折叠的型号：落孔成功、校验无 error、带状态徽标', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await expect(page.getByTestId('lib-oled_0_96_i2c')).toHaveCount(0);
+
+    await page.getByTestId('lib-more-display').click();
+    await page.getByTestId('lib-oled_0_96_i2c').click();
+    await clickHole(page, 'bb_1.j9');
+
+    const d = await design(page);
+    expect(d.components).toHaveLength(1);
+    expect(d.components[0]!.placement.kind).toBe('board');
+    expect(d.components[0]!.placement.anchor_hole).toBe('j9');
+    expect((await analysis(page)).summary.error).toBe(0);
+
+    // 不是实测数据就直说：徽标与画布上的状态文案是同一套。
+    await expect(page.getByTestId('lib-status-oled_0_96_i2c')).toHaveText('几何近似 电气近似');
+    await expect(page.getByTestId('lib-status-esp32s3_n16r8_dual_usb')).toBeVisible();
+  });
+
+  test('展开状态在会话内保持（切换页签回来还在），刷新后回到默认折叠', async ({ page }) => {
+    await fresh(page);
+    // 用传感器类目做样本：它整个类目都是折叠项，不会因为某个型号被提升为精选而失去折叠入口。
+    await page.getByTestId('lib-more-sensor').click();
+    await expect(page.getByTestId('lib-sht41_breakout')).toBeVisible();
+
+    await page.getByTestId('tab-selected').click();
+    await expect(page.getByTestId('lib-sht41_breakout')).toHaveCount(0);
+    await page.getByTestId('tab-library').click();
+    await expect(page.getByTestId('lib-sht41_breakout')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByTestId('lib-more-sensor')).toBeVisible();
+    await expect(page.getByTestId('lib-sht41_breakout')).toHaveCount(0);
   });
 });

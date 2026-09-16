@@ -191,6 +191,12 @@ a { color: var(--accent); }
 .lib-del:hover:not(:disabled) { color: var(--error); background: var(--error-bg); }
 .lib-name { font-weight: 500; }
 .lib-meta { font-size: 11px; color: var(--muted); }
+/* 未经实测的模型徽标：与画布上的 geometry_status/electrical_status 文案一致 */
+.lib-status { align-self: center; flex: none; margin-right: 6px; padding: 1px 5px; font-size: 10px; line-height: 1.4; white-space: nowrap; color: var(--muted); background: var(--hint-bg); border: 1px solid var(--hint-border); border-radius: 4px; }
+/* 类目里默认折叠的内置型号（issue #32） */
+.lib-more { display: block; width: calc(100% - 8px); margin: 2px 4px 4px; padding: 3px 8px; text-align: left; font-size: 11px; color: var(--muted); background: transparent; border: 1px dashed var(--border); border-radius: 6px; }
+.lib-more:hover { color: var(--text); background: var(--hover); }
+.lib-search-note { padding: 6px 4px 0; font-size: 11px; }
 .hint { margin: 0 10px 6px; padding: 6px 8px; background: var(--hint-bg); border: 1px solid var(--hint-border); border-radius: 6px; font-size: 12px; }
 
 /* 「已选元件」页签：把已放置的东西列成可点清单，绕开画布上难戳的小目标。 */
