@@ -85,6 +85,7 @@ const HOLE_R = 0.5;
 export function boardScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptions): SceneNode {
   const def = pb.def;
   const rb = pb.resolved;
+  const perfboard = def.render.style === 'perfboard';
   const children: SceneNode[] = [];
   const w = mm(def.size_um[0]);
   const h = mm(def.size_um[1]);
@@ -112,20 +113,44 @@ export function boardScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptio
     }
   }
   // row/column labels
-  for (const block of def.terminal_blocks) {
-    const firstRowY = mm(block.origin_um[1]);
-    for (let c = 0; c < block.columns; c++) {
-      const col = block.first_column + c;
-      if (col === 1 || col % 5 === 0) {
-        const x = mm(block.origin_um[0] + c * def.pitch_um);
-        const isTopBlock = block === def.terminal_blocks[0];
-        children.push({ t: 'text', x, y: isTopBlock ? firstRowY - 2.3 : firstRowY + (block.rows.length - 1) * mm(def.pitch_um) + 3.4, text: String(col), size: 1.7, fill: def.render.label_color ?? '#6b6b6b', anchor: 'middle', cls: 'board-label' });
+  const labelColor = def.render.label_color ?? '#6b6b6b';
+  if (perfboard) {
+    const first = def.terminal_blocks[0];
+    if (first) {
+      const firstY = mm(first.origin_um[1]);
+      const lastColumn = first.first_column + first.columns - 1;
+      for (let c = 0; c < first.columns; c++) {
+        const col = first.first_column + c;
+        if (col === first.first_column || col === lastColumn || col % 5 === 0) {
+          const x = mm(first.origin_um[0] + c * def.pitch_um);
+          children.push({ t: 'text', x, y: firstY - 2.3, text: String(col), size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+          children.push({ t: 'text', x, y: firstY + (def.terminal_blocks.length - 1) * mm(def.pitch_um) + 3.4, text: String(col), size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+        }
       }
     }
-    for (let r = 0; r < block.rows.length; r++) {
-      const y = firstRowY + r * mm(def.pitch_um) + 0.6;
-      children.push({ t: 'text', x: mm(block.origin_um[0]) - 2.6, y, text: block.rows[r]!, size: 1.7, fill: def.render.label_color ?? '#6b6b6b', anchor: 'middle', cls: 'board-label' });
-      children.push({ t: 'text', x: mm(block.origin_um[0] + (block.columns - 1) * def.pitch_um) + 2.6, y, text: block.rows[r]!, size: 1.7, fill: def.render.label_color ?? '#6b6b6b', anchor: 'middle', cls: 'board-label' });
+    for (const block of def.terminal_blocks) {
+      const row = block.rows[0];
+      if (!row) continue;
+      const y = mm(block.origin_um[1]) + 0.6;
+      children.push({ t: 'text', x: mm(block.origin_um[0]) - 2.6, y, text: row, size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+      children.push({ t: 'text', x: mm(block.origin_um[0] + (block.columns - 1) * def.pitch_um) + 2.6, y, text: row, size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+    }
+  } else {
+    for (const block of def.terminal_blocks) {
+      const firstRowY = mm(block.origin_um[1]);
+      for (let c = 0; c < block.columns; c++) {
+        const col = block.first_column + c;
+        if (col === 1 || col % 5 === 0) {
+          const x = mm(block.origin_um[0] + c * def.pitch_um);
+          const isTopBlock = block === def.terminal_blocks[0];
+          children.push({ t: 'text', x, y: isTopBlock ? firstRowY - 2.3 : firstRowY + (block.rows.length - 1) * mm(def.pitch_um) + 3.4, text: String(col), size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+        }
+      }
+      for (let r = 0; r < block.rows.length; r++) {
+        const y = firstRowY + r * mm(def.pitch_um) + 0.6;
+        children.push({ t: 'text', x: mm(block.origin_um[0]) - 2.6, y, text: block.rows[r]!, size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+        children.push({ t: 'text', x: mm(block.origin_um[0] + (block.columns - 1) * def.pitch_um) + 2.6, y, text: block.rows[r]!, size: 1.7, fill: labelColor, anchor: 'middle', cls: 'board-label' });
+      }
     }
   }
   // holes
@@ -142,7 +167,8 @@ export function boardScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptio
       stroke = '#f59e0b';
       sw = 0.45;
     }
-    holeNodes.push({ t: 'circle', cx: mm(hole.local_um[0]), cy: mm(hole.local_um[1]), r: hl ? HOLE_R + 0.35 : HOLE_R, fill, stroke, sw, cls: `hole hole-${st?.status ?? 'free'}`, data: { hole: addr } });
+    holeNodes.push({ t: 'circle', cx: mm(hole.local_um[0]), cy: mm(hole.local_um[1]), r: perfboard ? (hl ? HOLE_R + 0.35 : HOLE_R + 0.2) : (hl ? HOLE_R + 0.35 : HOLE_R), fill, stroke, sw, cls: `hole hole-${st?.status ?? 'free'}`, data: { hole: addr } });
+    if (perfboard) holeNodes.push({ t: 'circle', cx: mm(hole.local_um[0]), cy: mm(hole.local_um[1]), r: 0.34, fill: '#2b2119', cls: 'perfboard-bore', data: { hole: addr } });
     if (opts.showHoleLabels && hole.kind === 'terminal') {
       holeNodes.push({ t: 'text', x: mm(hole.local_um[0]), y: mm(hole.local_um[1]) - 0.75, text: hole.name, size: 0.75, fill: '#6b7280', anchor: 'middle', cls: 'hole-label' });
     }

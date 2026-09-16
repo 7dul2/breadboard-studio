@@ -71,9 +71,10 @@ export function snapPlacement(model: DesignModel, base: DesignDocument, id: stri
 export function snapBoardPosition(model: DesignModel, id: string, deltaUm: PointUm): PointUm {
   const pb = model.boards.get(id)!;
   let pos: PointUm = [pb.transform.position[0] + deltaUm[0], pb.transform.position[1] + deltaUm[1]];
+  if (pb.def.render.style === 'perfboard') return [Math.round(pos[0]), Math.round(pos[1])];
   let best: { pos: PointUm; d: number } | null = null;
   for (const other of model.boards.values()) {
-    if (other.instance.id === id) continue;
+    if (other.instance.id === id || other.def.render.style === 'perfboard') continue;
     for (const side of ['left', 'right', 'top', 'bottom'] as const) {
       const cand = attachBoardPosition(other, pb.def, pb.transform.rotation, side, 0, true);
       const d = Math.hypot(cand[0] - pos[0], cand[1] - pos[1]);

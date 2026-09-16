@@ -3,7 +3,7 @@ import { Catalog } from '@breadboard-studio/catalog';
 import { holeAddress, parseAddress, terminalAddress } from './address.js';
 import { buildConnectivity, conductiveSet, pinKey, voltageName, type Connectivity } from './connectivity.js';
 import { distance, polylineLength, segmentIntersectsRect, toGlobal, type Rect } from './geometry.js';
-import { accessibleHolesForPin, buildModel, flatRouteObstacles, groupHoles, terminalRouteEnd, type DesignModel, type PlacedBoard, type PlacedComponent, type PlacedPin } from './model.js';
+import { accessibleHolesForPin, buildModel, flatRouteObstacles, groupHoles, isSolderableBoard, pinHoleAddress, terminalRouteEnd, type DesignModel, type PlacedBoard, type PlacedComponent, type PlacedPin } from './model.js';
 import type { Op } from './ops.js';
 import type { RuleResult } from './results.js';
 import { checkModel, i2cAddress, i2cBuses, i2cPins, supplyRange } from './rules.js';
@@ -502,6 +502,13 @@ function initialTaps(ctx: Ctx, hostPin: PlacedPin): Tap[] {
     const t = holeTap(ctx, h);
     if (t) taps.push(t);
   }
+  if (hostPin.hole && isSolderableBoard(ctx.model, hostPin.hole.board_id)) {
+    const own = pinHoleAddress(hostPin);
+    if (own && !ctx.reserved.has(own) && !ctx.model.holes.get(own)?.wires.length) {
+      const t = holeTap(ctx, own);
+      if (t) taps.push(t);
+    }
+  }
   if (!hostPin.hole && !terminalWired(ctx, key)) taps.push(terminalTap(ctx, ctx.host, hostPin));
   return taps;
 }
@@ -742,6 +749,14 @@ interface Member {
 function sourcesFor(ctx: Ctx, pc: PlacedComponent, pin: PlacedPin): Tap[] | AutoWireSkip {
   const key = pinKey(pc.instance.id, pin.name);
   if (pin.hole) {
+    if (isSolderableBoard(ctx.model, pin.hole.board_id)) {
+      const own = pinHoleAddress(pin);
+      if (own && !ctx.reserved.has(own) && !ctx.model.holes.get(own)?.wires.length) {
+        const tap = holeTap(ctx, own);
+        if (tap) return [tap];
+      }
+      return { component: pc.instance.id, pin: pin.name, code: 'solder_pad_in_use', reason: `引脚 ${key} 所在焊盘 ${own ?? '未知'} 已经插有导线`, suggestion: '改用另一块空闲焊盘，或删除该焊盘上的旧线。' };
+    }
     const sources = accessibleHolesForPin(ctx.model, pc.instance.id, pin.name)
       .filter((h) => !ctx.reserved.has(h))
       .map((h) => holeTap(ctx, h))

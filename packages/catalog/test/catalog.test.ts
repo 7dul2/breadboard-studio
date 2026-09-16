@@ -4,7 +4,7 @@ import { builtinCatalog, parseModelRef } from '../src/index.js';
 describe('built-in catalog', () => {
   it('loads and validates every definition', () => {
     const c = builtinCatalog();
-    expect(c.listBoards().map((b) => b.id).sort()).toEqual(['breadboard_400', 'breadboard_400_terminal', 'breadboard_830', 'breadboard_power_strip_25']);
+    expect(c.listBoards().map((b) => b.id).sort()).toEqual(['breadboard_400', 'breadboard_400_terminal', 'breadboard_830', 'breadboard_power_strip_25', 'perfboard_5x7', 'perfboard_7x9']);
     const ids = c.listComponents().map((d) => d.id);
     for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'ttp224_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3', 'tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6']) {
       expect(ids).toContain(id);
@@ -35,6 +35,19 @@ describe('built-in catalog', () => {
     // Nothing in v0.1 has been physically verified; the catalog must not claim otherwise.
     const xiao = c.getComponent('xiao_esp32s3_sense@1')!;
     expect(xiao.geometry_status).toBe('approximate');
+  });
+
+  it('models perfboards as independently solderable pads with stable hole labels', () => {
+    const c = builtinCatalog();
+    const small = c.getBoard('perfboard_5x7@1')!;
+    const large = c.getBoard('perfboard_7x9@1')!;
+    expect(small.render.style).toBe('perfboard');
+    expect(small.pitch_um).toBe(2540);
+    expect(small.terminal_blocks).toHaveLength(24);
+    expect(small.terminal_blocks.every((block) => block.rows.length === 1)).toBe(true);
+    expect(large.terminal_blocks.at(-1)?.rows).toEqual(['AI']);
+    expect(large.terminal_blocks.at(-1)?.columns).toBe(27);
+    expect(large.rails).toEqual([]);
   });
 
   it('models KY-040 signals as supply-pulled contacts instead of fixed 3.3 V push-pull outputs', () => {

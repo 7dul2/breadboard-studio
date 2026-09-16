@@ -8,12 +8,14 @@ import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
 
-const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
+const CATEGORY_NAMES: Record<string, string> = { board_integrated: '面包板 · 一体式', board_modular: '面包板 · 可拆拼装式', board_perfboard: '洞洞板', mcu: '主控', display: '显示', sensor: '传感器', input: '输入', power: '电源', passive: '基础元件', connector: '连接器', other: '其他' };
 const VISIBLE_BUILTIN_IDS = new Set([
   'breadboard_400',
   'breadboard_400_terminal',
   'breadboard_power_strip_25',
   'breadboard_830',
+  'perfboard_5x7',
+  'perfboard_7x9',
   'esp32s3_n16r8_dual_usb',
   'oled_0_96_ssd1315_i2c',
   'tft_1_77_st7735_spi',
@@ -69,7 +71,7 @@ export function Library() {
     const g = new Map<string, typeof items>();
     for (const d of items) {
       const cat = d.kind === 'board'
-        ? (d.id === 'breadboard_400_terminal' || d.id === 'breadboard_power_strip_25' ? 'board_modular' : 'board_integrated')
+        ? (d.render.style === 'perfboard' ? 'board_perfboard' : d.id === 'breadboard_400_terminal' || d.id === 'breadboard_power_strip_25' ? 'board_modular' : 'board_integrated')
         : d.category;
       g.set(cat, [...(g.get(cat) ?? []), d]);
     }
@@ -79,7 +81,12 @@ export function Library() {
   const addBoard = (model: string, plan?: { columns: number; rows: number }) => {
     const id = nextId('bb_');
     const first = design.boards[0];
-    const placement = first ? { attach_to: { board_id: design.boards[design.boards.length - 1]!.id, side: 'right' as const, grid_align: true } } : { position_um: [0, 0] as [number, number] };
+    const last = design.boards.at(-1);
+    const isPerfboard = catalog.getBoard(model)?.render.style === 'perfboard';
+    const canAttachToLast = Boolean(last && catalog.getBoard(last.model)?.render.style !== 'perfboard');
+    const placement = last && canAttachToLast && !isPerfboard
+      ? { attach_to: { board_id: last.id, side: 'right' as const, grid_align: true } }
+      : first ? {} : { position_um: [0, 0] as [number, number] };
     // 自定义尺寸 = 添加原型号 + resize_board，一次 apply = 一次撤销。
     const ops: Op[] = plan
       ? [{ op: 'add_board', board: { id, model, ...placement } }, { op: 'resize_board', id, columns: plan.columns, rows: plan.rows }]
@@ -239,7 +246,7 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
     ? def.terminal_blocks.reduce((sum, block) => sum + block.rows.length * block.columns, 0) + def.rails.reduce((sum, rail) => sum + rail.holes, 0)
     : resolveComponent(def).pins.length;
   const voltage = def.kind === 'component' ? def.electrical.supply_voltage_v : null;
-  const category = def.kind === 'board' ? '面包板' : CATEGORY_NAMES[def.category] ?? def.category;
+  const category = def.kind === 'board' ? (def.render.style === 'perfboard' ? '洞洞板' : '面包板') : CATEGORY_NAMES[def.category] ?? def.category;
   const hasBack = Boolean(preview?.back);
   // 尺寸自定义（issue #22）：创建前先按行列数缩放。默认就是原型号的形状，
   // 数值没动过 = 按原尺寸添加。
@@ -309,13 +316,13 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
                 <input type="number" min={RESIZE_LIMITS.columns.min} max={RESIZE_LIMITS.columns.max} value={columns} data-testid="model-size-columns" onChange={(e) => setColumns(Number(e.target.value) || RESIZE_LIMITS.columns.min)} />
               </label>
               <label className="field">
-                <span>行数（每块，1–{shape!.rows}）</span>
+                <span>行数（{def.kind === 'board' && def.render.style === 'perfboard' ? '整板' : '每块'}，1–{shape!.rows}）</span>
                 <input type="number" min={1} max={shape!.rows} value={rows} data-testid="model-size-rows" onChange={(e) => setRows(Number(e.target.value) || 1)} />
               </label>
             </div>
             <p className="muted" style={{ fontSize: 11 }}>
               {planDef
-                ? <>按孔距缩放：外形 {mm(planDef.size_um[0])} × {mm(planDef.size_um[1])} mm，电源轨 {planDef.rails[0]?.holes ?? 0} 孔，孔距保持 2.54 mm。行数是<b>每块接线块</b>的行数（a–e / f–j 各算一块）。</>
+                ? <>按孔距缩放：外形 {mm(planDef.size_um[0])} × {mm(planDef.size_um[1])} mm，电源轨 {planDef.rails[0]?.holes ?? 0} 孔，孔距保持 2.54 mm。行数是<b>{def.render.style === 'perfboard' ? '整板物理行' : '每块接线块'}</b>的行数。</>
                 : <>尺寸无效：列数 {RESIZE_LIMITS.columns.min}–{RESIZE_LIMITS.columns.max}，行数 1–{shape!.rows}。</>}
             </p>
           </details>

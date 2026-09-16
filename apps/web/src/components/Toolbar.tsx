@@ -111,6 +111,7 @@ interface CanvasApi {
   zoomTo: (z: number) => void;
   rotateBy: (deltaDeg: number) => void;
   rotateTo: (deg: number) => void;
+  toggleSolderSide: () => void;
 }
 
 /** 主题三档：浅色 / 深色 / 跟随系统（issue #23）。偏好持久保存在 localStorage。 */
@@ -258,6 +259,7 @@ export function Toolbar() {
       >
         ⟳ 旋转
       </button>
+      <button onClick={() => canvasApi()?.toggleSolderSide()} title="切换洞洞板元件面/焊接面（只影响显示）" data-testid="toggle-solder-side">焊接面</button>
       <button onClick={() => canvasApi()?.fit()} title="适应全部 (F)" data-testid="fit">适应全部</button>
       <span className="sep" />
       <label className="toggle"><input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号</label>

@@ -254,6 +254,8 @@ export interface BoardDefinition {
   /** Ravines (centre channels) separating terminal blocks, in board-local µm. */
   ravines: { x_um: number; y_um: number; w_um: number; h_um: number }[];
   render: {
+    /** Visual board family. Missing means the legacy solderless-breadboard style. */
+    style?: 'breadboard' | 'perfboard';
     body_color: string;
     edge_color?: string;
     hole_color?: string;

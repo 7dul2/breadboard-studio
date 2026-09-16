@@ -22,6 +22,8 @@
 | `breadboard_400_terminal@1` | approximate | approximate | 可拆拼装式的独立 300 孔中间接线板，不含电源条；高 35.56 mm。 |
 | `breadboard_power_strip_25@1` | approximate | approximate | 可拆拼装式的独立 2×25 孔 `+/−` 电源条；高 12.70 mm，两轨互不导通。 |
 | `breadboard_830@1` | approximate | approximate | 63 列 + 4×50 孔轨，每轨在 25/26 断开。 |
+| `perfboard_5x7@1` | approximate | approximate | 5×7 cm、18×24 孔，2.54 mm；棕色酚醛板，每个焊盘独立。 |
+| `perfboard_7x9@1` | approximate | approximate | 7×9 cm、27×35 孔，2.54 mm；绿色玻纤板，每个焊盘独立，行号可到 `AI`。 |
 | `xiao_esp32s3_sense@1` | approximate | approximate | 2×7 针 2.54 mm，列距 15.24 mm，21×17.5 mm；USB-C 在上边缘，天线/摄像头区域单独描述。3V3 输出能力未填。 |
 | `esp32s3_devkit_generic@1` | approximate | approximate | 通用双排针模板：`pins_per_side`、`row_spacing_um`、`body_size_um`、针名均可改；默认 DevKitC-1 44 针排布。 |
 | `esp32s3_n16r8_dual_usb@1` | approximate | approximate | 27.94×57.15 mm 双 Type-C 44 针黑色开发板；N16R8、CH343、RGB、BOOT/RST，25.40 mm 排距跨面包板沟槽。 |
@@ -37,6 +39,12 @@
 主控定义的 `electrical.i2c` 除 `sda_pin`/`scl_pin` 外可写 `controllers`（独立 I²C 控制器数量，ESP32-S3 为 2）与 `mappable: true`（额外总线可用任意 GPIO 角色引脚）；额外总线由实例 `config.i2c_buses` 声明。器件定义的 `address_options` 列出可通过跳线/电阻选择的地址，自动排线只会在这些选项里改地址。
 
 来源链接写在各定义的 `sources` 字段中，可用 `pnpm bb catalog inspect <ref> --json` 查看。
+
+## 洞洞板定义
+
+洞洞板使用与面包板相同的 `BoardDefinition`，但 `render.style` 为 `perfboard`，不声明电源轨或中央沟槽。每个物理行可以建模为一个只含单行的 `terminal_block`，这样每个孔天然是独立导通组；行标签可以是一个或多个 ASCII 字母（例如 `A`、`AA`）。元件仍通过普通板上锚点放置，导线、自动布线、校验、接线向导和 SVG/PNG 导出复用同一套板机制。
+
+洞洞板尺寸编辑的“行数”是整块板的物理行数，而不是面包板每个接线块的行数。`5×7` 与 `7×9` 型号都能在目录详情或画布尺寸把手中按 2.54 mm 孔距派生自定义列/行数；默认不提供面包板式机械拼装入口。
 
 ## 引脚元数据 `pin_meta`
 

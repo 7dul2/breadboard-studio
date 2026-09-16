@@ -25,9 +25,9 @@
 { "id": "bb_a", "name": "板 A", "model": "breadboard_400@1", "position_um": [0, 0], "rotation_deg": 0, "locked": false, "notes": "" }
 ```
 
-- `model`：`<定义 id>@<版本>`。内置：`breadboard_400@1`（轨道连续）、`breadboard_830@1`（每条轨在 25/26 断开）。
+- `model`：`<定义 id>@<版本>`。内置：`breadboard_400@1`（轨道连续）、`breadboard_830@1`（每条轨在 25/26 断开）、`perfboard_5x7@1` / `perfboard_7x9@1`（每孔独立焊盘）。
 - `position_um`：板体左上角的全局坐标；`rotation_deg` ∈ {0, 90, 180, 270}，顺时针。
-- 孔名：`a1`–`j30`（830 板到 `j63`）；轨孔 `top_outer_1`…、`top_inner_…`、`bottom_inner_…`、`bottom_outer_…`。
+- 孔名：面包板为 `a1`–`j30`（830 板到 `j63`）；洞洞板为大写行号加列号，例如 `A1`、`X18`、`AA27`；轨孔为 `top_outer_1`…、`top_inner_…`、`bottom_inner_…`、`bottom_outer_…`。
 
 ## 元件 `components[]`
 

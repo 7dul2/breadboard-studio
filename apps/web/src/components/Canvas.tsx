@@ -11,6 +11,7 @@ import {
   conductiveSet,
   groupHoles,
   holeAtLocal,
+  isSolderableBoard,
   parseAddress,
   resolveComponent,
   RESIZE_LIMITS,
@@ -34,6 +35,8 @@ interface View {
   py: number;
   /** 视图旋转（度）。只影响显示，不写进设计数据。 */
   rot: number;
+  /** 洞洞板焊接面：只影响显示与命中，不写入设计数据。 */
+  side: 'front' | 'solder';
 }
 
 /** 把设计坐标按视图角度旋转（度）。 */
@@ -108,7 +111,7 @@ export function Canvas() {
   const { apply, select, selectHole, setWireDraft, cancelInteraction, toast } = useStore.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0 });
+  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0, side: 'front' });
   const viewRef = useRef(view);
   viewRef.current = view;
   const dragRef = useRef<DragMode>({ kind: 'none' });
@@ -303,13 +306,22 @@ export function Canvas() {
     const v = viewRef.current;
     const dx = (clientX - r.left - v.px) / v.z;
     const dy = (clientY - r.top - v.py) / v.z;
-    if (!v.rot) return [dx, dy];
-    // 视图转过角度，屏幕坐标要反向转回去才是设计坐标（R⁻¹ = Rᵀ）
-    const rad = (v.rot * Math.PI) / 180;
-    const c = Math.cos(rad);
-    const s = Math.sin(rad);
-    return [dx * c + dy * s, -dx * s + dy * c];
-  }, []);
+    let x = dx;
+    let y = dy;
+    if (v.rot) {
+      // 视图转过角度，屏幕坐标要反向转回去才是设计坐标（R⁻¹ = Rᵀ）
+      const rad = (v.rot * Math.PI) / 180;
+      const c = Math.cos(rad);
+      const s = Math.sin(rad);
+      x = dx * c + dy * s;
+      y = -dx * s + dy * c;
+    }
+    if (v.side === 'solder') {
+      const axis = scene.bounds.x + scene.bounds.w / 2;
+      x = 2 * axis - x;
+    }
+    return [x, y];
+  }, [scene.bounds.x, scene.bounds.w]);
   const toUm = (p: [number, number]): PointUm => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)];
 
   const fit = useCallback(() => {
@@ -334,7 +346,7 @@ export function Canvas() {
     const z = Math.max(0.5, Math.min(40, Math.min(r.width / wMm, r.height / hMm)));
     const px = (r.width - (maxX - minX) * z) / 2 - minX * z;
     const py = (r.height - (maxY - minY) * z) / 2 - minY * z;
-    setView({ z, px, py, rot });
+    setView((v) => ({ ...v, z, px, py, rot }));
   }, [model]);
 
   useEffect(() => {
@@ -358,7 +370,7 @@ export function Canvas() {
         const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
         const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.z * Math.exp(-px * ZOOM_WHEEL_SENSITIVITY)));
         const k = z / v.z;
-        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k, rot: v.rot });
+        setView({ ...v, z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
       } else {
         setView({ ...v, px: v.px - e.deltaX, py: v.py - e.deltaY });
       }
@@ -425,7 +437,7 @@ export function Canvas() {
         const cy = r.height / 2;
         const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.z * f));
         const k = z / v.z;
-        setView({ z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k, rot: v.rot });
+        setView({ ...v, z, px: cx - (cx - v.px) * k, py: cy - (cy - v.py) * k });
       },
       /**
        * 转动视图。绕视口中心转，所以视野中心的设计坐标保持不动，
@@ -451,6 +463,7 @@ export function Canvas() {
         const [rx, ry] = rotateByDeg([cx - v.px, cy - v.py], rot - v.rot);
         setView({ ...v, rot, px: cx - rx, py: cy - ry });
       },
+      toggleSolderSide: () => setView((v) => ({ ...v, side: v.side === 'front' ? 'solder' : 'front' })),
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
       // 「已选元件」面板用它把视图移到目标上（入参是全局 µm 包围盒）。
       // 留 40mm 边距、最高 200%：只框住目标本身会把一根细线放到 500%，除了它什么都看不见。
@@ -463,7 +476,7 @@ export function Canvas() {
         const swap = rot % 180 !== 0;
         const z = Math.max(1, Math.min(12, Math.min(r.width / (mm(swap ? b.h : b.w) + 40), r.height / (mm(swap ? b.w : b.h) + 40))));
         const [cx, cy] = rotateByDeg([mm(b.x + b.w / 2), mm(b.y + b.h / 2)], rot);
-        setView({ z, px: r.width / 2 - cx * z, py: r.height / 2 - cy * z, rot });
+        setView((v) => ({ ...v, z, px: r.width / 2 - cx * z, py: r.height / 2 - cy * z, rot }));
       },
       // Paste needs to know where the pointer is; the store has no view transform.
       cursorUm: (): PointUm | null => {
@@ -520,7 +533,11 @@ export function Canvas() {
     for (const id of ids) {
       if (model.boards.has(id)) {
         if (design.boards.find((b) => b.id === id)?.locked) continue;
-        ops.push({ op: 'move_board', id, position_um: ids.length === 1 ? snapBoardPosition(model, id, deltaUm) : [model.boards.get(id)!.transform.position[0] + deltaUm[0], model.boards.get(id)!.transform.position[1] + deltaUm[1]] });
+        const board = model.boards.get(id)!;
+        const position = ids.length === 1 && board.def.render.style !== 'perfboard'
+          ? snapBoardPosition(model, id, deltaUm)
+          : [board.transform.position[0] + deltaUm[0], board.transform.position[1] + deltaUm[1]] as PointUm;
+        ops.push({ op: 'move_board', id, position_um: position });
       } else if (model.components.has(id)) {
         if (design.components.find((c) => c.id === id)?.locked) continue;
         const pl = snapPlacementForComponent(id, deltaUm, design);
@@ -759,7 +776,8 @@ export function Canvas() {
           // 下把手指的是下块最后一行的下边缘：新行数 = round((y − 下块首行 y − 下塑料边)/孔距) + 1
           const last = def.terminal_blocks[def.terminal_blocks.length - 1]!;
           const marginBottom = Math.max(0, def.size_um[1] - last.origin_um[1] - (last.rows.length - 1) * pitch);
-          const rows = Math.max(1, Math.min(last.rows.length, Math.round((local[1] - last.origin_um[1] - marginBottom) / pitch) + 1));
+          const maxRows = boardShape(def)?.rows ?? last.rows.length;
+          const rows = Math.max(1, Math.min(maxRows, Math.round((local[1] - last.origin_um[1] - marginBottom) / pitch) + 1));
           setDrag({ ...d, plan: { ...d.plan, rows } });
         }
         scheduleResizePreview();
@@ -900,6 +918,14 @@ export function Canvas() {
       const st = model.holes.get(h.hole);
       if (!st) return null;
       if (st.status === 'occupied') {
+        const parsed = parseAddress(h.hole);
+        if (parsed && isSolderableBoard(model, parsed.owner)) {
+          if (st.wires.length) {
+            toast('error', `焊盘 ${h.hole} 已插有导线 ${st.wires.join(', ')}`);
+            return null;
+          }
+          return { hole: h.hole };
+        }
         // clicking an inserted pin's hole: pick a free hole in the same group
         const alt = accessibleHolesForPin(model, st.component_id!, st.pin!)[0];
         if (!alt) {
@@ -925,6 +951,7 @@ export function Canvas() {
       const pin = pc?.pins.find((x) => x.name === parsed.name);
       if (!pc || !pin) return null;
       if (pin.hole) {
+        if (isSolderableBoard(model, pin.hole.board_id)) return { hole: `${pin.hole.board_id}.${pin.hole.hole}` };
         const alt = accessibleHolesForPin(model, pc.instance.id, pin.name)[0];
         if (!alt) {
           toast('error', `引脚 ${h.pin} 所在孔组没有空闲孔可引出`);
@@ -1226,7 +1253,7 @@ export function Canvas() {
         </defs>
         <rect className="canvas-bg" width="100%" height="100%" fill="#eef0f4" />
         {view.z > 3 && <rect width="100%" height="100%" fill="url(#grid)" style={{ pointerEvents: 'none' }} />}
-        <g transform={`translate(${view.px} ${view.py}) scale(${view.z}) rotate(${view.rot})`}>
+        <g transform={`translate(${view.px} ${view.py}) scale(${view.z}) rotate(${view.rot})${view.side === 'solder' ? ` translate(${2 * (scene.bounds.x + scene.bounds.w / 2)} 0) scale(-1 1)` : ''}`}>
           <g className={drag.kind === 'objects' && drag.moved ? 'scene scene-dim' : 'scene'}>
             <SceneNodes nodes={scene.nodes} />
           </g>
@@ -1236,8 +1263,9 @@ export function Canvas() {
           <SimulatorOverlay model={model} />
         </g>
       </svg>
-      <div className="canvas-hud">
+      <div className="canvas-hud" data-testid="canvas-hud">
         <span>{Math.round(view.z * 100 / 6)}%</span>
+        <span>{view.side === 'solder' ? '焊接面' : '元件面'}</span>
         {cursorMm && (
           <span>
             x {cursorMm[0].toFixed(1)} mm · y {cursorMm[1].toFixed(1)} mm

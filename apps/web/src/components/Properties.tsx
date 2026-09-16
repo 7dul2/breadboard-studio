@@ -156,12 +156,12 @@ function BoardJoinControls({ boardId }: { boardId: string }) {
   const design = useStore((s) => s.design);
   const model = analysisOf(design).model;
   const board = model.boards.get(boardId);
-  const others = design.boards.filter((candidate) => candidate.id !== boardId);
+  const others = design.boards.filter((candidate) => candidate.id !== boardId && model.boards.get(candidate.id)?.def.render.style !== 'perfboard');
   const otherIds = others.map((candidate) => candidate.id).join('\0');
   const currentJoin = (() => {
     if (!board) return null;
     for (const other of model.boards.values()) {
-      if (other.instance.id === boardId) continue;
+      if (other.instance.id === boardId || other.def.render.style === 'perfboard') continue;
       for (const side of ['top', 'left', 'right', 'bottom'] as const) {
         const expected = attachBoardPosition(other, board.def, board.transform.rotation, side, 0, true);
         if (Math.hypot(expected[0] - board.transform.position[0], expected[1] - board.transform.position[1]) <= 2) {
@@ -177,6 +177,8 @@ function BoardJoinControls({ boardId }: { boardId: string }) {
   useEffect(() => {
     setTargetId(currentJoin?.target ?? others[0]?.id ?? '');
   }, [boardId, otherIds]);
+
+  if (!board || board.def.render.style === 'perfboard') return null;
 
   const join = (side: keyof typeof JOIN_SIDE_LABELS) => {
     const selected = model.boards.get(boardId);
@@ -351,7 +353,7 @@ export function Properties() {
     const pb = model.boards.get(board.id);
     return (
       <div className="props" data-testid="props-board">
-        <div className="panel-title">面包板 {board.id}</div>
+        <div className="panel-title">板件 {board.id}</div>
         <p className="muted">{pb?.def.name} · {board.model}</p>
         <TextField label="名称" value={board.name ?? ''} onCommit={(v) => setProp(board.id, 'name', v)} testId="prop-name" />
         <div className="row">
