@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { builtinCatalog, parseModelRef } from '@breadboard-studio/catalog';
 import { applyOps, createEmptyDesign } from './index.js';
 import { boardShape, canResizeBoard, clampResizePlan, customDefId, resizeBoardDefinition, RESIZE_LIMITS } from './board-resize.js';
+import { resolveBoard } from './board.js';
 import { buildModel, catalogForDesign } from './model.js';
 import type { BoardDefinition } from '@breadboard-studio/schema';
 
@@ -62,6 +63,31 @@ describe('board-resize: 派生规则', () => {
   it('id 命名：不冲突用后缀，冲突自动编号', () => {
     expect(customDefId('breadboard_400', new Set())).toBe('breadboard_400_custom');
     expect(customDefId('breadboard_400', new Set(['breadboard_400_custom']))).toBe('breadboard_400_custom2');
+  });
+
+  it('行裁剪时中央沟槽与下方电源轨跟着上移（回归：沟槽会压在下块孔上、电源轨掉到板外）', () => {
+    const def = resizeBoardDefinition(bb400, { columns: 30, rows: 3 }, 'breadboard_400_custom');
+    const upperLastRow = def.terminal_blocks[0]!.origin_um[1] + 2 * def.pitch_um;
+    const lowerFirstRow = def.terminal_blocks[1]!.origin_um[1];
+    // 沟槽仍居中在两块之间
+    for (const rv of def.ravines) expect(rv.y_um + rv.h_um / 2).toBe((upperLastRow + lowerFirstRow) / 2);
+    // 上方两条轨不动，下方两条跟着下块上移两个孔距
+    const byId = (prefix: string) => def.rails.filter((r) => r.id.startsWith(prefix)).map((r) => r.origin_um[1]);
+    expect(byId('top')).toEqual([5080, 7620]);
+    expect(byId('bottom')).toEqual([45720 - 4 * bb400.pitch_um, 48260 - 4 * bb400.pitch_um]);
+    // 关键不变量：没有任何孔或沟槽落到板体之外 / 沟槽压在孔上
+    const resolved = resolveBoard(def);
+    for (const h of resolved.holes.values()) {
+      expect(h.local_um[0], `孔 ${h.name}`).toBeLessThanOrEqual(def.size_um[0]);
+      expect(h.local_um[1], `孔 ${h.name}`).toBeLessThanOrEqual(def.size_um[1]);
+    }
+    for (const rv of def.ravines) expect(rv.y_um + rv.h_um).toBeLessThanOrEqual(def.size_um[1]);
+    for (const h of resolved.holes.values()) {
+      if (h.kind !== 'terminal') continue;
+      for (const rv of def.ravines) expect(h.local_um[1] < rv.y_um || h.local_um[1] > rv.y_um + rv.h_um, `孔 ${h.name} 落在沟槽里`).toBe(true);
+    }
+    // 板高少掉的是「每块各去掉的 2 行」
+    expect(def.size_um[1]).toBe(bb400.size_um[1] - 2 * 2 * bb400.pitch_um);
   });
 });
 
@@ -138,5 +164,35 @@ describe('resize_board op', () => {
     if (!r0.ok) throw new Error(r0.error.message);
     const r = applyOps(r0.design, [{ op: 'resize_board', id: 'bb1', columns: 40, rows: 10 }], { allow_blocking: true });
     expect(r.ok).toBe(false);
+  });
+
+  it('导入/内嵌型号反复编辑不叠 _custom、不链式加版本，也不留死定义', () => {
+    // 一块来自导入的板：型号只在设计的内嵌目录里，内置目录没有它。
+    const r0 = applyOps(createEmptyDesign('t'), [
+      { op: 'add_definition', definition: { ...bb400, id: 'my_kit_board', version: 1, name: '导入的板' } },
+      { op: 'add_board', board: { id: 'bb1', model: 'my_kit_board@1', position_um: [0, 0] } }
+    ], { allow_blocking: true });
+    if (!r0.ok) throw new Error(r0.error.message);
+    let d = r0.design;
+    for (const columns of [40, 35, 45]) {
+      const r = applyOps(d, [{ op: 'resize_board', id: 'bb1', columns, rows: 5 }], { allow_blocking: true });
+      if (!r.ok) throw new Error(r.error.message);
+      d = r.design;
+    }
+    // 每次都是从原型 my_kit_board@1 重新派生：id 不叠后缀、版本停在 2
+    expect(d.boards[0]!.model).toBe('my_kit_board_custom@2');
+    expect((d.embedded_catalog?.boards ?? []).map((b) => `${b.id}@${b.version}`).sort()).toEqual(['my_kit_board@1', 'my_kit_board_custom@2']);
+    expect(catalogForDesign(d, builtinCatalog()).getBoard('my_kit_board_custom@2')!.terminal_blocks[0]!.columns).toBe(45);
+  });
+
+  it('越界 / 非整数的行列数被拒绝，而不是静默 clamp 成别的尺寸', () => {
+    const cases: [number, number][] = [[2, 5], [999, 5], [30, 0], [30, 99], [30.4, 5], [30, 3.5], [NaN, 5], [30, NaN]];
+    for (const [columns, rows] of cases) {
+      const r = applyOps(base(), [{ op: 'resize_board', id: 'bb1', columns, rows }], { allow_blocking: true });
+      expect(r.ok, `${columns} 列 × ${rows} 行 应当被拒绝`).toBe(false);
+    }
+    // 边界本身是合法的
+    expect(applyOps(base(), [{ op: 'resize_board', id: 'bb1', columns: RESIZE_LIMITS.columns.min, rows: 1 }], { allow_blocking: true }).ok).toBe(true);
+    expect(applyOps(base(), [{ op: 'resize_board', id: 'bb1', columns: RESIZE_LIMITS.columns.max, rows: 5 }], { allow_blocking: true }).ok).toBe(true);
   });
 });

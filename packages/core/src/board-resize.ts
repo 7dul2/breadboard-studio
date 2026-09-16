@@ -10,15 +10,19 @@ import type { BoardDefinition, PointUm } from '@breadboard-studio/schema';
  * 交给 `add_definition` 内嵌进当前设计。同一块板的多次调整都是**从原型号重新
  * 派生**（挂到最新的自定义定义），所以一次尺寸编辑 = 一次 apply = 一次撤销。
  *
- * 几何规则（以下标 0 的接线块为基准，上下两块对称的板一起缩）：
+ * 几何规则（以下标 0 的接线块为基准）：
  * - 孔距 pitch 恒定（真实尺寸由 2.54 mm 网格决定）；
  * - 「行数」指**每块接线块的行数**（400 板 a–e / f–j 各 5 行 → rows ∈ [1..5]）：
  *   各块保留自己行字母的前缀（上块 a–e 截前 n 行、下块 f–j 截前 n 行），孔号稳定；
- * - 上块 origin 不动、下块跟着新行数往上挪，块间距（中央沟槽宽）保持不变；
  * - 列号是数字，增减都支持，列名天然稳定；
- * - 电源轨在上下塑料边里，塑料边宽度不变，所以轨的 origin 不动，孔数按列数
- *   等比缩放，分段形态（如 MB-102 的中间断开）按比例保留；
- * - 板宽/板高 = 孔区新尺寸 + 原塑料边。
+ * - 电源轨孔数按列数等比缩放，分段形态（如 MB-102 的中间断开）按比例保留；
+ * - 板宽 = 孔区新宽度 + 原塑料边。
+ *
+ * 纵向是「从每块接线块的**尾部**各去掉 k 行，所有固定边距与块间距都不变」：
+ * 上块 origin 不动；每跨过一块接线块的**尾行**，它下面的东西就整体上移 k 个孔距。
+ * 所以一个 y 坐标的位移 = −k × pitch ×（它上方压着几块接线块的尾行）。中央沟槽在
+ * 两块之间、下块和下方电源轨都在尾行之下，各自跟着上移 —— 只挪接线块会把这些
+ * 留在原地（沟槽压到下块孔上、电源轨掉到板外）。板高 = 原高 − 块数 × k × pitch。
  */
 
 export const CUSTOM_SUFFIX = '_custom';
@@ -43,6 +47,22 @@ export function clampResizePlan(plan: BoardResizePlan, shape: BoardShape): Board
     columns: clamp(plan.columns, RESIZE_LIMITS.columns.min, RESIZE_LIMITS.columns.max),
     rows: clamp(plan.rows, 1, shape.rows)
   };
+}
+
+/**
+ * 校验（不是 clamp）：op / CLI 这条路上越界必须报错。静默把 `columns=999` 改成
+ * 120、把 `rows=0` 改成 1，会让调用方以为写进去的是自己要的尺寸 —— CLI 与 agent
+ * 接口（`bb apply` / patch）是公开契约，宁可拒绝。
+ */
+export function resizePlanError(plan: BoardResizePlan, shape: BoardShape): string | null {
+  const { min, max } = RESIZE_LIMITS.columns;
+  if (!Number.isInteger(plan.columns) || plan.columns < min || plan.columns > max) {
+    return `列数必须是 ${min}–${max} 之间的整数（收到 ${JSON.stringify(plan.columns)}）`;
+  }
+  if (!Number.isInteger(plan.rows) || plan.rows < 1 || plan.rows > shape.rows) {
+    return `行数必须是 1–${shape.rows} 之间的整数（收到 ${JSON.stringify(plan.rows)}）；「行数」是每块接线块的行数`;
+  }
+  return null;
 }
 
 /** 检查一块板能不能按行列数派生：只有「行 × 列接线块」形态（面包板）可以。 */
@@ -70,7 +90,8 @@ export function customDefId(sourceId: string, taken: Set<string>): string {
 
 /**
  * 缩放。`source` 是原型号定义；返回一份新的定义（深拷贝修改），调用方负责
- * 用 `add_definition` 内嵌进设计。行列数会先 clamp（列 5–120，行 1–原行数）。
+ * 用 `add_definition` 内嵌进设计。这里仍然 clamp（列 5–120，行 1–原行数）只是
+ * 兜底：op / CLI 那条路会先用 `resizePlanError` 拒绝越界，不靠 clamp 静默改数。
  */
 export function resizeBoardDefinition(source: BoardDefinition, rawPlan: BoardResizePlan, newId: string): BoardDefinition {
   const shape = boardShape(source);
@@ -86,43 +107,54 @@ export function resizeBoardDefinition(source: BoardDefinition, rawPlan: BoardRes
   const pitch = def.pitch_um;
   const oldColumns = shape.columns;
   const oldRows = shape.rows;
+  const blockCount = def.terminal_blocks.length;
+  /** 每块接线块被去掉的行数（行数只能减不能加，所以 ≥ 0）。 */
+  const droppedRows = oldRows - plan.rows;
+  /** 跨过一块接线块尾行后的纵向位移量（缩小为正 = 上移）。 */
+  const rowStep = droppedRows * pitch;
+  /** 原定义里每块接线块的尾行 y；某个 y 上方压着几块尾行，就上移几个 rowStep。 */
+  const blockTails = def.terminal_blocks.map((b) => b.origin_um[1] + (oldRows - 1) * pitch);
+  const shiftFor = (y: number) => -rowStep * blockTails.filter((tail) => y > tail).length;
 
-  // --- 接线块：第一块 origin 不动；后续块按「固定块间距 + 新行数」重排，行字母取前缀 ---
-  const blockGap = def.terminal_blocks.length > 1
-    ? def.terminal_blocks[1]!.origin_um[1] - def.terminal_blocks[0]!.origin_um[1] - (oldRows - 1) * pitch
-    : 0;
+  // --- 接线块：上块 origin 不动；第 i 块在它上方压了 i 块尾行，整体上移 i × rowStep ---
   def.terminal_blocks = def.terminal_blocks.map((block, i) => ({
     ...block,
     first_column: 1,
     columns: plan.columns,
     rows: block.rows.slice(0, plan.rows),
-    origin_um: [block.origin_um[0], def.terminal_blocks[0]!.origin_um[1] + i * ((plan.rows - 1) * pitch + blockGap)] as PointUm
+    origin_um: [block.origin_um[0], block.origin_um[1] - i * rowStep] as PointUm
   }));
 
-  // --- 电源轨：孔数按列数等比缩（保持"轨长/板长"的观感），分段形态按比例保留 ---
+  // --- 电源轨：孔数按列数等比缩（保持"轨长/板长"的观感），分段形态按比例保留；
+  //     y 跟着它上方压着的尾行一起上移（下方两条轨属于下块以下，会移得更多） ---
   def.rails = def.rails.map((rail) => {
-    if (oldColumns <= 1 || rail.holes <= 1 || oldColumns === plan.columns) return rail;
+    const origin_um: PointUm = [rail.origin_um[0], rail.origin_um[1] + shiftFor(rail.origin_um[1])];
+    if (oldColumns <= 1 || rail.holes <= 1 || oldColumns === plan.columns) return { ...rail, origin_um };
     const holes = Math.max(1, Math.round(((rail.holes - 1) * (plan.columns - 1)) / (oldColumns - 1)) + 1);
-    if (holes === rail.holes) return { ...rail, holes };
+    if (holes === rail.holes) return { ...rail, origin_um, holes };
     const scale = (holes - 1) / (rail.holes - 1);
     const segments = rail.segments.map(([s, e], i): [number, number] => {
       const start = Math.max(1, Math.round((s - 1) * scale) + 1);
       const end = i === rail.segments.length - 1 ? holes : Math.max(start, Math.min(holes - 1, Math.round((e - 1) * scale) + 1));
       return [start, end];
     });
-    return { ...rail, holes, segments };
+    return { ...rail, origin_um, holes, segments };
   });
 
-  // --- 外形：孔区缩放，塑料边宽度保持 ---
+  // --- 外形：孔区缩放，塑料边宽度保持。高度 = 原高 − 每块各去掉的 k 行（每块一块算一次） ---
   const [oldW, oldH] = def.size_um;
-  const gridOldX = (oldColumns - 1) * pitch;
-  const gridOldY = (oldRows - 1) * pitch;
-  const gridNewX = (plan.columns - 1) * pitch;
-  const gridNewY = (plan.rows - 1) * pitch;
-  def.size_um = [Math.round(oldW - gridOldX + gridNewX), Math.round(oldH - 2 * gridOldY + 2 * gridNewY)];
+  def.size_um = [
+    Math.round(oldW - (oldColumns - 1) * pitch + (plan.columns - 1) * pitch),
+    Math.round(oldH - blockCount * rowStep)
+  ];
 
-  // --- 中央沟槽：y 不动（对称缩放），长度铺满新的板宽 ---
-  def.ravines = def.ravines.map((rv) => ({ ...rv, x_um: 0, w_um: def.size_um[0] }));
+  // --- 中央沟槽：跟着它所在的块间空隙上移，长度铺满新的板宽 ---
+  def.ravines = def.ravines.map((rv) => ({
+    ...rv,
+    y_um: rv.y_um + shiftFor(rv.y_um + rv.h_um / 2),
+    x_um: 0,
+    w_um: def.size_um[0]
+  }));
 
   def.geometry_status = 'approximate';
   def.sources = [{ title: `Derived from ${source.id}@${source.version} by the in-canvas size editor (issue #22)` }];

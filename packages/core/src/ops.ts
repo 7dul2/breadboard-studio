@@ -4,7 +4,7 @@ import { Catalog, builtinCatalog, parseModelRef } from '@breadboard-studio/catal
 import { parseAddress, holeAddress } from './address.js';
 import { analyzeDesign } from './analyze.js';
 import { holeAtLocal, resolveBoard } from './board.js';
-import { customDefId, resizeBoardDefinition } from './board-resize.js';
+import { boardShape, customDefId, resizeBoardDefinition, resizePlanError } from './board-resize.js';
 import { cloneDesign, designHash } from './design.js';
 import { normalizeRotation } from './geometry.js';
 import { attachBoardPosition, nextFreePosition, type AttachSide } from './layout.js';
@@ -545,15 +545,24 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
     case 'resize_board': {
       const b = mustFind(design.boards, op.id, '面包板');
       ensureUnlocked(b, '面包板');
-      // 尺寸编辑优先从这块板的**内置原型号**派生：当前挂着自定义定义（id 形如
-      // `xxx_custom`）时先剥回原 id，于是多次编辑都是 `breadboard_400@1` →
-      // `…_custom@2`，版本号不链式增长，旧的自定义定义无人引用时顺手清掉。
-      // 导入/内嵌的型号（内置目录里没有）则退回用它自己的定义当模板。
+      // 尺寸编辑总是从这条派生链的**原型**重新派生：把 id 尾部的 `_custom` /
+      // `_custom2` / …（可能叠了好几层）全部剥掉，先在内置目录里找原型，再在
+      // 本项目内嵌目录里找。于是同一块板反复调整都是「原型 → `…_custom@原型+1`」，
+      // id 不加长、版本不链式增长、旧的自定义定义无人引用时顺手清掉。
+      // 导入/内嵌的型号（内置目录里没有）也走同一条路：原型就是内嵌的那份原始
+      // 定义，不会每编辑一次就多一层 `_custom`。
       const modelId = parseModelRef(b.model)?.id ?? b.model;
-      const stripped = modelId.replace(/_custom\d*$/, '');
-      const builtinSource = builtinCatalog().listBoards().find((d) => d.id === (stripped !== modelId ? stripped : modelId));
-      const source = builtinSource ?? catalog.getBoard(b.model);
+      const rootId = modelId.replace(/(_custom\d*)+$/, '');
+      const builtinSource = builtinCatalog().listBoards().find((d) => d.id === rootId) ?? builtinCatalog().listBoards().find((d) => d.id === modelId);
+      const embeddedBoards = design.embedded_catalog?.boards ?? [];
+      const embeddedSource = embeddedBoards.find((d) => d.id === rootId) ?? embeddedBoards.find((d) => `${d.id}@${d.version}` === b.model);
+      const source = builtinSource ?? embeddedSource ?? catalog.getBoard(b.model);
       if (!source) throw new OpError(`找不到面包板型号 ${b.model}`);
+      const shape = boardShape(source);
+      if (!shape) throw new OpError(`${source.name} 没有「行 × 列」形态的接线块，不能按行列数缩放`);
+      // 越界的行列数直接拒绝，不静默改成别的尺寸（CLI / agent 接口是公开契约）。
+      const planError = resizePlanError({ columns: op.columns, rows: op.rows }, shape);
+      if (planError) throw new OpError(planError);
       const sourceId = source.id;
       // 这块板自己正挂着的旧自定义 id 会被替换掉，不算占用。
       const taken = takenDefIds(design, sourceId);

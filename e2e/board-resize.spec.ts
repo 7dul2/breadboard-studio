@@ -59,6 +59,43 @@ async function dragResizeHandle(page: Page, boardId: string, pitches: number, op
   if (opts.release !== false) await page.mouse.up();
 }
 
+/** 把 y 把手纵向拖 `pitches` 个孔距（行数只能减不能加，所以负数才有效）。 */
+async function dragResizeHandleY(page: Page, boardId: string, pitches: number): Promise<void> {
+  const handle = page.getByTestId(`resize-handle-y-${boardId}`);
+  const box = await handle.boundingBox();
+  expect(box, `${boardId} 的下把手应当可见`).not.toBeNull();
+  const scale = await pxPerMm(page, boardId);
+  const cx = box!.x + box!.width / 2;
+  const cy = box!.y + box!.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy + pitches * PITCH_MM * scale, { steps: 12 });
+  await page.mouse.up();
+}
+
+/**
+ * 板体矩形里必须装得下所有孔和中央沟槽。行裁剪曾经只挪接线块，把下方两条电源轨
+ * 留在了原地 —— 它们会掉到板外（中央沟槽也会压到下块的孔上）。
+ */
+async function expectEverythingInsideBoard(page: Page, boardId: string): Promise<void> {
+  const body = await page.locator(`[data-board="${boardId}"].board-body`).first().boundingBox();
+  expect(body, '面包板板体应当可见').not.toBeNull();
+  const b = body!;
+  const inside = (box: { x: number; y: number; width: number; height: number } | null, what: string) => {
+    expect(box, `${what} 应当可见`).not.toBeNull();
+    expect(box!.x, `${what} 左边超出板体`).toBeGreaterThanOrEqual(b.x - 1);
+    expect(box!.y, `${what} 上边超出板体`).toBeGreaterThanOrEqual(b.y - 1);
+    expect(box!.x + box!.width, `${what} 右边超出板体`).toBeLessThanOrEqual(b.x + b.width + 1);
+    expect(box!.y + box!.height, `${what} 下边超出板体`).toBeLessThanOrEqual(b.y + b.height + 1);
+  };
+  const holes = page.locator(`[data-hole^="${boardId}."]`);
+  const holeCount = await holes.count();
+  expect(holeCount, '板上应当有孔').toBeGreaterThan(0);
+  for (let i = 0; i < holeCount; i++) inside(await holes.nth(i).boundingBox(), `孔 #${i}`);
+  const ravines = page.locator(`[data-board="${boardId}"] .board-ravine`);
+  for (let i = 0; i < (await ravines.count()); i++) inside(await ravines.nth(i).boundingBox(), `中央沟槽 #${i}`);
+}
+
 test.describe('面包板尺寸编辑（#22）', () => {
   test('创建时自定义尺寸：40 列 × 5 行，孔号与外形都跟着变', async ({ page }) => {
     await fresh(page);
@@ -98,6 +135,7 @@ test.describe('面包板尺寸编辑（#22）', () => {
     await expect(page.getByTestId('toast-success')).toBeVisible();
     expect(await maxColumn(page, 'bb_1')).toBe(40);
     expect(await page.locator('[data-hole="bb_1.a40"]').count()).toBe(1);
+    await expectEverythingInsideBoard(page, 'bb_1');
   });
 
   test('拖把手裁剪：30 → 20 列，孔位真的少了，一次撤销可回到 30 列', async ({ page }) => {
@@ -117,6 +155,30 @@ test.describe('面包板尺寸编辑（#22）', () => {
     expect(await maxColumn(page, 'bb_1')).toBe(30);
     await page.getByTestId('redo').click();
     expect(await maxColumn(page, 'bb_1')).toBe(20);
+  });
+
+  test('拖下把手裁剪行：5 → 3 行，沟槽与下方电源轨仍留在板内（回归）', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400');
+    await page.getByTestId('fit').click();
+    await enterSizeEdit(page, 'bb_1');
+    expect(await page.locator('[data-hole="bb_1.d1"]').count()).toBe(1); // 裁剪前 d 行在
+
+    await dragResizeHandleY(page, 'bb_1', -2);
+
+    // 5 → 3 行：上下两块各截掉 d/e 与 i/j，f 行还在
+    expect(await page.locator('[data-hole="bb_1.d1"]').count()).toBe(0);
+    expect(await page.locator('[data-hole="bb_1.e1"]').count()).toBe(0);
+    expect(await page.locator('[data-hole="bb_1.c1"]').count()).toBe(1);
+    expect(await page.locator('[data-hole="bb_1.f1"]').count()).toBe(1);
+    expect(await page.locator('[data-hole="bb_1.i1"]').count()).toBe(0);
+    // 全部孔与中央沟槽都还在板体里
+    await expectEverythingInsideBoard(page, 'bb_1');
+
+    // 一次撤销回到 5 行
+    await page.getByTestId('undo').click();
+    expect(await page.locator('[data-hole="bb_1.d1"]').count()).toBe(1);
+    await expectEverythingInsideBoard(page, 'bb_1');
   });
 
   test('Esc 取消拖动，尺寸不变', async ({ page }) => {
