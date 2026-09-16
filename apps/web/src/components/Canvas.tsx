@@ -906,7 +906,7 @@ export function Canvas() {
           const b = pc?.bounds ?? pb?.bounds;
           if (!b) return null;
           return (
-            <text x={mm(b.x)} y={mm(b.y) - 2} fontSize={2.2} fill="#dc2626" fontWeight="bold">
+            <text className="overlay-bad" x={mm(b.x)} y={mm(b.y) - 2} fontSize={2.2} fontWeight="bold">
               ✕ {preview.blocking[0]!.code}
             </text>
           );
@@ -921,7 +921,7 @@ export function Canvas() {
       <g key="placing" opacity={0.8} style={{ pointerEvents: 'none' }}>
         {renderNode(componentScene(pc, { showPinLabels: true, showUnverifiedBadges: false }), 'placing')}
         <rect x={mm(pc.bounds.x) - 0.6} y={mm(pc.bounds.y) - 0.6} width={mm(pc.bounds.w) + 1.2} height={mm(pc.bounds.h) + 1.2} fill="none" stroke={invalid ? '#dc2626' : '#16a34a'} strokeWidth={0.6} strokeDasharray="1.5 1" />
-        <text x={mm(pc.bounds.x)} y={mm(pc.bounds.y) - 2} fontSize={2.2} fill={invalid ? '#dc2626' : '#166534'} fontWeight="bold">
+        <text x={mm(pc.bounds.x)} y={mm(pc.bounds.y) - 2} fontSize={2.2} className={invalid ? 'overlay-bad' : 'overlay-good'} fontWeight="bold">
           {invalid ? `✕ ${placingPreview.blocking[0]!.code}` : pc.onBoard ? `放在 ${(pc.instance.placement as { board_id: string }).board_id}.${(pc.instance.placement as { anchor_hole: string }).anchor_hole}（R 旋转，Esc 取消）` : '板外放置（R 旋转，Esc 取消）'}
         </text>
       </g>
@@ -945,7 +945,7 @@ export function Canvas() {
         <g key="draft" style={{ pointerEvents: 'none' }}>
           <polyline points={`${mm(start[0])},${mm(start[1])} ${mm(start[0])},${cursorMm[1]} ${cursorMm[0]},${cursorMm[1]}`} fill="none" stroke={wireColor(wireColorName)} strokeWidth={1} strokeDasharray="2 1" strokeLinecap="round" opacity={0.8} />
           <circle cx={mm(start[0])} cy={mm(start[1])} r={1} fill={wireColor(wireColorName)} stroke="#111" strokeWidth={0.2} />
-          <text x={cursorMm[0] + 2} y={cursorMm[1] - 2} fontSize={2} fill="#1f2937">
+          <text className="overlay-hint" x={cursorMm[0] + 2} y={cursorMm[1] - 2} fontSize={2}>
             起点 {ep.hole ?? ep.terminal} → 点击终点孔/端子（Esc 取消）
           </text>
         </g>
@@ -971,7 +971,7 @@ export function Canvas() {
         <g key="wire-end" style={{ pointerEvents: 'none' }}>
           <polyline points={`${mm(anchor[0])},${mm(anchor[1])} ${cx},${cy}`} fill="none" stroke={wireColor(rw.instance.color)} strokeWidth={0.9} strokeDasharray="2 1" strokeLinecap="round" opacity={0.9} />
           <circle cx={cx} cy={cy} r={1.4} fill="none" stroke="#2563eb" strokeWidth={0.35} strokeDasharray="0.9 0.7" />
-          <text x={cx + 2} y={cy - 2} fontSize={2} fill="#1f2937">
+          <text className="overlay-hint" x={cx + 2} y={cy - 2} fontSize={2}>
             松开改接到目标孔/端子（Esc 取消）
           </text>
         </g>
@@ -1003,7 +1003,7 @@ export function Canvas() {
       >
         <defs>
           <pattern id="grid" width={2.54 * view.z} height={2.54 * view.z} patternUnits="userSpaceOnUse" x={view.px} y={view.py}>
-            <circle cx={0} cy={0} r={0.6} fill="#c7c9d1" />
+            <circle className="grid-dot" cx={0} cy={0} r={0.6} fill="#c7c9d1" />
           </pattern>
         </defs>
         <rect className="canvas-bg" width="100%" height="100%" fill="#eef0f4" />
