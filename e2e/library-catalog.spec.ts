@@ -1,5 +1,20 @@
 import { expect, test } from '@playwright/test';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { addFromLibrary, analysis, clickHole, design, fit, fresh } from './helpers';
+
+/**
+ * The shipped catalog, read straight from disk. The library is supposed to absorb
+ * new models without code changes (issue #32), so the counts below are derived
+ * rather than hardcoded — adding a definition to packages/catalog must not turn
+ * these tests red, while "a model disappeared from the library" still does.
+ */
+const DEFINITIONS_DIR = join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions');
+const CATALOG = readdirSync(DEFINITIONS_DIR)
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => JSON.parse(readFileSync(join(DEFINITIONS_DIR, f), 'utf8')) as { id: string; featured?: boolean });
+const FEATURED = CATALOG.filter((d) => d.featured === true).map((d) => d.id);
+const FOLDED = CATALOG.filter((d) => d.featured !== true).map((d) => d.id);
 
 /**
  * 这三个元件原来只存在于某一份设计的 embedded_catalog 里（导入那份设计才能用），
@@ -95,18 +110,19 @@ test.describe('拼装面包板', () => {
 test.describe('元件库装下整个目录', () => {
   test('默认视图只列精选型号，其余按类目折叠而不是消失', async ({ page }) => {
     await fresh(page);
-    // 精选 12 个直接可见；被折叠的型号在 DOM 里确实不存在。
-    await expect(page.locator('.library-list .lib-item')).toHaveCount(12);
+    // 精选型号直接可见；折叠的型号在 DOM 里确实不存在。
+    await expect(page.locator('.library-list .lib-item')).toHaveCount(FEATURED.length);
     await expect(page.getByTestId('lib-xiao_esp32s3_sense')).toHaveCount(0);
     await expect(page.getByTestId('lib-oled_0_96_i2c')).toHaveCount(0);
 
-    // 每个有折叠型号的类目都留了入口，并且标出数量（合计 12 = 目录 24 − 精选 12）。
-    await expect(page.getByTestId('lib-more-mcu')).toContainText('更多内置型号（2）');
-    await expect(page.getByTestId('lib-more-display')).toContainText('更多内置型号（2）');
-    await expect(page.getByTestId('lib-more-sensor')).toContainText('更多内置型号（4）');
-    await expect(page.getByTestId('lib-more-input')).toContainText('更多内置型号（1）');
-    await expect(page.getByTestId('lib-more-power')).toContainText('更多内置型号（1）');
-    await expect(page.getByTestId('lib-more-passive')).toContainText('更多内置型号（2）');
+    // 每个有折叠型号的类目都留了入口，且所有入口报的数量加起来 = 目录里非精选的总数。
+    // 不逐个写死数量：目录扩容（#30/#31）不该改这个测试。
+    const labels = await page.locator('.lib-more').allTextContents();
+    const declared = labels.reduce((sum, text) => sum + Number(/（(\d+)）/.exec(text)?.[1] ?? 0), 0);
+    expect(declared, `折叠入口：${labels.join(' | ')}`).toBe(FOLDED.length);
+    expect(labels.length).toBeGreaterThan(0);
+    await expect(page.getByTestId('lib-more-sensor')).toBeVisible();
+    await expect(page.getByTestId('lib-more-display')).toBeVisible();
   });
 
   test('搜索覆盖整个目录：被折叠的型号直接命中，示例里出镜的型号都在', async ({ page }) => {
@@ -115,8 +131,8 @@ test.describe('元件库装下整个目录', () => {
       await page.getByTestId('library-search').fill(query);
       await expect(page.getByTestId(`lib-${id}`)).toBeVisible();
     }
-    await expect(page.getByTestId('library-search-note')).toContainText('全部 24 个内置型号');
-    await expect(page.getByTestId('library-search-note')).toContainText('含默认折叠的 12 个');
+    await expect(page.getByTestId('library-search-note')).toContainText(`全部 ${CATALOG.length} 个内置型号`);
+    await expect(page.getByTestId('library-search-note')).toContainText(`含默认折叠的 ${FOLDED.length} 个`);
 
     await page.getByTestId('library-search').fill('xiao');
     // 只留命中项：没被搜到的精选型号也一起让位。
@@ -148,16 +164,17 @@ test.describe('元件库装下整个目录', () => {
 
   test('展开状态在会话内保持（切换页签回来还在），刷新后回到默认折叠', async ({ page }) => {
     await fresh(page);
-    await page.getByTestId('lib-more-passive').click();
-    await expect(page.getByTestId('lib-led_5mm')).toBeVisible();
+    // 用传感器类目做样本：它整个类目都是折叠项，不会因为某个型号被提升为精选而失去折叠入口。
+    await page.getByTestId('lib-more-sensor').click();
+    await expect(page.getByTestId('lib-sht41_breakout')).toBeVisible();
 
     await page.getByTestId('tab-selected').click();
-    await expect(page.getByTestId('lib-led_5mm')).toHaveCount(0);
+    await expect(page.getByTestId('lib-sht41_breakout')).toHaveCount(0);
     await page.getByTestId('tab-library').click();
-    await expect(page.getByTestId('lib-led_5mm')).toBeVisible();
+    await expect(page.getByTestId('lib-sht41_breakout')).toBeVisible();
 
     await page.reload();
-    await expect(page.getByTestId('lib-more-passive')).toBeVisible();
-    await expect(page.getByTestId('lib-led_5mm')).toHaveCount(0);
+    await expect(page.getByTestId('lib-more-sensor')).toBeVisible();
+    await expect(page.getByTestId('lib-sht41_breakout')).toHaveCount(0);
   });
 });
