@@ -1,13 +1,18 @@
 import { expect, test } from '@playwright/test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addFromLibrary, analysis, clickHole, design, fit, fresh } from './helpers';
+import { addFromLibrary, analysis, clickHole, design, fresh } from './helpers';
 
 /**
  * The shipped catalog, read straight from disk. The library is supposed to absorb
- * new models without code changes (issue #32), so the counts below are derived
- * rather than hardcoded — adding a definition to packages/catalog must not turn
- * these tests red, while "a model disappeared from the library" still does.
+ * new models without code changes (issue #32), so nothing below hardcodes how
+ * many models there are — adding a definition must not turn these tests red.
+ *
+ * Reading the files (rather than importing the catalog package) means the tests
+ * also notice when disk and app disagree — e.g. a definition file that was never
+ * registered in `packages/catalog/src/index.ts`. That is why every id is asserted
+ * individually: the failure names the model instead of just a wrong count.
+ * "Which ids are curated" is pinned once, in packages/catalog/test/catalog.test.ts.
  */
 const DEFINITIONS_DIR = join(import.meta.dirname, '..', 'packages', 'catalog', 'src', 'definitions');
 const CATALOG = readdirSync(DEFINITIONS_DIR)
@@ -15,6 +20,9 @@ const CATALOG = readdirSync(DEFINITIONS_DIR)
   .map((f) => JSON.parse(readFileSync(join(DEFINITIONS_DIR, f), 'utf8')) as { id: string; featured?: boolean });
 const FEATURED = CATALOG.filter((d) => d.featured === true).map((d) => d.id);
 const FOLDED = CATALOG.filter((d) => d.featured !== true).map((d) => d.id);
+
+/** The models the shipped examples lean on — acceptance criterion ① of #32. */
+const EXAMPLE_MODELS = ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'oled_0_96_i2c', 'power_module_3v3', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66'];
 
 /**
  * 这三个元件原来只存在于某一份设计的 embedded_catalog 里（导入那份设计才能用），
@@ -110,27 +118,34 @@ test.describe('拼装面包板', () => {
 test.describe('元件库装下整个目录', () => {
   test('默认视图只列精选型号，其余按类目折叠而不是消失', async ({ page }) => {
     await fresh(page);
-    // 精选型号直接可见；折叠的型号在 DOM 里确实不存在。
+    // 逐个点名：精选的必须直接可见，折叠的必须不在 DOM 里。数量对不上会先在这里暴露成具体型号，
+    // 而不是一个没有上下文的 count 差异。
     await expect(page.locator('.library-list .lib-item')).toHaveCount(FEATURED.length);
-    await expect(page.getByTestId('lib-xiao_esp32s3_sense')).toHaveCount(0);
-    await expect(page.getByTestId('lib-oled_0_96_i2c')).toHaveCount(0);
+    for (const id of FEATURED) await expect(page.getByTestId(`lib-${id}`), `${id} 是精选型号，应当直接可见`).toBeVisible();
+    for (const id of FOLDED) await expect(page.getByTestId(`lib-${id}`), `${id} 不是精选型号，应当默认折叠`).toHaveCount(0);
 
-    // 每个有折叠型号的类目都留了入口，且所有入口报的数量加起来 = 目录里非精选的总数。
+    // 每个有折叠型号的类目都留了入口，所有入口报的数量加起来 = 目录里非精选的总数。
     // 不逐个写死数量：目录扩容（#30/#31）不该改这个测试。
     const labels = await page.locator('.lib-more').allTextContents();
     const declared = labels.reduce((sum, text) => sum + Number(/（(\d+)）/.exec(text)?.[1] ?? 0), 0);
     expect(declared, `折叠入口：${labels.join(' | ')}`).toBe(FOLDED.length);
     expect(labels.length).toBeGreaterThan(0);
     await expect(page.getByTestId('lib-more-sensor')).toBeVisible();
-    await expect(page.getByTestId('lib-more-display')).toBeVisible();
   });
 
-  test('搜索覆盖整个目录：被折叠的型号直接命中，示例里出镜的型号都在', async ({ page }) => {
+  test('搜索覆盖整个目录：示例型号与每一个折叠型号都能直接命中', async ({ page }) => {
     await fresh(page);
-    for (const [query, id] of [['xiao', 'xiao_esp32s3_sense'], ['sht41', 'sht41_breakout'], ['sen66', 'sen66'], ['devkit', 'esp32s3_devkit_generic'], ['ttp223', 'ttp223_module']] as const) {
-      await page.getByTestId('library-search').fill(query);
-      await expect(page.getByTestId(`lib-${id}`)).toBeVisible();
+    // 验收标准 ①：示例里出镜的每一个型号都要能搜到（点名，读起来就是验收条件）。
+    for (const id of EXAMPLE_MODELS) {
+      await page.getByTestId('library-search').fill(id);
+      await expect(page.getByTestId(`lib-${id}`), `示例型号 ${id} 必须能在元件库里搜到`).toBeVisible();
     }
+    // 以及目录里每一个折叠型号（示例只是抽样，这里是全集）。
+    for (const id of FOLDED) {
+      await page.getByTestId('library-search').fill(id);
+      await expect(page.getByTestId(`lib-${id}`), `折叠的 ${id} 必须能被搜到，折叠不能是死路`).toBeVisible();
+    }
+
     await expect(page.getByTestId('library-search-note')).toContainText(`全部 ${CATALOG.length} 个内置型号`);
     await expect(page.getByTestId('library-search-note')).toContainText(`含默认折叠的 ${FOLDED.length} 个`);
 

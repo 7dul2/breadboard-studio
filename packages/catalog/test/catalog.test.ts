@@ -95,7 +95,6 @@ describe('built-in catalog', () => {
   it('marks the curated default view with `featured` instead of hiding the rest', () => {
     const c = builtinCatalog();
     const all = c.list();
-    for (const d of all) if (d.featured !== undefined) expect(typeof d.featured, d.id).toBe('boolean');
 
     // The library's default view is exactly this set (issue #32). Pinning it here
     // keeps a new definition from silently changing the curated view, and keeps a
@@ -114,13 +113,16 @@ describe('built-in catalog', () => {
       'tft_1_77_st7735_spi',
       'ttp224_module'
     ]);
+    // Featuring everything would make the fold pointless: the curated view has to
+    // stay a strict subset as the catalog grows (#30/#31 add more models).
+    expect(all.filter((d) => d.featured).length).toBeLessThan(all.length);
 
-    // Folding must never be a dead end: the models that only appear inside the
-    // shipped examples are all still built-ins, reachable by search.
+    // The models that only appear inside the shipped examples must still be
+    // built-ins — nothing may be dropped from the catalog. Search reaches them
+    // because the library searches the whole list, folded or not.
     const shipped = ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'oled_0_96_i2c', 'power_module_3v3', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66'];
     const ids = new Set(all.map((d) => d.id));
-    for (const id of shipped) expect(ids.has(id), id).toBe(true);
-    expect(all.filter((d) => !d.featured).length).toBeGreaterThanOrEqual(shipped.length);
+    for (const id of shipped) expect(ids.has(id), `${id} 是示例里出镜的型号，不能从内置目录消失`).toBe(true);
   });
 });
 

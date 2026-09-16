@@ -9,6 +9,13 @@ import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
 
+/** Plain-language meaning of the two evidence statuses, for the card tooltip. */
+const STATUS_WORDS: Record<string, string> = {
+  verified: '有证据且已复核',
+  approximate: '来自资料，未实测',
+  unknown: '未知占位，使用前必须核实'
+};
+
 export function Library() {
   const design = useStore((s) => s.design);
   const placing = useStore((s) => s.placing);
@@ -152,6 +159,9 @@ export function Library() {
     const embedded = embeddedRefs.has(ref);
     const users = [...design.boards, ...design.components].filter((o) => o.model === ref).map((o) => o.id);
     const status = modelStatusText(d.geometry_status, d.electrical_status);
+    // The badge text is the short form the canvas uses; the tooltip spells out each
+    // facet, so a `verified` geometry is never described as "未经实测".
+    const statusTitle = `几何数据：${STATUS_WORDS[d.geometry_status]}；电气数据：${STATUS_WORDS[d.electrical_status]}`;
     return (
       <div key={ref} className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}>
         <button
@@ -172,7 +182,7 @@ export function Library() {
           </span>
         </button>
         {status && (
-          <span className="lib-status" data-testid={`lib-status-${d.id}`} title={`几何/电气数据状态：${d.geometry_status} / ${d.electrical_status}（未经实测）`}>
+          <span className="lib-status" data-testid={`lib-status-${d.id}`} title={statusTitle}>
             {status}
           </span>
         )}
@@ -208,7 +218,7 @@ export function Library() {
       <div className="library-list">
         {searching && (
           <div className="lib-search-note muted" data-testid="library-search-note">
-            在全部 {builtinCount} 个内置型号里搜索{foldedCount ? `（含默认折叠的 ${foldedCount} 个）` : ''}{embeddedCount ? `，另加 ${embeddedCount} 个内嵌定义` : ''}
+            在全部 {builtinCount} 个内置型号里搜索{foldedCount ? `（含默认折叠的 ${foldedCount} 个）` : ''}{embeddedCount ? `，另加 ${embeddedCount} 份内嵌/覆盖定义` : ''}
           </div>
         )}
         {groups.map((group) => (

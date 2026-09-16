@@ -12,7 +12,7 @@
 import type { CatalogDefinition } from '@breadboard-studio/schema';
 
 /** Display order of the library's category groups. */
-export const LIBRARY_CATEGORY_ORDER = [
+const LIBRARY_CATEGORY_ORDER = [
   'board_integrated',
   'board_modular',
   'board_perfboard',
@@ -71,7 +71,13 @@ export function foldedBuiltinCount(defs: CatalogDefinition[], embeddedRefs: Read
   return defs.filter((def) => def.featured !== true && !embeddedRefs.has(modelRef(def))).length;
 }
 
-/** Board definitions have no `category`; their render style picks the group. */
+/**
+ * Board definitions have no `category`. Perfboards are picked by render style;
+ * the spliceable middle boards are still an id list, so a **new** spliceable
+ * model must be added here or it silently lands in `board_integrated`. Giving
+ * `BoardDefinition` its own `category`/`spliceable` field would remove this
+ * (noted in the #32 review — out of scope for the library refactor).
+ */
 export function libraryCategoryKey(def: CatalogDefinition): string {
   if (def.kind !== 'board') return def.category;
   if (def.render.style === 'perfboard') return 'board_perfboard';

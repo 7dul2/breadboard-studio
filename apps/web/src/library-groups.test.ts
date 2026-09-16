@@ -21,25 +21,12 @@ describe('元件库分组（issue #32）', () => {
   it('默认只展开精选型号，其余进折叠区', () => {
     const all = buildLibraryGroups(defs, { filter: '', embeddedRefs: noRefs, expanded: noExpanded });
     const shown = all.flatMap((g) => ids(g.items));
-    const folded = all.flatMap((g) => g.foldedTotal);
+    const declaredFolded = all.reduce((sum, g) => sum + g.foldedTotal, 0);
 
-    // 精选型号 = 改造前白名单里的那 12 个，一个不少。
-    expect(shown.sort()).toEqual([
-      'breadboard_400',
-      'breadboard_400_terminal',
-      'breadboard_830',
-      'breadboard_power_strip_25',
-      'encoder_ky040',
-      'esp32s3_n16r8_dual_usb',
-      'oled_0_96_ssd1315_i2c',
-      'perfboard_5x7',
-      'perfboard_7x9',
-      'tactile_6x6',
-      'tft_1_77_st7735_spi',
-      'ttp224_module'
-    ]);
-    // 其余内置型号没有消失，只是折叠了。
-    expect(folded.reduce((a, b) => a + b, 0)).toBe(defs.length - shown.length);
+    // 分区性质：默认视图 = 精选，折叠区 = 其余，两者不重不漏。
+    // 「哪 12 个是精选」由 packages/catalog/test/catalog.test.ts 钉住；这里只验分区。
+    expect(shown).toHaveLength(defs.filter((d) => d.featured === true).length);
+    expect(declaredFolded).toBe(defs.length - shown.length);
     expect(all.every((g) => g.folded.length === 0)).toBe(true);
   });
 
@@ -50,6 +37,7 @@ describe('元件库分组（issue #32）', () => {
 
     const after = group('sensor', '', new Set(['sensor']));
     expect(ids(after.folded).sort()).toEqual(['bmp390_breakout', 'ltr390_breakout', 'sen66', 'sht41_breakout']);
+    expect(ids(after.folded)).toHaveLength(after.foldedTotal);
     expect(group('passive').folded).toEqual([]);
   });
 
@@ -84,15 +72,41 @@ describe('元件库分组（issue #32）', () => {
     expect(libraryCategoryKey(builtinCatalog().getComponent('led_5mm@1')!)).toBe('passive');
 
     const keys = buildLibraryGroups(defs, { filter: '', embeddedRefs: noRefs, expanded: noExpanded }).map((g) => g.key);
-    expect(keys).toEqual(['board_integrated', 'board_modular', 'board_perfboard', 'mcu', 'display', 'input', 'sensor', 'power', 'passive']);  });
+    expect(keys).toEqual(['board_integrated', 'board_modular', 'board_perfboard', 'mcu', 'display', 'input', 'sensor', 'power', 'passive']);
+  });
 
   it('modelRef 拼出可比较的引用', () => {
     expect(modelRef({ id: 'led_5mm', version: 1 })).toBe('led_5mm@1');
   });
 
   it('折叠数量只数「内置且非精选」的定义', () => {
-    expect(foldedBuiltinCount(defs, noRefs)).toBe(12);
+    expect(builtinCatalog().getComponent('power_module_3v3@1')).toBeTruthy();
+    const folded = foldedBuiltinCount(defs, noRefs);
     // 内嵌定义不算内置，也不进折叠计数。
-    expect(foldedBuiltinCount(defs, new Set(['power_module_3v3@1']))).toBe(11);
+    expect(foldedBuiltinCount(defs, new Set(['power_module_3v3@1']))).toBe(folded - 1);
+  });
+
+  it('纯函数的边界：空目录、featured:false、纯空白搜索、大小写、未知类目', () => {
+    const fake = (id: string, patch: Record<string, unknown> = {}) =>
+      ({ kind: 'component', id, version: 1, name: id, category: 'other', featured: false, ...patch }) as unknown as CatalogDefinition;
+
+    expect(buildLibraryGroups([], { filter: '', embeddedRefs: noRefs, expanded: noExpanded })).toEqual([]);
+
+    // featured:false 与缺字段同样进折叠区；纯空白搜索不进入搜索态。
+    const groups = buildLibraryGroups([fake('a')], { filter: '   ', embeddedRefs: noRefs, expanded: new Set(['other']) });
+    expect(groups).toHaveLength(1);
+    expect(ids(groups[0]!.folded)).toEqual(['a']);
+    expect(groups[0]!.items).toEqual([]);
+
+    // 搜索大小写不敏感，并且命中折叠项。
+    expect(buildLibraryGroups([fake('MixedCase_Part')], { filter: 'mixedcase', embeddedRefs: noRefs, expanded: noExpanded })[0]!.items).toHaveLength(1);
+
+    // connector 是已知类目但排在 mcu 之后，不会被丢掉。
+    const keys = buildLibraryGroups([fake('x', { category: 'connector' }), fake('y', { category: 'mcu', featured: true })], {
+      filter: '',
+      embeddedRefs: noRefs,
+      expanded: noExpanded
+    }).map((g) => g.key);
+    expect(keys).toEqual(['mcu', 'connector']);
   });
 });
