@@ -363,7 +363,7 @@ export function Properties() {
             </select>
           </label>
         </div>
-        <label className="toggle"><input type="checkbox" checked={!!board.locked} onChange={(e) => setProp(board.id, 'locked', e.target.checked)} />锁定</label>
+        <label className="toggle"><input type="checkbox" checked={!!board.locked} onChange={(e) => setProp(board.id, 'locked', e.target.checked)} data-testid="prop-board-locked" />锁定</label>
         <TextField label="备注" value={board.notes ?? ''} onCommit={(v) => setProp(board.id, 'notes', v)} multiline />
         {pb && <p className="muted">{pb.def.status_notes}</p>}
         <BoardJoinControls boardId={board.id} />

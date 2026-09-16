@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
-import { applyOps, buildModel, catalogForDesign, createEmptyDesign, resolveComponent } from '@breadboard-studio/core';
+import { applyOps, boardShape, buildModel, canResizeBoard, catalogForDesign, clampResizePlan, createEmptyDesign, resizeBoardDefinition, resolveComponent, RESIZE_LIMITS, type Op } from '@breadboard-studio/core';
 import { boardScene, componentScene, mm, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
 import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
@@ -76,12 +76,19 @@ export function Library() {
     return [...g.entries()];
   }, [catalog, embeddedRefs, filter]);
 
-  const addBoard = (model: string) => {
+  const addBoard = (model: string, plan?: { columns: number; rows: number }) => {
     const id = nextId('bb_');
     const first = design.boards[0];
-    st.apply([{ op: 'add_board', board: { id, model, ...(first ? { attach_to: { board_id: design.boards[design.boards.length - 1]!.id, side: 'right', grid_align: true } } : { position_um: [0, 0] }) } }], '添加面包板');
-    st.select([id]);
-    if (!first) st.requestFit();
+    const placement = first ? { attach_to: { board_id: design.boards[design.boards.length - 1]!.id, side: 'right' as const, grid_align: true } } : { position_um: [0, 0] as [number, number] };
+    // 自定义尺寸 = 添加原型号 + resize_board，一次 apply = 一次撤销。
+    const ops: Op[] = plan
+      ? [{ op: 'add_board', board: { id, model, ...placement } }, { op: 'resize_board', id, columns: plan.columns, rows: plan.rows }]
+      : [{ op: 'add_board', board: { id, model, ...placement } }];
+    const r = st.apply(ops, plan ? `添加面包板（自定义 ${plan.columns} 列 × ${plan.rows} 行）` : '添加面包板');
+    if (r.ok) {
+      st.select([id]);
+      if (!first) st.requestFit();
+    }
   };
   /**
    * 删掉设计里的内嵌定义。核心的 `remove_definition` 会拒绝删仍在用的，
@@ -110,10 +117,10 @@ export function Library() {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => setDetailRef(null), 180);
   };
-  const chooseModel = (def: CatalogDefinition) => {
+  const chooseModel = (def: CatalogDefinition, plan?: { columns: number; rows: number }) => {
     suppressHoverUntil.current = performance.now() + 300;
     const ref = `${def.id}@${def.version}`;
-    if (def.kind === 'board') addBoard(ref);
+    if (def.kind === 'board') addBoard(ref, plan);
     else st.startPlacing(ref);
     setDetailRef(null);
   };
@@ -215,7 +222,7 @@ export function Library() {
           def={detail}
           catalog={catalog}
           onClose={() => setDetailRef(null)}
-          onAdd={() => chooseModel(detail)}
+          onAdd={(plan) => chooseModel(detail, plan)}
           onMouseEnter={keepDetailOpen}
           onMouseLeave={closeDetailSoon}
         />
@@ -224,7 +231,7 @@ export function Library() {
   );
 }
 
-function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLeave }: { def: CatalogDefinition; catalog: Catalog; onClose: () => void; onAdd: () => void; onMouseEnter: () => void; onMouseLeave: () => void }) {
+function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLeave }: { def: CatalogDefinition; catalog: Catalog; onClose: () => void; onAdd: (plan?: { columns: number; rows: number }) => void; onMouseEnter: () => void; onMouseLeave: () => void }) {
   const preview = useMemo(() => modelPreview(def, catalog), [def, catalog]);
   const ref = `${def.id}@${def.version}`;
   const size = def.kind === 'board' ? def.size_um : resolveComponent(def).body.size_um;
@@ -234,6 +241,26 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
   const voltage = def.kind === 'component' ? def.electrical.supply_voltage_v : null;
   const category = def.kind === 'board' ? '面包板' : CATEGORY_NAMES[def.category] ?? def.category;
   const hasBack = Boolean(preview?.back);
+  // 尺寸自定义（issue #22）：创建前先按行列数缩放。默认就是原型号的形状，
+  // 数值没动过 = 按原尺寸添加。
+  const shape = def.kind === 'board' ? boardShape(def) : null;
+  const resizable = def.kind === 'board' && canResizeBoard(def) && shape !== null;
+  const [columns, setColumns] = useState(shape?.columns ?? 0);
+  const [rows, setRows] = useState(shape?.rows ?? 0);
+  useEffect(() => {
+    setColumns(shape?.columns ?? 0);
+    setRows(shape?.rows ?? 0);
+  }, [ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  const planChanged = resizable && shape !== null && (columns !== shape.columns || rows !== shape.rows);
+  const plan = planChanged ? clampResizePlan({ columns, rows }, shape!) : undefined;
+  const planDef = useMemo(() => {
+    if (!plan || def.kind !== 'board') return null;
+    try {
+      return resizeBoardDefinition(def, plan, `${def.id}_custom`);
+    } catch {
+      return null;
+    }
+  }, [def, plan?.columns, plan?.rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="model-detail-layer" onPointerDown={onClose} data-testid="model-detail-layer">
@@ -273,9 +300,31 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
             {def.variant && <div><dt>版本</dt><dd>{def.variant}</dd></div>}
           </dl>
         </div>
+        {resizable && (
+          <details className="board-size-editor" data-testid="model-size-editor" open>
+            <summary>自定义尺寸（列 × 行）</summary>
+            <div className="board-form">
+              <label className="field">
+                <span>列数（{RESIZE_LIMITS.columns.min}–{RESIZE_LIMITS.columns.max}）</span>
+                <input type="number" min={RESIZE_LIMITS.columns.min} max={RESIZE_LIMITS.columns.max} value={columns} data-testid="model-size-columns" onChange={(e) => setColumns(Number(e.target.value) || RESIZE_LIMITS.columns.min)} />
+              </label>
+              <label className="field">
+                <span>行数（每块，1–{shape!.rows}）</span>
+                <input type="number" min={1} max={shape!.rows} value={rows} data-testid="model-size-rows" onChange={(e) => setRows(Number(e.target.value) || 1)} />
+              </label>
+            </div>
+            <p className="muted" style={{ fontSize: 11 }}>
+              {planDef
+                ? <>按孔距缩放：外形 {mm(planDef.size_um[0])} × {mm(planDef.size_um[1])} mm，电源轨 {planDef.rails[0]?.holes ?? 0} 孔，孔距保持 2.54 mm。行数是<b>每块接线块</b>的行数（a–e / f–j 各算一块）。</>
+                : <>尺寸无效：列数 {RESIZE_LIMITS.columns.min}–{RESIZE_LIMITS.columns.max}，行数 1–{shape!.rows}。</>}
+            </p>
+          </details>
+        )}
         <div className="model-detail-actions">
           <button onClick={onClose}>取消</button>
-          <button className="primary" onClick={onAdd} data-testid="model-detail-add">{def.kind === 'board' ? '添加面包板' : '添加到画布'}</button>
+          <button className="primary" onClick={() => onAdd(plan)} data-testid="model-detail-add" disabled={resizable && !planDef}>
+            {planChanged ? `添加面包板（${plan!.columns} 列 × ${plan!.rows} 行）` : def.kind === 'board' ? '添加面包板' : '添加到画布'}
+          </button>
         </div>
       </article>
     </div>

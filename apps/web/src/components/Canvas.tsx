@@ -4,13 +4,16 @@ import { builtinCatalog } from '@breadboard-studio/catalog';
 import {
   accessibleHolesForPin,
   applyOps,
+  boardShape,
   buildModel,
+  canResizeBoard,
   catalogForDesign,
   conductiveSet,
   groupHoles,
   holeAtLocal,
   parseAddress,
   resolveComponent,
+  RESIZE_LIMITS,
   rotateVec,
   toGlobal,
   toLocal,
@@ -50,6 +53,9 @@ const ZOOM_WHEEL_SENSITIVITY = 0.0016;
 /** 缩放范围，避免缩到看不见或放大到坐标溢出。 */
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 60;
+/** 尺寸编辑的列数边界（与 core 的 RESIZE_LIMITS 同源，避免两处各写一份）。 */
+const RESIZE_MIN_COLUMNS = RESIZE_LIMITS.columns.min;
+const RESIZE_MAX_COLUMNS = RESIZE_LIMITS.columns.max;
 
 type DragMode =
   | { kind: 'none' }
@@ -57,6 +63,11 @@ type DragMode =
   | { kind: 'marquee'; start: [number, number]; current: [number, number] }
   | { kind: 'objects'; ids: string[]; startMm: [number, number]; moved: boolean; pointerId: number }
   | { kind: 'waypoint'; wireId: string; index: number; pointerId: number }
+  /**
+   * 尺寸编辑（issue #22）：拖动面包板右/下边缘把手延长或裁剪。`plan` 是当前
+   * 指针位置换算出的行列数（预览用），还没写进设计。
+   */
+  | { kind: 'resize'; boardId: string; axis: 'x' | 'y'; plan: { columns: number; rows: number }; pointerId: number }
   /**
    * 拖一根已经接好的线的端点。`from` 是拖起来那一刻的端点，用来判断"拖回原地"
    * 与"两端撞到同一个孔"，也让取消（松手前没动）什么都不改。
@@ -114,6 +125,11 @@ export function Canvas() {
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
   /** 正在拖的线端点：跟着指针画一条虚线，并标出候选落点。 */
   const [endDrag, setEndDrag] = useState<{ wireId: string; end: WireEnd; pos: PointUm } | null>(null);
+  /**
+   * 尺寸编辑模式（issue #22）：双击面包板进入，显示边缘把手；Esc / 再次双击退出。
+   * 只有 drag.kind === 'resize' 进行中才真正改设计。
+   */
+  const [resizeEditId, setResizeEditId] = useState<string | null>(null);
   const spaceRef = useRef(false);
 
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
@@ -366,6 +382,21 @@ export function Canvas() {
         setEndDrag(null);
         return;
       }
+      if (e.key === 'Escape' && dragging.kind === 'resize') {
+        try {
+          svgRef.current?.releasePointerCapture(dragging.pointerId);
+        } catch {
+          // 同上：忽略已被收回的捕获。
+        }
+        dragRef.current = { kind: 'none' };
+        setDragState({ kind: 'none' });
+        setPreview(null);
+        return;
+      }
+      if (e.key === 'Escape' && resizeEditId) {
+        setResizeEditId(null);
+        return;
+      }
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         spaceRef.current = true;
         e.preventDefault();
@@ -380,7 +411,7 @@ export function Canvas() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, []);
+  }, [resizeEditId]);
 
   // Expose zoom controls to the toolbar through the store-free window bridge.
   useEffect(() => {
@@ -443,9 +474,11 @@ export function Canvas() {
   }, [fit]);
 
   // ---- hit testing ----------------------------------------------------------
-  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string; end?: WireEnd } {
+  function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string; end?: WireEnd; resizeHandle?: { board: string; axis: 'x' | 'y' } } {
     const el = e.target as Element | null;
     if (!el || !(el instanceof Element)) return {};
+    const handle = el.closest('[data-resize-handle]') as HTMLElement | null;
+    if (handle?.dataset.resizeHandle) return { resizeHandle: { board: handle.dataset.resizeBoard!, axis: handle.dataset.resizeHandle as 'x' | 'y' } };
     const wp = el.closest('[data-waypoint]') as HTMLElement | null;
     if (wp) return { wire: wp.dataset.wire, waypoint: Number(wp.dataset.waypoint) };
     // 线端点的抓取圈压在孔上面，所以要先于 data-hole 判断：指针落在插头上时
@@ -507,6 +540,45 @@ export function Canvas() {
     return { ops, design: r.design, model: m, blocking };
   }
 
+  /** 这块板上会被一次尺寸编辑牵动的对象：板自己、板上元件、端点在本板的导线。 */
+  function affectedByResize(d: DesignDocument, boardId: string): Set<string> {
+    const affected = new Set([boardId]);
+    for (const c of d.components) {
+      if (c.placement.kind === 'board' && c.placement.board_id === boardId) affected.add(c.id);
+    }
+    for (const w of d.wires) {
+      for (const ep of [w.from, w.to] as WireEndpoint[]) {
+        if (ep?.hole && ep.hole.startsWith(`${boardId}.`)) {
+          affected.add(w.id);
+          break;
+        }
+      }
+    }
+    return affected;
+  }
+
+  /**
+   * 尺寸编辑的预览。和拖动不同：新板会让**别的**对象越界（元件其余排针伸出新
+   * 边缘 = `pin_not_on_hole`，objects 是元件不是板），所以不能只按板 id 过滤。
+   * 这里取「这次操作**新引入**的 blocking」，再限定在受牵动的对象上，既不会漏
+   * 报，也不会把设计里本来就有的 blocking 算到这次拖动的账上。
+   */
+  function computeResizePreview(boardId: string, plan: { columns: number; rows: number }): Preview | null {
+    const ops: Op[] = [{ op: 'resize_board', id: boardId, columns: plan.columns, rows: plan.rows }];
+    const r = applyOps(design, ops, { catalog, allow_blocking: true });
+    if (!r.ok) return null;
+    const m = buildModel(r.design, catalog);
+    const before = new Set(analysis.results.filter((x) => x.blocking).map((x) => `${x.code}|${x.objects.join(',')}`));
+    const affected = affectedByResize(r.design, boardId);
+    const blocking = r.results.filter(
+      (x) =>
+        x.blocking &&
+        !before.has(`${x.code}|${x.objects.join(',')}`) &&
+        (x.objects.some((o) => affected.has(o)) || Boolean(x.endpoints?.some((e) => e.startsWith(`${boardId}.`))))
+    );
+    return { ops, design: r.design, model: m, blocking };
+  }
+
   function schedulePreview(pos: [number, number]) {
     previewReq.current.pending = pos;
     if (previewReq.current.raf !== null) return;
@@ -518,6 +590,18 @@ export function Canvas() {
       if (!p || d.kind !== 'objects') return;
       const delta: PointUm = [Math.round((p[0] - d.startMm[0]) * 1000), Math.round((p[1] - d.startMm[1]) * 1000)];
       setPreview(computePreview(buildMoveOps(d.ids, delta)));
+    });
+  }
+
+  /** 尺寸编辑的实时预览（与对象拖动共用 preview 状态，但 op 不同）。 */
+  const resizeReq = useRef<{ raf: number | null }>({ raf: null });
+  function scheduleResizePreview() {
+    if (resizeReq.current.raf !== null) return;
+    resizeReq.current.raf = requestAnimationFrame(() => {
+      resizeReq.current.raf = null;
+      const d = dragRef.current;
+      if (d.kind !== 'resize') return;
+      setPreview(computeResizePreview(d.boardId, d.plan));
     });
   }
 
@@ -594,6 +678,22 @@ export function Canvas() {
       setDrag({ kind: 'waypoint', wireId: h.wire, index: h.waypoint, pointerId: e.pointerId });
       return;
     }
+    if (h.resizeHandle) {
+      // 尺寸编辑：把手已可见（resize 模式才有），按下即开始拖。
+      if (!canEdit) return;
+      const pb = model.boards.get(h.resizeHandle.board);
+      if (!pb) return;
+      const shape = boardShape(pb.def);
+      svg.setPointerCapture(e.pointerId);
+      setDrag({
+        kind: 'resize',
+        boardId: h.resizeHandle.board,
+        axis: h.resizeHandle.axis,
+        plan: { columns: shape?.columns ?? 0, rows: shape?.rows ?? 0 },
+        pointerId: e.pointerId
+      });
+      return;
+    }
     if (h.hole) {
       selectHole(h.hole);
       return;
@@ -642,6 +742,29 @@ export function Canvas() {
       case 'waypoint':
         setWpDrag({ wireId: d.wireId, index: d.index, pos: toUm(p) });
         break;
+      case 'resize': {
+        // 指针 → 板本地 µm → 列/行数（按孔距吸附）。把手拖的是新板的边缘线：
+        // 塑料边宽度不变，所以先减掉边缘到最后一列/行的距离。
+        const pb = model.boards.get(d.boardId);
+        if (!pb) break;
+        const local = toLocal(toUm(p), pb.transform);
+        const def = pb.def;
+        const pitch = def.pitch_um;
+        if (d.axis === 'x') {
+          const block = def.terminal_blocks[0]!;
+          const marginRight = Math.max(0, def.size_um[0] - block.origin_um[0] - (block.columns - 1) * pitch);
+          const columns = Math.max(RESIZE_MIN_COLUMNS, Math.min(RESIZE_MAX_COLUMNS, Math.round((local[0] - block.origin_um[0] - marginRight) / pitch) + 1));
+          setDrag({ ...d, plan: { ...d.plan, columns } });
+        } else {
+          // 下把手指的是下块最后一行的下边缘：新行数 = round((y − 下块首行 y − 下塑料边)/孔距) + 1
+          const last = def.terminal_blocks[def.terminal_blocks.length - 1]!;
+          const marginBottom = Math.max(0, def.size_um[1] - last.origin_um[1] - (last.rows.length - 1) * pitch);
+          const rows = Math.max(1, Math.min(last.rows.length, Math.round((local[1] - last.origin_um[1] - marginBottom) / pitch) + 1));
+          setDrag({ ...d, plan: { ...d.plan, rows } });
+        }
+        scheduleResizePreview();
+        break;
+      }
       case 'wire-end': {
         const moved = d.moved || Math.hypot(p[0] - d.startMm[0], p[1] - d.startMm[1]) > 0.8;
         if (moved !== d.moved) setDrag({ ...d, moved });
@@ -687,6 +810,26 @@ export function Canvas() {
           } else if (ops.length) {
             apply(ops, '移动');
           }
+        }
+        setPreview(null);
+        break;
+      }
+      case 'resize': {
+        // 松手确认：预览能算出来且没有 blocking 才写设计；否则 toast 解释原因。
+        const ops: Op[] = [{ op: 'resize_board', id: d.boardId, columns: d.plan.columns, rows: d.plan.rows }];
+        const pv = computeResizePreview(d.boardId, d.plan);
+        const pb = model.boards.get(d.boardId);
+        const shape = pb ? boardShape(pb.def) : null;
+        const unchanged = shape && shape.columns === d.plan.columns && shape.rows === d.plan.rows;
+        if (pv && !pv.blocking.length && !unchanged) {
+          const r = apply(ops, `调整尺寸（${d.plan.columns} 列 × ${d.plan.rows} 行）`);
+          if (r.ok) toast('success', `已调整为 ${d.plan.columns} 列 × ${d.plan.rows} 行`);
+        } else if (pv && pv.blocking.length) {
+          toast('error', '该尺寸会破坏已有连接，未应用', pv.blocking.map((b) => `${b.code}: ${b.message}`).slice(0, 4));
+        } else if (!pv && !unchanged) {
+          // 预览算不出来 = op 自己拒绝了（例如裁掉了仍被引用的孔位）。真的试一次，
+          // 让 store 的错误提示带出具体孔号；失败不会写入任何东西。
+          apply(ops, `调整尺寸（${d.plan.columns} 列 × ${d.plan.rows} 行）`);
         }
         setPreview(null);
         break;
@@ -845,7 +988,24 @@ export function Canvas() {
   }
 
   function onDoubleClick(e: React.MouseEvent<SVGSVGElement>) {
-    const h = hit(e);
+    // pointer capture 会把 click/dblclick 的 target 重定向到 svg 本身（pointerdown
+    // 时为了拖动调用过 setPointerCapture），所以这里必须按落点重新命中一次，
+    // 否则 elementFromPoint 之前拿到的永远是 svg，板/拐点全部落空。
+    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+    const h = hit({ target: dropTarget ?? e.target, clientX: e.clientX, clientY: e.clientY });
+    if (h.resizeHandle) return; // 把手双击不做事，避免误退出
+    const boardId = h.board;
+    if (boardId && tool === 'select' && !placing) {
+      const pb = model.boards.get(boardId);
+      if (!pb || pb.instance.locked || !canResizeBoard(pb.def)) {
+        if (pb && pb.instance.locked) toast('error', `${boardId} 已锁定，先解锁再调整尺寸`);
+        return;
+      }
+      // 双击进入/退出尺寸编辑（issue #22）
+      setResizeEditId((cur) => (cur === boardId ? null : boardId));
+      select([boardId]);
+      return;
+    }
     if (h.waypoint !== undefined && h.wire) {
       const rw = model.wires.get(h.wire);
       if (!rw) return;
@@ -973,6 +1133,64 @@ export function Canvas() {
           <circle cx={cx} cy={cy} r={1.4} fill="none" stroke="#2563eb" strokeWidth={0.35} strokeDasharray="0.9 0.7" />
           <text className="overlay-hint" x={cx + 2} y={cy - 2} fontSize={2}>
             松开改接到目标孔/端子（Esc 取消）
+          </text>
+        </g>
+      );
+    }
+  }
+  if (drag.kind === 'resize' && preview && !preview.blocking.length) {
+    // 尺寸编辑预览：盖住旧板范围再画新板 —— 新板以同 position 派生，缩小裁剪时
+    // 旧板的"多出来"的部分被遮住，视觉上就是那一下裁剪。
+    const pbNew = preview.model.boards.get(drag.boardId);
+    const pbOld = model.boards.get(drag.boardId);
+    if (pbNew && pbOld) {
+      // 遮盖半径 1.0mm：旧板的选中框是 bounds ±0.6mm、描边 0.5mm，盖 0.5mm 会
+      // 露出外面小半圈虚线，看着像 bug。1.0mm 完全盖住，又不足以吃掉邻板的边。
+      const ob = pbOld.bounds;
+      overlays.push(
+        <g key="resize-preview" style={{ pointerEvents: 'none' }}>
+          <rect className="canvas-bg" x={mm(ob.x) - 1} y={mm(ob.y) - 1} width={mm(ob.w) + 2} height={mm(ob.h) + 2} fill="#eef0f4" />
+          <SceneNodes nodes={[boardScene(pbNew, preview.model, { showUnverifiedBadges: false })]} />
+          <text className="overlay-hint" x={mm(ob.x)} y={mm(ob.y) - 2.5} fontSize={2.2} fontWeight="bold">
+            {drag.plan.columns} 列 × {drag.plan.rows} 行 · {(pbNew.bounds.w / 1000).toFixed(1)} × {(pbNew.bounds.h / 1000).toFixed(1)} mm（松开确认，Esc 取消）
+          </text>
+        </g>
+      );
+    }
+  }
+  if (drag.kind === 'resize' && (!preview || preview.blocking.length > 0)) {
+    // 这个尺寸会裁掉仍被引用的孔位 / 让元件排针落到板外：明确说"不行"，别静默。
+    const pb = model.boards.get(drag.boardId);
+    if (pb) {
+      overlays.push(
+        <text key="resize-invalid" className="overlay-bad" x={mm(pb.bounds.x)} y={mm(pb.bounds.y) - 2.5} fontSize={2.2} fontWeight="bold" style={{ pointerEvents: 'none' }}>
+          ✕ {drag.plan.columns} 列 × {drag.plan.rows} 行不可用：{preview?.blocking[0]?.message ?? '会裁掉仍被引用的孔位'}
+        </text>
+      );
+    }
+  }
+  if (resizeEditId && drag.kind !== 'resize') {
+    // 尺寸编辑模式：板右/下边缘各一个把手，拖动延长或裁剪。
+    const pb = model.boards.get(resizeEditId);
+    if (pb) {
+      const [w, h] = pb.def.size_um;
+      const rightMid = toGlobal([w, h / 2], pb.transform);
+      const bottomMid = toGlobal([w / 2, h], pb.transform);
+      const canRows = pb.def.terminal_blocks.length > 1;
+      const handle = (cx: number, cy: number, axis: 'x' | 'y', testid: string) => (
+        <rect
+          key={axis}
+          x={cx - 1.6} y={cy - 1.6} width={3.2} height={3.2} rx={0.5}
+          className="resize-handle" data-resize-handle={axis} data-resize-board={pb.instance.id} data-testid={testid}
+          style={{ cursor: axis === 'x' ? 'ew-resize' : 'ns-resize' }}
+        />
+      );
+      overlays.push(
+        <g key="resize-handles">
+          {handle(mm(rightMid[0]), mm(rightMid[1]), 'x', `resize-handle-x-${pb.instance.id}`)}
+          {canRows && handle(mm(bottomMid[0]), mm(bottomMid[1]), 'y', `resize-handle-y-${pb.instance.id}`)}
+          <text className="overlay-hint" x={mm(pb.bounds.x)} y={mm(pb.bounds.y) - 2.5} fontSize={2.2} style={{ pointerEvents: 'none' }}>
+            尺寸编辑：拖右/下边缘把手延长或裁剪（按孔距吸附），Esc 或再次双击退出
           </text>
         </g>
       );

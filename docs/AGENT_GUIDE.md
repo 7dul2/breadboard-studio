@@ -89,7 +89,7 @@ pnpm bb ops             # apply 支持的操作
 - `expected_revision` / `expected_hash`（或命令行 `--expect-revision` / `--expect-hash`）用于防止覆盖并发修改。`schema_version` 参与内容哈希，因此对 `1.0` 文件记录的 hash 在迁移到 `1.1` 后不再匹配（退出码 3）：先 `bb inspect` 重新取一次 hash。
 - `--force` 允许在阻断错误存在时仍写入（用于修复损坏文件）。
 
-操作清单：`add_board`、`remove_board`、`move_board`、`rotate_board`、`add_component`、`remove_component`、`move_component`、`rotate_component`、`add_wire`、`remove_wire`、`update_wire`、`update_property`、`add_net_intent`、`remove_net_intent`、`update_net_intent`、`add_constraint`、`remove_constraint`、`set_metadata`、`replace_design`、`add_definition`、`remove_definition`、`auto_wire`、`add_program`、`update_program`、`remove_program`、`set_simulation_config`。字段见 `pnpm bb ops`。
+操作清单：`add_board`、`remove_board`、`move_board`、`rotate_board`、`resize_board`、`add_component`、`remove_component`、`move_component`、`rotate_component`、`add_wire`、`remove_wire`、`update_wire`、`update_property`、`add_net_intent`、`remove_net_intent`、`update_net_intent`、`add_constraint`、`remove_constraint`、`set_metadata`、`replace_design`、`add_definition`、`remove_definition`、`auto_wire`、`add_program`、`update_program`、`remove_program`、`set_simulation_config`。字段见 `pnpm bb ops`。
 
 `autowire` / `auto_wire` 按目录中的引脚角色连接一个主控或电源主板与多个外设：
 
