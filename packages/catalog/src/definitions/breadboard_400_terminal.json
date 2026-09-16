@@ -1,5 +1,6 @@
 {
   "kind": "board",
+  "featured": true,
   "id": "breadboard_400_terminal",
   "version": 1,
   "name": "400 孔拼装面包板（中间接线板）",

@@ -91,6 +91,37 @@ describe('built-in catalog', () => {
     expect(parseModelRef('breadboard_400')).toBeNull();
     expect(parseModelRef('Breadboard@1')).toBeNull();
   });
+
+  it('marks the curated default view with `featured` instead of hiding the rest', () => {
+    const c = builtinCatalog();
+    const all = c.list();
+    for (const d of all) if (d.featured !== undefined) expect(typeof d.featured, d.id).toBe('boolean');
+
+    // The library's default view is exactly this set (issue #32). Pinning it here
+    // keeps a new definition from silently changing the curated view, and keeps a
+    // curated one from silently disappearing behind the fold.
+    expect(all.filter((d) => d.featured).map((d) => d.id).sort()).toEqual([
+      'breadboard_400',
+      'breadboard_400_terminal',
+      'breadboard_830',
+      'breadboard_power_strip_25',
+      'encoder_ky040',
+      'esp32s3_n16r8_dual_usb',
+      'oled_0_96_ssd1315_i2c',
+      'perfboard_5x7',
+      'perfboard_7x9',
+      'tactile_6x6',
+      'tft_1_77_st7735_spi',
+      'ttp224_module'
+    ]);
+
+    // Folding must never be a dead end: the models that only appear inside the
+    // shipped examples are all still built-ins, reachable by search.
+    const shipped = ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'oled_0_96_i2c', 'power_module_3v3', 'ttp223_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66'];
+    const ids = new Set(all.map((d) => d.id));
+    for (const id of shipped) expect(ids.has(id), id).toBe(true);
+    expect(all.filter((d) => !d.featured).length).toBeGreaterThanOrEqual(shipped.length);
+  });
 });
 
 describe('simulation bindings', () => {

@@ -1,5 +1,6 @@
 {
   "kind": "component",
+  "featured": true,
   "id": "tactile_6x6",
   "version": 1,
   "name": "轻触按键 6×6×5（4 脚，本定义只建模 2 个电气端点）",

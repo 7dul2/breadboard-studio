@@ -1,5 +1,6 @@
 {
   "kind": "board",
+  "featured": true,
   "id": "breadboard_400",
   "version": 1,
   "name": "400 孔面包板（半尺寸）",

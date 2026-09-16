@@ -1,5 +1,6 @@
 {
   "kind": "component",
+  "featured": true,
   "id": "oled_0_96_ssd1315_i2c",
   "version": 1,
   "name": "0.96\" OLED 模块（SSD1315，4 针）",

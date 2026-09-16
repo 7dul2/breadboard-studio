@@ -1,5 +1,6 @@
 {
   "kind": "component",
+  "featured": true,
   "id": "ttp224_module",
   "version": 1,
   "name": "TTP224 四路电容触摸模块",

@@ -1,5 +1,6 @@
 {
   "kind": "component",
+  "featured": true,
   "id": "esp32s3_n16r8_dual_usb",
   "version": 1,
   "name": "ESP32-S3 N16R8 开发板（双 Type-C，44 针）",

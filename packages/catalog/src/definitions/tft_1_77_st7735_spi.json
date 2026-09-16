@@ -1,5 +1,6 @@
 {
   "kind": "component",
+  "featured": true,
   "id": "tft_1_77_st7735_spi",
   "version": 1,
   "name": "1.77\" TFT 模块（ST7735S，SPI，8 针）",

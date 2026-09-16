@@ -43,6 +43,7 @@ export const boardDefinitionSchema = {
   additionalProperties: false,
   properties: {
     kind: { const: 'board' },
+    featured: { type: 'boolean' },
     id: { type: 'string', pattern: '^[a-z0-9_]+$' },
     version: { type: 'integer', minimum: 1 },
     name: { type: 'string' },
@@ -192,6 +193,7 @@ export const componentDefinitionSchema = {
   additionalProperties: false,
   properties: {
     kind: { const: 'component' },
+    featured: { type: 'boolean' },
     id: { type: 'string', pattern: '^[a-z0-9_]+$' },
     version: { type: 'integer', minimum: 1 },
     name: { type: 'string' },

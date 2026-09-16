@@ -40,6 +40,15 @@
 
 来源链接写在各定义的 `sources` 字段中，可用 `pnpm bb catalog inspect <ref> --json` 查看。
 
+## 默认视图与折叠 `featured`
+
+元件库不再用硬编码白名单决定露出哪些型号（issue #32）。`featured: true` 的定义进默认视图；没有这个字段的定义仍然在库里，只是折叠进所属类目的「更多内置型号」，点开就能添加。几条约定：
+
+- 搜索框覆盖**整个目录**（含折叠项），所以折叠永远不是不可达：搜到即添加，不需要先展开。
+- 折叠状态只活在当前会话（切换左侧页签不丢，刷新回到默认折叠），不写进设计文件。
+- 非 `verified` 的定义在卡片上显示状态徽标，文案与画布徽标同源（`几何近似` / `电气未知` 等）。徽标是提醒不是禁令：`unknown` 的占位定义默认折叠，但照样能添加，后果写在 `notes` 里。
+- 目录测试把精选集合钉死（`packages/catalog/test/catalog.test.ts`）：新增定义不会悄悄改变默认视图，精选型号也不会悄悄掉进折叠区。
+
 ## 洞洞板定义
 
 洞洞板使用与面包板相同的 `BoardDefinition`，但 `render.style` 为 `perfboard`，不声明电源轨或中央沟槽。每个物理行可以建模为一个只含单行的 `terminal_block`，这样每个孔天然是独立导通组；行标签可以是一个或多个 ASCII 字母（例如 `A`、`AA`）。元件仍通过普通板上锚点放置，导线、自动布线、校验、接线向导和 SVG/PNG 导出复用同一套板机制。
@@ -98,7 +107,7 @@
 
 ## 添加一个简单模块（不改应用代码）
 
-1. 复制 `examples/custom_definition_example.json`，修改 `id`、`name`、`pin_names`、`pin_meta`、`electrical`、`render`，如实填写 `geometry_status`/`electrical_status` 和 `sources`。
+1. 复制 `examples/custom_definition_example.json`，修改 `id`、`name`、`pin_names`、`pin_meta`、`electrical`、`render`，如实填写 `geometry_status`/`electrical_status` 和 `sources`。想让它进默认视图再加 `featured: true`，否则它会折叠在对应类目的「更多内置型号」里。
 2. 在编辑器里“元件库 → 导入定义”，或用 CLI：
 
    ```json
