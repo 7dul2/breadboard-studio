@@ -4,7 +4,7 @@ import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
 import { WireColorPicker } from './WireColorPicker';
-import { WIRE_COLORS } from '@breadboard-studio/render';
+import { wireColor as resolveWireColor } from '@breadboard-studio/render';
 import { CopyIcon, FitIcon, PasteIcon, RedoIcon, RotateIcon, UndoIcon } from './icons';
 import { useTheme, type ThemePreference } from '../theme';
 
@@ -148,20 +148,25 @@ function canvasApi(): CanvasApi | undefined {
 }
 
 /**
- * Outside-click + Esc dismissal for a toolbar popover. The Esc handler runs in
- * the capture phase so closing a popover does not also clear the canvas selection
- * (App's window-level handler never sees the event).
+ * Outside-click + Esc dismissal for a toolbar popover.
+ *
+ * Esc is stopped in the capture phase **only when the popover owns the focus or
+ * the event came from inside it** — that is what keeps Esc from clearing the
+ * canvas selection while the popover is the thing being dismissed. It must not
+ * swallow Esc app-wide: the code editor, artwork editor and library detail all
+ * handle Esc themselves.
  */
 function useDismissablePopover(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    const owns = (node: Node | null) => Boolean(node && ref.current?.contains(node));
     const onPointerDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      e.stopPropagation();
+      if (owns(e.target as Node | null) || owns(document.activeElement)) e.stopPropagation();
       onClose();
     };
     document.addEventListener('pointerdown', onPointerDown, true);
@@ -192,15 +197,15 @@ function ViewMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => 
       <button
         className={open ? 'active' : ''}
         onClick={onToggle}
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls="view-popover"
         title="视图：画布上显示哪些辅助信息（不改设计数据）"
         data-testid="view-menu"
       >
         视图 ▾
       </button>
       {open && (
-        <div className="menu view-popover" role="group" aria-label="视图">
+        <div className="menu view-popover" id="view-popover" role="group" aria-label="视图">
           <div className="menu-label">显示</div>
           <label className="view-row" title="在每个孔旁边标出孔号">
             <input type="checkbox" checked={showHoleLabels} onChange={st.toggleHoleLabels} data-testid="toggle-hole-labels" />孔号
@@ -232,18 +237,19 @@ function ViewMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => 
  * one click away, with the current colour shown on the button itself.
  */
 function WireOptionsMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => void; onClose: () => void }) {
-  const wireColor = useStore((s) => s.wireColor);
+  const colour = useStore((s) => s.wireColor);
   const wireRoute = useStore((s) => s.wireRoute);
   const st = useStore.getState();
   const ref = useDismissablePopover(open, onClose);
-  const hex = wireColor.startsWith('#') ? wireColor : (WIRE_COLORS[wireColor] ?? '#2563eb');
+  // 同一个解析函数，画布画什么色按钮就显示什么色（含未知名字的兜底色）。
+  const hex = resolveWireColor(colour);
   return (
     <div className="menu-wrap" ref={ref}>
       <button
         className={open ? 'active' : ''}
         onClick={onToggle}
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls="wire-options-popover"
         title="接线选项：导线颜色与走线方式"
         data-testid="wire-options"
       >
@@ -251,9 +257,9 @@ function WireOptionsMenu({ open, onToggle, onClose }: { open: boolean; onToggle:
         接线选项 ▾
       </button>
       {open && (
-        <div className="menu wire-options-popover" role="group" aria-label="接线选项">
+        <div className="menu wire-options-popover" id="wire-options-popover" role="group" aria-label="接线选项">
           <div className="menu-label">导线颜色</div>
-          <WireColorPicker value={wireColor} onChange={st.setWireColor} testId="wire-color" />
+          <WireColorPicker value={colour} onChange={st.setWireColor} testId="wire-color" />
           <div className="menu-sep" />
           <div className="menu-label">走线方式</div>
           <select value={wireRoute} onChange={(e) => st.setWireRoute(e.target.value as 'flat' | 'elevated')} data-testid="wire-route">
@@ -272,8 +278,8 @@ export function Toolbar() {
   const past = useStore((s) => s.past.length);
   const future = useStore((s) => s.future.length);
   const showHoleLabels = useStore((s) => s.showHoleLabels);
-  // 针脚名 / 导通高亮 / 聚焦选中 由 ViewMenu 订阅，线色与走线方式由 WireOptionsMenu 订阅：
-  // 它们都只在那一个 popover 里用到，工具栏本体不必跟着重渲染。
+  // 针脚名 / 导通高亮 / 聚焦选中 由 ViewMenu 订阅，线色与走线方式由 WireOptionsMenu 订阅。
+  // 工具栏本体只剩 showHoleLabels（导出 SVG/PNG 要用）——所以勾「孔号」时它确实会重渲染。
   const storage = useStore((s) => s.storage);
   const mode = useStore((s) => s.mode);
   const selectedCount = useStore((s) => s.selectedIds.length);
@@ -282,6 +288,11 @@ export function Toolbar() {
   const st = useStore.getState();
   const [menu, setMenu] = useState<null | 'project' | 'export' | 'view' | 'wire'>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 离开接线工具就关掉它的 popover：否则「开面板 → 按 v → 按 w」会让面板在没点过的情况下自己出现。
+  useEffect(() => {
+    if (tool !== 'wire') setMenu((m) => (m === 'wire' ? null : m));
+  }, [tool]);
 
   const onImportFile = async (f: File | undefined) => {
     if (!f) return;
@@ -308,7 +319,7 @@ export function Toolbar() {
           <span className="muted">v0.1</span>
         </div>
         <div className="menu-wrap">
-          <button className={menu === 'project' ? 'active' : ''} onClick={() => setMenu(menu === 'project' ? null : 'project')} data-testid="menu-project">
+          <button className={menu === 'project' ? 'active' : ''} aria-expanded={menu === 'project'} onClick={() => setMenu(menu === 'project' ? null : 'project')} data-testid="menu-project">
             项目 ▾
           </button>
           {menu === 'project' && (
@@ -329,7 +340,7 @@ export function Toolbar() {
           <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="import-input" onChange={(e) => { void onImportFile(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
         <div className="menu-wrap">
-          <button className={menu === 'export' ? 'active' : ''} onClick={() => setMenu(menu === 'export' ? null : 'export')} data-testid="menu-export">
+          <button className={menu === 'export' ? 'active' : ''} aria-expanded={menu === 'export'} onClick={() => setMenu(menu === 'export' ? null : 'export')} data-testid="menu-export">
             导出 ▾
           </button>
           {menu === 'export' && (

@@ -125,45 +125,43 @@ a { color: var(--accent); }
 
 .app { height: 100%; display: flex; flex-direction: column; }
 /* 应用栏三个稳定区（issue #37）：应用级 · 编辑上下文 · 视图与状态。
-   这里刻意不换行——1280px 宽下必须单行放下（e2e 会断言不换行、不溢出），
-   所以低频动作都收成了图标按钮。
-   控件一律 flex-shrink: 0 + nowrap：宁可溢出（由 e2e 抓）也不要把「选择」压成两行。 */
+   刻意不换行：1280 / 1500 宽下必须单行放下并留有余量（e2e 断言这两种宽度 ×
+   选中 / 接线两种工具态的单行、不越界、不被裁、有余量）。
+   控件一律 flex-shrink: 0 + nowrap——宁可让整条栏溢出，也不把「选择」压成两行或
+   静默裁掉标签；窄于约 1165px 会退化成页面级横向滚动，这是有意的取舍
+   （桌面工具，不为了不滚动而牺牲标签可读性）。 */
 .toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--border); position: relative; z-index: 5; }
 .toolbar .zone { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .toolbar button, .toolbar select, .toolbar label, .toolbar .brand { white-space: nowrap; }
 /* 叶子控件也不许被压缩：文字是 nowrap，一旦允许收缩就会静默把「选择」裁掉一半。
    真放不下时应该整条溢出（e2e 的宽度/裁切断言会抓出来），而不是悄悄少几个字。 */
 .toolbar .zone button, .toolbar .zone select, .toolbar .zone label, .toolbar .tool-group button, .toolbar .menu-wrap > button, .toolbar .zoom-cluster button { flex-shrink: 0; }
-.toolbar > .zone, .toolbar > .menu-wrap, .toolbar .tool-group, .toolbar .zoom-cluster, .toolbar .menu-wrap { flex-shrink: 0; }
+.toolbar > .zone, .toolbar .tool-group, .toolbar .zoom-cluster, .toolbar .menu-wrap { flex-shrink: 0; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; }
 .icon { display: block; }
 .zoom-cluster { display: inline-flex; align-items: center; gap: 2px; }
-.view-popover { min-width: 216px; }
 /* 带色板的「接线选项」按钮：色点与文字对齐；面板里色板独占一行，下拉占满宽 */
 .toolbar .menu-wrap > button { display: inline-flex; align-items: center; gap: 6px; }
-.wire-options-popover { min-width: 238px; }
 .wire-options-popover .wire-colors { padding: 2px 8px 6px; }
-.wire-options-popover select { width: 100%; margin: 0 8px 4px; }
-.wire-options-popover .wire-color-label { display: none; }
+.wire-options-popover select { width: calc(100% - 16px); margin: 0 8px 4px; }
 .view-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; }
 .view-row:hover { background: var(--hover); }
 .view-row input { margin: 0; }
 .menu .view-action { width: 100%; border: none; background: transparent; color: var(--text); }
 .brand { display: flex; gap: 6px; align-items: baseline; margin-right: 8px; }
-/* 窄窗口收起字标（<=1400）：1280 下应用栏必须单行放下，省下的宽度留给工具与视图控件，
-   而不是靠压缩控件（压缩会静默裁标签）。应用名在标签页上仍然可见。 */
-@media (max-width: 1400px) {
+/* 窄窗口收起字标（<=1480）：应用栏必须单行放下，省下的宽度留给工具与视图控件，
+   而不是靠压缩控件（压缩会静默裁标签）。1480 是量出来的界：字标在临界点右侧最坏
+   只剩约 150px 余量，再窄一点换个更宽的字库就会溢出。应用名在标签页上仍然可见。 */
+@media (max-width: 1480px) {
   .toolbar .brand { display: none; }
 }
 .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .spacer { flex: 1; }
 .tool-group { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
-.tool-group.wire-opts { gap: 6px; }
 .tool-group label { display: flex; gap: 4px; align-items: center; color: var(--muted); }
 .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0003; display: inline-block; }
 /* 线色色板：一排色点直接点选，末位是自定义取色器 */
 .wire-colors { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.wire-color-label { color: var(--muted); }
 .wire-color-dot {
   width: 18px; height: 18px; padding: 0; border-radius: 50%;
   border: 1px solid #0003; flex: none; cursor: pointer;

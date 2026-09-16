@@ -65,11 +65,14 @@ test('named and custom wire colors are saved through the editor and undo', async
   const picker = page.getByTestId('wire-color');
   await expect(picker.locator('button')).toHaveCount(12);
   await picker.locator('[data-color="cyan"]').click();
+  // 按钮上的色点就是当前线色（和画布用同一个解析函数）。
+  await expect(page.getByTestId('wire-options-swatch')).toHaveCSS('background-color', 'rgb(6, 182, 212)');
   await clickHole(page, 'bb_1.a1'); await clickHole(page, 'bb_1.a2');
   const colors = () => page.evaluate(() => (window as any).__bbs.getDesign().wires.map((w: any) => w.color));
   expect(await colors()).toEqual(['cyan']);
   await openWireOptions(page);
   await page.getByTestId('wire-color-custom').fill('#123456');
+  await expect(page.getByTestId('wire-options-swatch')).toHaveCSS('background-color', 'rgb(18, 52, 86)');
   await clickHole(page, 'bb_1.a3'); await clickHole(page, 'bb_1.a4');
   expect(await colors()).toEqual(['cyan', '#123456']);
   await page.getByTestId('undo').click();
@@ -81,55 +84,55 @@ test('named and custom wire colors are saved through the editor and undo', async
  * 显示类开关全部收进「视图」popover，主栏不再出现复选框。
  */
 test.describe('应用栏信息架构（issue #37）', () => {
-  test('1280px 宽下单行放下、留有余量，视图开关不在主栏里（选中与接线两种工具态）', async ({ page }) => {
+  test('应用栏在 1280 与 1500 宽下单行放下、留有余量（选中与接线两种工具态）', async ({ page }) => {
+    const bar = page.locator('.toolbar');
+
+    for (const width of [1280, 1500] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      await fresh(page);
+      // 两种工具态都量一遍：接线工具会多出上下文控件，最先在这里溢出。
+      for (const tool of ['select', 'wire'] as const) {
+        if (tool === 'wire') await page.getByTestId('tool-wire').click();
+        const layout = await bar.evaluate((el) => {
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          // 隐藏的元素（窄窗口下收起的字标）尺寸为 0，不参与几何断言；但**控件**不许是 0——
+          // 被挤成 0 宽正是 flex-shrink 规则要防的静默事故，所以单独断言（见 visibleIds）。
+          const controls = [...el.querySelectorAll('.zone button, .zone select, .brand, .storage')].filter(
+            (c) => !c.closest('.menu') && c.getBoundingClientRect().width > 0
+          );
+          const boxes = controls.map((c) => c.getBoundingClientRect());
+          return {
+            contentRight: Math.round(r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth)),
+            worstRight: Math.round(Math.max(...boxes.map((b) => b.right))),
+            centerSpread: Math.max(...boxes.map((b) => Math.round(b.top + b.height / 2))) - Math.min(...boxes.map((b) => Math.round(b.top + b.height / 2))),
+            // 被压窄到内容放不下：nowrap 之后收缩会表现为标签被静默裁掉。
+            clipped: controls
+              .filter((c) => c.scrollWidth > c.clientWidth + 1)
+              .map((c) => ({ text: (c.textContent ?? '').trim().slice(0, 10), scrollWidth: c.scrollWidth, clientWidth: c.clientWidth })),
+            slack: Math.round(el.querySelector('.spacer')!.getBoundingClientRect().width),
+            // 每个控件钩子都必须有实际尺寸（import-input 是 hidden 的文件输入，按设计是 0）。
+            collapsedIds: [...el.querySelectorAll('.zone [data-testid]')]
+              .filter((c) => c.getAttribute('data-testid') !== 'import-input')
+              .filter((c) => c.getBoundingClientRect().width < 1 || c.getBoundingClientRect().height < 1)
+              .map((c) => c.getAttribute('data-testid'))
+          };
+        });
+
+        const where = `${width}px/${tool}`;
+        expect(layout.worstRight, `${where}：最右侧控件越过了内容区（右缘 ${layout.contentRight}）`).toBeLessThanOrEqual(layout.contentRight + 1);
+        expect(layout.centerSpread, `${where}：应用栏应当只有一行，不该换行`).toBeLessThanOrEqual(2);
+        expect(layout.clipped, `${where}：这些控件被压窄到内容放不下：${JSON.stringify(layout.clipped)}`).toEqual([]);
+        expect(layout.collapsedIds, `${where}：这些控件被挤成了 0 尺寸：${JSON.stringify(layout.collapsedIds)}`).toEqual([]);
+        expect(layout.slack, `${where}：应用栏没有余量了，再加一个控件就会溢出`).toBeGreaterThan(0);
+      }
+    }
+
     await page.setViewportSize({ width: 1280, height: 900 });
     await fresh(page);
-
-    const bar = page.locator('.toolbar');
-    // 两种工具态都量一遍：接线工具会多出上下文控件，1280 下最先在这里溢出。
-    for (const tool of ['select', 'wire'] as const) {
-      if (tool === 'wire') await page.getByTestId('tool-wire').click();
-      const layout = await bar.evaluate((el) => {
-        const cs = getComputedStyle(el);
-        const r = el.getBoundingClientRect();
-        // 隐藏的元素（1280 下收起的字标）尺寸为 0，不参与几何断言。
-        const controls = [...el.querySelectorAll('.zone button, .zone select, .brand, .storage')].filter(
-          (c) => !c.closest('.menu') && c.getBoundingClientRect().width > 0 && c.getBoundingClientRect().height > 0
-        );
-        const boxes = controls.map((c) => c.getBoundingClientRect());
-        const lineHeight = (c: Element) => {
-          const s = getComputedStyle(c);
-          return parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.2;
-        };
-        return {
-          width: Math.round(r.width),
-          contentRight: Math.round(r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth)),
-          worstRight: Math.round(Math.max(...boxes.map((b) => b.right))),
-          centerSpread: Math.max(...boxes.map((b) => Math.round(b.top + b.height / 2))) - Math.min(...boxes.map((b) => Math.round(b.top + b.height / 2))),
-          // 文字折行：按「内容高度 / 行高」数行数，不依赖具体字体度量（图标按钮没有文字，跳过）。
-          wrapped: controls
-            .filter((c) => (c.textContent ?? '').trim().length > 0)
-            .map((c) => {
-              const s = getComputedStyle(c);
-              const inner = c.getBoundingClientRect().height - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth);
-              return { text: (c.textContent ?? '').trim().slice(0, 8), lines: Math.round(inner / lineHeight(c)) };
-            })
-            .filter((x) => x.lines > 1),
-          // 被压窄到内容放不下：nowrap 之后收缩会表现为标签被静默裁掉。
-          clipped: controls
-            .filter((c) => c.scrollWidth > c.clientWidth + 1)
-            .map((c) => ({ text: (c.textContent ?? '').trim().slice(0, 10), scrollWidth: c.scrollWidth, clientWidth: c.clientWidth })),
-          slack: Math.round(el.querySelector('.spacer')!.getBoundingClientRect().width)
-        };
-      });
-
-      expect(layout.width, `${tool}：应用栏不该超出视口宽度`).toBeLessThanOrEqual(1280);
-      expect(layout.worstRight, `${tool}：最右侧控件越过了内容区（右缘 ${layout.contentRight}）`).toBeLessThanOrEqual(layout.contentRight + 1);
-      expect(layout.centerSpread, `${tool}：应用栏应当只有一行，不该换行`).toBeLessThanOrEqual(2);
-      expect(layout.wrapped, `${tool}：这些控件里的文字折行了：${JSON.stringify(layout.wrapped)}`).toEqual([]);
-      expect(layout.clipped, `${tool}：这些控件被压窄到内容放不下：${JSON.stringify(layout.clipped)}`).toEqual([]);
-      expect(layout.slack, `${tool}：应用栏没有余量了，再加一个控件就会溢出`).toBeGreaterThan(0);
-    }
+    const bar1280 = page.locator('.toolbar');
+    // 窄窗口收起字标是**唯一**允许变 0 的东西，这里明确钉住它。
+    expect(await bar1280.evaluate((el) => getComputedStyle(el.querySelector('.brand')!).display)).toBe('none');
 
     // 主栏里一个复选框都没有；显示开关只存在于 popover 打开时。
     await expect(page.locator('.toolbar input[type="checkbox"]')).toHaveCount(0);
@@ -161,6 +164,29 @@ test.describe('应用栏信息架构（issue #37）', () => {
     await expect(pop).toBeVisible();
     await page.getByTestId('canvas').click({ position: { x: 600, y: 300 } });
     await expect(pop).toHaveCount(0);
+  });
+
+  test('popover 不吞掉别处的 Esc：焦点不在它身上时，Esc 照常往下传', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'breadboard_400'); // 添加即选中 bb_1
+    await openViewMenu(page);
+    // 把焦点移出 popover（activeElement 变成 body），模拟「面板开着但我在别处按 Esc」。
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.view-popover')).toHaveCount(0);
+    expect((await state(page)).selectedIds, 'Esc 没被吞掉，App 的清空选中照常发生').toEqual([]);
+  });
+
+  test('接线工具切走再切回，接线选项不会自己冒出来', async ({ page }) => {
+    await fresh(page);
+    await page.getByTestId('tool-wire').click();
+    await openWireOptions(page);
+    // 用快捷键切走再切回：popover 曾经因为 menu 状态残留而"自己打开"。
+    await page.keyboard.press('v');
+    await expect(page.locator('.wire-options-popover')).toHaveCount(0);
+    await page.keyboard.press('w');
+    await expect(page.getByTestId('wire-options')).toBeVisible();
+    await expect(page.locator('.wire-options-popover'), '切回接线工具不该让面板自己打开').toHaveCount(0);
   });
 
   test('每个视图开关切换后画布真的变了', async ({ page }) => {
