@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ComponentInstance, PointUm } from '@breadboard-studio/schema';
-import { applyOps, buildModel, catalogForDesign, loadDesign, toGlobal } from '@breadboard-studio/core';
+import { applyOps, buildModel, catalogForDesign, createEmptyDesign, loadDesign, toGlobal } from '@breadboard-studio/core';
 import { builtinCatalog } from '@breadboard-studio/catalog';
-import { anchorPointUm, leadPin, snapPlacement } from './placement';
+import { anchorPointUm, leadPin, snapBoardPosition, snapPlacement } from './placement';
 
 const FIXTURE = fileURLToPath(new URL('../../../examples/touch_display.breadboard.json', import.meta.url));
 const design = loadDesign(readFileSync(FIXTURE, 'utf8')).design!;
@@ -96,5 +96,20 @@ describe('placement snapping', () => {
     expect(leadPin(pins, 180)?.name).toBe('C');
     expect(leadPin(pins, 270)?.name).toBe('B');
     expect(leadPin([{ name: 'PAD', local_um: [0, 0] as PointUm, kind: 'pad' }], 0), 'a part with no header pin has no anchor').toBeUndefined();
+  });
+
+  it('does not snap a breadboard to a perfboard edge', () => {
+    const staged = applyOps(
+      createEmptyDesign('snap'),
+      [
+        { op: 'add_board', board: { id: 'pb', model: 'perfboard_5x7@1', position_um: [0, 0], rotation_deg: 0 } },
+        { op: 'add_board', board: { id: 'bb', model: 'breadboard_400@1', position_um: [55000, 0], rotation_deg: 0 } }
+      ],
+      { catalog, allow_blocking: true }
+    );
+    expect(staged.ok).toBe(true);
+    if (!staged.ok) return;
+    const moved = snapBoardPosition(buildModel(staged.design, catalog), 'bb', [0, 0]);
+    expect(moved).toEqual([55000, 0]);
   });
 });

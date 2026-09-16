@@ -81,8 +81,12 @@ export function Library() {
   const addBoard = (model: string, plan?: { columns: number; rows: number }) => {
     const id = nextId('bb_');
     const first = design.boards[0];
+    const last = design.boards.at(-1);
     const isPerfboard = catalog.getBoard(model)?.render.style === 'perfboard';
-    const placement = first && !isPerfboard ? { attach_to: { board_id: design.boards[design.boards.length - 1]!.id, side: 'right' as const, grid_align: true } } : first ? {} : { position_um: [0, 0] as [number, number] };
+    const canAttachToLast = Boolean(last && catalog.getBoard(last.model)?.render.style !== 'perfboard');
+    const placement = last && canAttachToLast && !isPerfboard
+      ? { attach_to: { board_id: last.id, side: 'right' as const, grid_align: true } }
+      : first ? {} : { position_um: [0, 0] as [number, number] };
     // 自定义尺寸 = 添加原型号 + resize_board，一次 apply = 一次撤销。
     const ops: Op[] = plan
       ? [{ op: 'add_board', board: { id, model, ...placement } }, { op: 'resize_board', id, columns: plan.columns, rows: plan.rows }]

@@ -45,4 +45,13 @@ test.describe('洞洞板（issue #27）', () => {
     await page.getByTestId('toggle-solder-side').click();
     await expect(page.getByTestId('canvas-hud')).toContainText('元件面');
   });
+
+  test('洞洞板不参与面包板的默认机械拼接', async ({ page }) => {
+    await fresh(page);
+    await addFromLibrary(page, 'perfboard_5x7');
+    await addFromLibrary(page, 'breadboard_400');
+    const d = await design(page);
+    expect(d.boards.map((board) => board.position_um)).toEqual([[0, 0], [60800, 0]]);
+    await expect(page.getByTestId('board-join-target')).toHaveCount(0);
+  });
 });
