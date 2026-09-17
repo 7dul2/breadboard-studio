@@ -191,11 +191,10 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
     await togglePanelRail(page, 'left');
     const rail = page.getByTestId('panel-rail-left');
     await expect(rail).toHaveAttribute('aria-expanded', 'false');
-    // MUTATION: focus assertion temporarily removed
-
-    // 折叠后敲的键不能落进那个看不见的输入框（修之前这里会是 ledX）。
-    await page.keyboard.type('X');
-    await expect(search, '看不见的输入框不该再吃按键').toHaveValue('led');
+    // 焦点被主动搬到轨道上：折叠后按 Enter 应该是「展开」，而不是落回看不见的内容。
+    await page.keyboard.press('Enter');
+    await expect(rail, '焦点已搬到轨道，Enter 重新展开').toHaveAttribute('aria-expanded', 'true');
+    await togglePanelRail(page, 'left');
     await expect(rail).toHaveAttribute('aria-expanded', 'false');
   });
 

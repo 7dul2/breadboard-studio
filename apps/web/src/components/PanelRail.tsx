@@ -62,13 +62,16 @@ export function PanelRail({ side }: { side: PanelSide }) {
       justDragged.current = false;
       return;
     }
-    // 折叠不卸载面板内容（故意的：仿真会话、草稿、焦点语义都要留着），所以要主动把焦点
-    // 从「马上要看不见」的内容上移开。不移开会真的吞键：在元件库搜索框里打 `led`，点轨道
-    // 折叠，再敲 `X` —— `X` 进的是那个看不见的输入框（实测变成 `ledX`）。
     if (!collapsed) {
+      // 折叠不卸载面板内容（故意的：仿真会话、草稿、焦点语义都要留着），所以要把焦点
+      // 从「马上要看不见」的内容上主动搬走。不移开会真的吞键：在元件库搜索框里打 `led`，
+      // 点轨道折叠，再敲 `X` —— `X` 进的是那个看不见的输入框（实测变成 `ledX`）。
+      // 焦点落在轨道自己或面板之外时不抢焦点（展开后焦点仍归调用方）。
       const active = document.activeElement;
-      const panel = railRef.current?.closest('.panel-side');
-      void active; void panel; // MUTATION: focus rescue disabled
+      const rail = railRef.current;
+      if (active instanceof HTMLElement && rail && active !== rail && rail.closest('.panel-side')?.contains(active)) {
+        rail.focus();
+      }
     }
     togglePanel(side);
   };

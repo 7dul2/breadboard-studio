@@ -56,5 +56,5 @@
 ## 洞洞板与派生定义的特殊规则
 
 - **洞洞板（`render.style === "perfboard"`）**：每块洞洞板的焊盘是独立导通组，没有电源轨与列间隐式导通。验证时需逐焊盘确认电气连接，不能沿用面包板的"同列五孔导通"推论。丝印标注的"+"/−或红/蓝线只是 `marking`，不是电气证据。
-- **`resize_board` 生成的派生定义**：通过 `id_custom` + `version+1` 生成，其 `geometry_status`/`electrical_status` 继承自源定义的当前状态（源为 `approximate` 则派生也为 `approximate`）。自定义尺寸（列 5–120、行 1–shape.rows）本身不重新校验几何，所以派生定义没有独立的 `measured`/`verified` 证据链——需要单独实测时应另建新版本定义。
-- **导线落在占用焊盘上**：洞洞板允许多根导线共享同一焊点（焊接工艺事实）。验证规则中 `wire_hole_conflict` 对已占用的焊盘放宽为"仅当第三根及以上导线时报错"。这一行为属于电气/工艺约定而非几何测量，所以不作为 `verified` 的判定依据。
+- **`resize_board` 生成的派生定义**：通过 `id_custom` + `version+1` 生成，`geometry_status` 固定为 `approximate`（派生几何没有独立实测证据）；`electrical_status` 沿用源定义的当前状态，`sources` 换成一条派生说明——内置型号的证据链不被改动。自定义尺寸（列 5–120、行 1–shape.rows）本身不重新校验几何，所以派生定义没有独立的 `measured`/`verified` 证据链——需要单独实测时应另建新版本定义。
+- **导线落在已被引脚占用的焊盘上**：洞洞板允许第一根导线与引脚共用同一焊点（焊接工艺事实），不报 `wire_endpoint_occupied`；但同一焊盘的**第二根导线**仍报 `wire_hole_conflict`。这一行为属于电气/工艺约定而非几何测量，所以不作为 `verified` 的判定依据。
