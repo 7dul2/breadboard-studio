@@ -203,7 +203,9 @@ a { color: var(--accent); }
    点它折叠/展开。轨道是面板自己的一部分，不是盖在画布上的浮层，所以画布的可点区域
    一点没被占；原先 1px 的分隔线现在由轨道里的握把画在同一个像素位置上。
    折叠时宽度取 max(轨道, 变量)：变量归 0 后只剩那条轨道（展开入口），展开时整个面板
-   仍是 260 / 340，画布两侧看到的位置与改动前逐像素相同。 */
+   仍是 260 / 340、画布两侧的外边界与改动前逐像素相同。**代价是面板内容区窄 10px**
+   （左 259 → 250、右 339 → 330）：这 10px 被轨道占掉了。要连内容也逐像素相同，只能让
+   轨道改成覆盖式，那会盖住面板最后 10px 内容、并在折叠时压住 10px 画布——不划算。 */
 :root {
   --panel-rail-width: 10px;
   --panel-left-width: 260px;
@@ -221,7 +223,9 @@ a { color: var(--accent); }
    由此带来的已知取舍：折叠后 Tab 仍会走进看不见的面板内容。改成 inert 需要先把
    .model-detail-layer 这类 fixed 浮层从面板里搬出去，否则浮层会一起失去交互。 */
 .panel-body { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.panel-rail { position: relative; flex: none; width: var(--panel-rail-width); padding: 0; border: 0; border-radius: 0; background: var(--panel); color: var(--muted); cursor: col-resize; display: flex; align-items: stretch; }
+/* touch-action: none 与仿真里的 .code-handle 同理：否则触屏上的横向拖动会被当成滚动手势，
+   浏览器中途发 pointercancel，轨道就拖不动了。 */
+.panel-rail { position: relative; flex: none; width: var(--panel-rail-width); padding: 0; border: 0; border-radius: 0; background: var(--panel); color: var(--muted); cursor: col-resize; touch-action: none; display: flex; align-items: stretch; }
 /* 握把贴着画布那一边：展开时正好落在原来那条面板边框上。 */
 .panel-rail.left { justify-content: flex-end; }
 .panel-rail.right { justify-content: flex-start; }

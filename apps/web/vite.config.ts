@@ -3,6 +3,7 @@ import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 // The extension is required by Vite's native config loader; TS allows it here via allowImportingTsExtensions.
 import { writeDefinition } from './devtools/definition-writeback.ts';
+import { docsSite } from './devtools/docs-site.ts';
 
 // GitHub Pages serves the site under /<repo>/; local dev serves at /.
 const base = process.env.VITE_BASE ?? '/';
@@ -58,7 +59,7 @@ function definitionWriteback(): Plugin {
 
 export default defineConfig({
   base,
-  plugins: [react(), definitionWriteback()],
+  plugins: [react(), definitionWriteback(), docsSite()],
   server: {
     port: 5173,
     strictPort: false

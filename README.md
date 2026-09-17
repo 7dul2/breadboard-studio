@@ -60,7 +60,7 @@ I²C 地址冲突时，规划器可根据型号能力分配另一条总线或调
 | 可拆拼装式 | 300 孔中间接线板、独立 `+/−` 电源条 |
 | 洞洞板 | 5×7 cm（18×24 孔）、7×9 cm（27×35 孔） |
 | 主控 | ESP32-S3 N16R8，双 Type-C、44 针 |
-| 显示 | 0.96 英寸 SSD1315 OLED，4 针 |
+| 显示 | 0.96 英寸 SSD1315 OLED、1.77 英寸 ST7735S TFT |
 | 输入 | KY-040 旋转编码器、6×6 mm 轻触按键、TTP224 四路电容触摸模块 |
 
 有反面绘图的元件会在悬停详情里并排展示正面和反面；旧元件仍只显示正面。N16R8 板载 RGB 灯支持输入 RGB 值，OLED 支持白色或蓝色显示外观；这些目前是外观属性。
@@ -73,7 +73,7 @@ I²C 地址冲突时，规划器可根据型号能力分配另一条总线或调
 
 导通高亮帮助你检查连接关系；校验面板区分错误、警告和待审核事项。右侧「接线向导」按线号列出两端孔位与颜色，并保存完成进度。
 
-顶栏分三区：左边是项目与导出，中间是当前模式下的工具，右边是视图与状态。画布上显示什么（孔号、针脚名、导通高亮、聚焦选中、元件面/焊接面）都在「视图」里；接线时的线色与走线方式在「接线选项」里，按钮上的色点就是当前线色。窗口较窄（≤1400px）时字标会让位给工具。
+顶栏分三区：左边是项目与导出，中间是当前模式下的工具，右边是视图与状态。画布上显示什么（孔号、针脚名、导通高亮、聚焦选中、元件面/焊接面）都在「视图」里；接线时的线色与走线方式在「接线选项」里，按钮上的色点就是当前线色。窗口较窄（≤1480px）时字标会让位给工具。
 
 ![接线向导：逐根查看导线两端并勾选完成](docs/screenshots/build-mode.png)
 
@@ -169,7 +169,7 @@ Agent 也可以用 MCP 直接调用同一个引擎，连 shell 都不需要：
 claude mcp add breadboard -- node packages/cli/bin/bb.mjs mcp
 ```
 
-`bb mcp` 在 stdio 上暴露十个只读工具加两个默认 dry-run 的写工具（`autowire`、`apply_patch`），返回体与 CLI 的 `--json` 完全一致；写文件必须显式 `write: true`。工具清单与错误约定见 [Agent 指南](docs/AGENT_GUIDE.md#mcp-server工具通道)。
+`bb mcp` 在 stdio 上暴露九个只读工具加两个默认 dry-run 的写工具（`autowire`、`apply_patch`），返回体与 CLI 的 `--json` 完全一致；写文件必须显式 `write: true`。工具清单与错误约定见 [Agent 指南](docs/AGENT_GUIDE.md#mcp-server工具通道)。
 
 完整命令、补丁示例与自动排线规则见 [Agent 指南](docs/AGENT_GUIDE.md)和[设计文件格式](docs/DESIGN_FORMAT.md)。
 
@@ -209,7 +209,9 @@ claude mcp add breadboard -- node packages/cli/bin/bb.mjs mcp
 
 ## 更多文档
 
-[架构与坐标约定](docs/ARCHITECTURE.md) · [设计文件格式](docs/DESIGN_FORMAT.md) · [CLI / Agent](docs/AGENT_GUIDE.md) · [元件建模](docs/CATALOG.md) · [进度与验证记录](docs/STATUS.md) · [仿真器方案](docs/SIMULATOR_DESIGN.md) · [可执行仿真实施计划](docs/SIMULATOR_RUNTIME_PLAN.md)
+[架构与坐标约定](docs/ARCHITECTURE.md) · [设计文件格式](docs/DESIGN_FORMAT.md) · [CLI / Agent](docs/AGENT_GUIDE.md) · [元件建模](docs/CATALOG.md) · [进度与验证记录](docs/STATUS.md) · [仿真器方案](docs/SIMULATOR_DESIGN.md) · [可执行仿真实施计划](docs/SIMULATOR_RUNTIME_PLAN.md) · [洞洞板体验需求](docs/PERFBOARD_UX.md)
+
+也可以直接在站点上阅读：[在线文档](https://7dul2.github.io/breadboard-studio/docs/)
 
 MIT 许可证，见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

@@ -1,6 +1,6 @@
 # 元件目录与建模指南
 
-目录定义是 `packages/catalog/src/definitions/*.json` 中的纯 JSON，schema 见 `packages/schema/src/definition.schema.ts`。每个定义包含：唯一 `id`、`version`、名称、厂商/型号/版本、外形 `body`、局部原点（左上角）、引脚坐标或参数化生成器、安装方式 `mount`、电气属性 `electrical` 与 `pin_meta`、原创正面绘图 `render`、可选反面绘图 `back_render`、来源 `sources`、许可 `license`、以及分开记录的 `geometry_status` / `electrical_status`。
+目录定义是 `packages/catalog/src/definitions/*.json` 中的纯 JSON，schema 见 `packages/schema/src/definition.schema.ts`。每个定义包含：唯一 `id`、`version`、名称、厂商/型号/版本、外形 `body`（板件是 `size_um` + `terminal_blocks`）、局部原点（左上角）、引脚坐标或参数化生成器、安装方式 `mount`、电气属性 `electrical` 与 `pin_meta`、原创正面绘图 `render`、可选反面绘图 `back_render`、可选策展标记 `featured`、来源 `sources`、许可 `license`、以及分开记录的 `geometry_status` / `electrical_status`。
 
 ## 证据状态
 
@@ -29,8 +29,11 @@
 | `esp32s3_n16r8_dual_usb@1` | approximate | approximate | 27.94×57.15 mm 双 Type-C 44 针黑色开发板；N16R8、CH343、RGB、BOOT/RST，25.40 mm 排距跨面包板沟槽。 |
 | `oled_0_96_i2c@1` / `oled_0_91_i2c@1` | approximate | approximate | 4 针单排 I²C 转接板，针序 `pin_names` 必须按丝印确认；地址 0x3C/0x3D。 |
 | `oled_0_96_ssd1315_i2c@1` | approximate | approximate | 参考图中的 27×26.5 mm SSD1315 四针平躺模块；黑色屏幕，`display_color` 可切换白色/蓝色示例显示；`address_options` 0x3C/0x3D。 |
+| `tft_1_77_st7735_spi@1` | approximate | approximate | 1.77 英寸 128×160 ST7735S SPI 屏，8 针 `GND/VCC/SCK/SDA/RES/RS/CS/LEDA`；背光脚 LEDA 未建模限流。 |
 | `ttp223_module@1` | approximate | approximate | 3 针；输出电平随供电，`config.supply_v` 决定电平检查。 |
-| `ttp224_module@1` | approximate | approximate | 35×29 mm 四路电容触摸模块，6 针；带原创正反面绘图，针序与模式焊盘须按实物复核。 |
+| `ttp224_module@1` | approximate | approximate | 35×29 mm 四路电容触摸模块，6 针；**唯一带 `back_render` 的定义**（60 个图元），元件库悬停详情并排显示正反面；针序与模式焊盘须按实物复核。 |
+| `encoder_ky040@1` | approximate | approximate | EC11 / KY-040 类旋转编码器模块，5 针 `CLK/DT/SW/+/GND`；CLK/DT/SW 标为 `open_drain`，电平未知（`io_voltage_v: null`），上拉要按实物确认。 |
+| `tactile_6x6@1` | approximate | approximate | 6×6×5 mm 四脚轻触按键，但**只建模两个电气端点** `A`/`B`（相距 2 个孔距）：另外两脚是同一开关的另一侧，接它们不会多出通路。 |
 | `sht41_breakout@1` / `bmp390_breakout@1` / `ltr390_breakout@1` | unknown | approximate | 通用 I²C 转接板模板 + 芯片地址；转接板尺寸/针序/稳压未知。 |
 | `sen66@1` | approximate | approximate | 板外线缆器件，6 端子 JST-GH；平均电流 ~90 mA，峰值未录入。 |
 | `power_module_3v3@1` | unknown | unknown | 3V3/GND 输出占位；能力在 `config.capacity_ma` 填写。 |
@@ -46,14 +49,25 @@
 
 - 搜索框覆盖**整个目录**（含折叠项），所以折叠永远不是不可达：搜到即添加，不需要先展开。
 - 折叠状态只活在当前会话（切换左侧页签不丢，刷新回到默认折叠），不写进设计文件。
-- 非 `verified` 的定义在卡片上显示状态徽标，文案与画布徽标同源（`几何近似` / `电气未知` 等）。徽标是提醒不是禁令：`unknown` 的占位定义默认折叠，但照样能添加，后果写在 `notes` 里。
+- **内嵌进当前设计的定义始终钉在可见位置**，不管它有没有 `featured`——否则导入一份自带定义的设计会看起来「少了件」。
+- 非 `verified` 的定义在卡片上显示状态徽标，文案与画布徽标同源（`几何近似` / `电气未知` 等，两处共用 `modelStatusText()`）。徽标是提醒不是禁令：`unknown` 的占位定义默认折叠，但照样能添加，后果写在 `notes` 里。
 - 目录测试把精选集合钉死（`packages/catalog/test/catalog.test.ts`）：新增定义不会悄悄改变默认视图，精选型号也不会悄悄掉进折叠区。
+
+当前 24 个内置定义里 12 个是精选：`breadboard_400`、`breadboard_400_terminal`、`breadboard_830`、`breadboard_power_strip_25`、`perfboard_5x7`、`perfboard_7x9`、`esp32s3_n16r8_dual_usb`、`oled_0_96_ssd1315_i2c`、`ttp224_module`、`tft_1_77_st7735_spi`、`encoder_ky040`、`tactile_6x6`。其余 12 个（XIAO、通用 DevKit 模板、0.96/0.91 英寸通用 OLED、TTP223、三个传感器转接板、SEN66、电源模块、电阻、LED）折叠在各自类目下，搜索照样直达。
 
 ## 洞洞板定义
 
-洞洞板使用与面包板相同的 `BoardDefinition`，但 `render.style` 为 `perfboard`，不声明电源轨或中央沟槽。每个物理行可以建模为一个只含单行的 `terminal_block`，这样每个孔天然是独立导通组；行标签可以是一个或多个 ASCII 字母（例如 `A`、`AA`）。元件仍通过普通板上锚点放置，导线、自动布线、校验、接线向导和 SVG/PNG 导出复用同一套板机制。
+洞洞板使用与面包板相同的 `BoardDefinition`，但 `render.style` 为 `perfboard`，不声明电源轨或中央沟槽。每个物理行可以建模为一个只含单行的 `terminal_block`，这样每个孔天然是独立导通组；行标签可以是一个或多个 ASCII 字母（例如 `A`、`AA`；schema 的 `rows` 允许 `^[A-Za-z]+$`）。元件仍通过普通板上锚点放置，导线、自动布线、校验、接线向导和 SVG/PNG 导出复用同一套板机制。
 
-洞洞板尺寸编辑的“行数”是整块板的物理行数，而不是面包板每个接线块的行数。`5×7` 与 `7×9` 型号都能在目录详情或画布尺寸把手中按 2.54 mm 孔距派生自定义列/行数；默认不提供面包板式机械拼装入口。
+洞洞板的电气语义与面包板有三处不同，都在模型层实现，不是界面特例：
+
+- **每个焊盘独立导通**（`groupHoles('pb.A1') === ['pb.A1']`），没有「同列五孔」这种隐式分组。
+- **导线可以落在已被引脚占用的焊盘上**：焊接面本来就可以在同一个焊点再焊一根线，所以这里不报 `wire_endpoint_occupied`。同一焊盘上的**第二根导线**仍然报 `wire_hole_conflict`。
+- **自动排线对洞洞板外设只认引脚自己的焊盘**：该焊盘空闲就用它，被占则跳过并报 `solder_pad_in_use`（不会去用同组其它孔，因为根本没有同组）。洞洞板上的主机引脚也可以从自己的焊盘出线。
+
+洞洞板尺寸编辑的“行数”是整块板的物理行数，而不是面包板每个接线块的行数；派生时按整行裁剪，所以 `AA` 这样的多字母行号保持稳定。`5×7` 与 `7×9` 型号都能在创建时、属性面板或画布尺寸把手中按 2.54 mm 孔距派生自定义列/行数（列 5–120，行 1–原行数）；派生定义内嵌进设计，见 [`DESIGN_FORMAT.md`](DESIGN_FORMAT.md#面包板-boards)。洞洞板默认不提供面包板式机械拼装入口（拼接对话框与吸附都只认面包板）。
+
+画布的「视图」菜单里有「洞洞板翻到焊接面」开关。**当前实现是全局翻转**：翻一块板会把所有板、元件与导线一起镜像，而且翻面后文字也会镜像。这是已知缺陷，需求与验收见 [`PERFBOARD_UX.md`](PERFBOARD_UX.md)。
 
 ## 引脚元数据 `pin_meta`
 
@@ -88,12 +102,12 @@
 | `driver` | 版本化驱动 id，如 `mcu.esp32s3.behavioral@1`。规则引擎据此判断程序目标是否可仿真（缺少时报 `program_target_unsupported`）。 |
 | `pins` | 引脚名 → 驱动通道（字符串，如 `"IO": "out"`）或 GPIO 号（数字，如 `"GPIO4": 4`）。 |
 | `properties` | 驱动常量，如 OLED 的 `width`/`height`、MCU 的 `boot_gpio`/`rgb_gpio`/`uart0`。 |
-| `controls[]` | 可交互区域 `{ id, feature_label, action: press|touch|toggle|slider, channel }`。 |
+| `controls[]` | 可交互区域 `{ id, feature_label, action: press|touch|toggle|slider, channel, range? }`。滑杆的 `range`（`min`/`max`/`step`/`default`/`unit`）属于**元件**而不是界面：−40…125 °C 是 SHT4x 的能量程，面板不该知道 SHT4x 是什么。 |
 | `visuals[]` | 随运行状态变化的外观 `{ id, feature_label, kind: led|display|state, channel }`。 |
 
-`feature_label` 必须与同一定义 `features[].label` 完全一致：点击命中区域与渲染区域继续由目录几何决定，驱动只通过 `channel` 收发事件。`features[].type` 新增 `led`（板载 RGB、单个 LED 的发光区域）。schema 见 `packages/schema/src/definition.schema.ts`，目录测试会校验这些字段。
+`feature_label` 必须与同一定义 `features[].label` 完全一致：点击命中区域与渲染区域继续由目录几何决定，驱动只通过 `channel` 收发事件。`features[].type` 包含 `led`（板载 RGB、单个 LED 的发光区域）、`button`、`sensor_window`、`display` 等。schema 见 `packages/schema/src/definition.schema.ts`，目录测试会校验这些字段。
 
-当前声明的驱动：
+当前声明的驱动（8 个，注册表在 `packages/sim/src/devices/registry.ts`）：
 
 | driver | 定义 | 绑定 |
 | --- | --- | --- |
@@ -101,9 +115,12 @@
 | `input.ttp223@1` | `ttp223_module@1` | `触摸区` 控件（`touch`）→ `IO` 输出通道 `out`。 |
 | `display.ssd1315@1` | `oled_0_96_i2c@1`、`oled_0_91_i2c@1`、`oled_0_96_ssd1315_i2c@1` | `SDA`/`SCL`/`VCC`/`GND` 通道，`properties.width/height`，屏幕视觉（`display`，通道 `framebuffer`）。 |
 | `output.led@1` | `led_5mm@1` | `A`/`K` → `anode`/`cathode`，`LED` 视觉（`led`，通道 `glow`）。 |
-| `sensor.sht4x@1` | `sht41_breakout@1` | I²C 通道；`传感器` 上的温度/湿度滑杆控件（`slider`，通道 `temperature_c`/`humidity_rh`）。 |
+| `sensor.sht4x@1` | `sht41_breakout@1` | I²C 通道；`传感器` 上的温度/湿度滑杆控件（`slider`，通道 `temperature_c`/`humidity_rh`，范围 −40…125 °C / 0…100 %RH）。 |
+| `sensor.ltr390@1` | `ltr390_breakout@1` | I²C 通道；环境光（`ambient_lux`）与 UV 指数（`uv_index`）滑杆。 |
+| `sensor.sen6x@1` | `sen66@1` | I²C 通道；九个空气质量量各自一个滑杆（`pm1_ugm3` 等），不强加 PM1 ≤ PM2.5 ≤ PM4 ≤ PM10 的物理约束。 |
+| `sensor.bmp390@1` | `bmp390_breakout@1` | I²C 通道；气压（`pressure_hpa`，300–1250）与温度滑杆。器件报**原始 ADC 值**，补偿多项式由程序自己跑。 |
 
-**行为尚未实现**：阶段 0 只保存并校验这些绑定，驱动本身在阶段 1+ 实现（见 `docs/SIMULATOR_DESIGN.md`）；现在给主控写程序不会让任何元件动起来。
+**行为已实现**（阶段 1–4）：这些绑定对应的驱动都在 `packages/sim` 里，给主控写程序能真的驱动板载 RGB、点亮 LED、把画面写进 OLED、读到滑杆上的传感器值。设计、运行态与诊断码的完整说明见 [`SIMULATOR_DESIGN.md`](SIMULATOR_DESIGN.md)；`program_target_unsupported` 只在目标型号**没有** `simulation.driver` 时出现，不是「阶段未到」。目录里还有一批没有驱动的型号（TFT、编码器、轻触按键、TTP224 等），它们能放置、接线、导出，但仿真时不会动。
 
 ## 添加一个简单模块（不改应用代码）
 

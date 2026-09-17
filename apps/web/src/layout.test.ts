@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_LAYOUT, PANEL_MAX_WIDTH, PANEL_MIN_WIDTH, clampPanelWidth, parseLayout, serializeLayout } from './layout';
+import { afterEach, describe, expect, it } from 'vitest';
+import { DEFAULT_LAYOUT, PANEL_MAX_WIDTH, PANEL_MIN_WIDTH, applyLayout, clampPanelWidth, parseLayout, previewPanelWidth, serializeLayout } from './layout';
 
 /**
  * 纯函数部分（node 环境可测）：越界回落 + 拖拽夹紧。
@@ -55,13 +55,21 @@ describe('parseLayout', () => {
 });
 
 describe('clampPanelWidth', () => {
+  it('pins the allowed range and the defaults (issue #39: 200–520, 默认 260/340)', () => {
+    // 字面量是故意的：拿被测常量同时当输入和期望，改常量时测试不会失败，等于没钉住。
+    expect(PANEL_MIN_WIDTH).toBe(200);
+    expect(PANEL_MAX_WIDTH).toBe(520);
+    expect(DEFAULT_LAYOUT).toEqual({ leftWidth: 260, rightWidth: 340, leftCollapsed: false, rightCollapsed: false });
+  });
+
   it('keeps a dragged width inside the allowed range', () => {
     expect(clampPanelWidth(300)).toBe(300);
-    expect(clampPanelWidth(PANEL_MIN_WIDTH)).toBe(PANEL_MIN_WIDTH);
-    expect(clampPanelWidth(PANEL_MAX_WIDTH)).toBe(PANEL_MAX_WIDTH);
-    expect(clampPanelWidth(1)).toBe(PANEL_MIN_WIDTH);
-    expect(clampPanelWidth(10_000)).toBe(PANEL_MAX_WIDTH);
-    expect(clampPanelWidth(-40)).toBe(PANEL_MIN_WIDTH);
+    expect(clampPanelWidth(200)).toBe(200);
+    expect(clampPanelWidth(520)).toBe(520);
+    expect(clampPanelWidth(1)).toBe(200);
+    expect(clampPanelWidth(519.6)).toBe(520);
+    expect(clampPanelWidth(10_000)).toBe(520);
+    expect(clampPanelWidth(-40)).toBe(200);
   });
 
   it('rounds to whole pixels so the canvas delta is an integer', () => {
@@ -70,8 +78,49 @@ describe('clampPanelWidth', () => {
   });
 
   it('never returns NaN, whatever a drag computes', () => {
-    expect(clampPanelWidth(NaN)).toBe(PANEL_MIN_WIDTH);
-    expect(clampPanelWidth(Infinity)).toBe(PANEL_MIN_WIDTH);
-    expect(clampPanelWidth(-Infinity)).toBe(PANEL_MIN_WIDTH);
+    // 拖动不可能产出 ±Infinity，所以这里只是保证任何输入都不会把 NaN 写进宽度变量。
+    expect(clampPanelWidth(NaN)).toBe(200);
+    expect(clampPanelWidth(Infinity)).toBe(200);
+    expect(clampPanelWidth(-Infinity)).toBe(200);
+  });
+});
+
+/**
+ * CSS 变量是 styles.css 与面板之间唯一的接口，所以变量名和「折叠写 0」这两条契约
+ * 在这里钉住（DOM 侧的效果由 e2e/panels.spec.ts 量真实宽度来兜）。
+ */
+describe('applyLayout / previewPanelWidth', () => {
+  // node 环境没有 document：给一个只记 setProperty 的替身，就能直接看这两个函数写了什么。
+  let restore: (() => void) | null = null;
+
+  function stubDocument(): Map<string, string> {
+    const writes = new Map<string, string>();
+    const globals = globalThis as unknown as { document?: unknown };
+    const original = globals.document;
+    globals.document = { documentElement: { style: { setProperty: (key: string, value: string) => writes.set(key, value) } } };
+    restore = () => {
+      globals.document = original;
+    };
+    return writes;
+  }
+
+  afterEach(() => {
+    restore?.();
+    restore = null;
+  });
+
+  it('writes the two variables, and 0px when a panel is collapsed', () => {
+    const writes = stubDocument();
+    applyLayout({ leftWidth: 320, rightWidth: 200, leftCollapsed: false, rightCollapsed: true });
+    expect(writes.get('--panel-left-width')).toBe('320px');
+    expect(writes.get('--panel-right-width')).toBe('0px');
+  });
+
+  it('preview writes one variable and stays inside the range', () => {
+    const writes = stubDocument();
+    previewPanelWidth('left', 480.6);
+    expect(writes.get('--panel-left-width')).toBe('481px');
+    previewPanelWidth('right', 9000);
+    expect(writes.get('--panel-right-width')).toBe('520px');
   });
 });

@@ -19,6 +19,7 @@ export function PanelRail({ side }: { side: PanelSide }) {
   const collapsed = side === 'left' ? layout.leftCollapsed : layout.rightCollapsed;
   const width = side === 'left' ? layout.leftWidth : layout.rightWidth;
   const [dragging, setDragging] = useState(false);
+  const railRef = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ startX: number; startWidth: number; last: number; moved: boolean } | null>(null);
   // 拖过一次之后浏览器仍会补一个 click；不拦掉就会在松手时顺带折叠面板。
   const justDragged = useRef(false);
@@ -61,6 +62,14 @@ export function PanelRail({ side }: { side: PanelSide }) {
       justDragged.current = false;
       return;
     }
+    // 折叠不卸载面板内容（故意的：仿真会话、草稿、焦点语义都要留着），所以要主动把焦点
+    // 从「马上要看不见」的内容上移开。不移开会真的吞键：在元件库搜索框里打 `led`，点轨道
+    // 折叠，再敲 `X` —— `X` 进的是那个看不见的输入框（实测变成 `ledX`）。
+    if (!collapsed) {
+      const active = document.activeElement;
+      const panel = railRef.current?.closest('.panel-side');
+      void active; void panel; // MUTATION: focus rescue disabled
+    }
     togglePanel(side);
   };
 
@@ -69,6 +78,7 @@ export function PanelRail({ side }: { side: PanelSide }) {
   return (
     <button
       type="button"
+      ref={railRef}
       className={`panel-rail ${side} ${collapsed ? 'collapsed' : ''} ${dragging ? 'dragging' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

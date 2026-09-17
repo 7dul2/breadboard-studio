@@ -156,6 +156,11 @@ export function canvasWidth(page: Page): Promise<number> {
   return page.evaluate(() => document.querySelector('[data-testid="canvas"]')!.getBoundingClientRect().width);
 }
 
+/** 布局视口宽度（不含滚动条）：两个面板与画布宽度之和就是它。 */
+export function viewportWidth(page: Page): Promise<number> {
+  return page.evaluate(() => document.documentElement.clientWidth);
+}
+
 /** 拖面板轨道（issue #39）：`outward > 0` = 把面板拖宽，左右两侧用同一个符号。 */
 export async function dragPanelRail(page: Page, side: 'left' | 'right', outward: number): Promise<void> {
   const box = await page.getByTestId(`panel-rail-${side}`).boundingBox();

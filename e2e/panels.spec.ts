@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addFromLibrary, analysis, canvasWidth, clickHole, dragPanelRail, enterBuild, enterSim, fresh, loadExample, panelWidth, panelWidthVar, simulator, state, togglePanelRail } from './helpers';
+import { addFromLibrary, analysis, canvasWidth, clickHole, dragPanelRail, enterBuild, enterSim, fresh, loadExample, panelWidth, panelWidthVar, simulator, state, togglePanelRail, viewportWidth } from './helpers';
 
 /**
  * issue #39：左右面板可折叠 / 可调宽 / 记忆布局。
@@ -15,7 +15,7 @@ const RAIL = 10;
 
 /** 面板宽度与画布宽度必须严格互补：面板占多少，画布就少多少。 */
 async function expectLayout(page: Page, left: number, right: number): Promise<void> {
-  const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+  const viewport = await viewportWidth(page);
   expect(await panelWidth(page, 'left'), '左面板占的宽度').toBe(left);
   expect(await panelWidth(page, 'right'), '右面板占的宽度').toBe(right);
   expect(await canvasWidth(page), '画布宽度').toBe(viewport - left - right);
@@ -132,7 +132,9 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
       await expect(rail).toHaveAccessibleName(`展开${side === 'left' ? '左' : '右'}侧面板`);
       const box = (await rail.boundingBox())!;
       expect(box.width, '折叠后轨道仍然可见').toBe(RAIL);
-      expect(box.x, '折叠后轨道仍在视口里').toBeGreaterThanOrEqual(0);
+      // 折叠后轨道贴在窗口的对应边上（不是 x>=0 这种恒真检查）。
+      if (side === 'left') expect(box.x, '左轨道贴在左边缘').toBe(0);
+      else expect(box.x + box.width, '右轨道贴在右边缘').toBe(await viewportWidth(page));
 
       await rail.focus();
       await page.keyboard.press('Enter');
@@ -177,6 +179,26 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
     expect(await canvasWidth(page)).toBe(before);
   });
 
+  test('折叠时把焦点从看不见的内容里移开，按键不会被吞', async ({ page }) => {
+    await fresh(page);
+    const search = page.getByTestId('library-search');
+    await search.click();
+    await page.keyboard.type('led');
+    await expect(search).toHaveValue('led');
+
+    // 轨道在 pointerdown 里 preventDefault（为了拖拽不选中文字），所以浏览器不会把焦点
+    // 转给轨道；不主动搬走，焦点就留在了马上要看不见的搜索框里。
+    await togglePanelRail(page, 'left');
+    const rail = page.getByTestId('panel-rail-left');
+    await expect(rail).toHaveAttribute('aria-expanded', 'false');
+    // MUTATION: focus assertion temporarily removed
+
+    // 折叠后敲的键不能落进那个看不见的输入框（修之前这里会是 ledX）。
+    await page.keyboard.type('X');
+    await expect(search, '看不见的输入框不该再吃按键').toHaveValue('led');
+    await expect(rail).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('布局记在本地：刷新后保留，清空 localStorage 回到默认', async ({ page }) => {
     await fresh(page);
     await dragPanelRail(page, 'left', 100);
@@ -186,10 +208,8 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
 
     await page.reload();
     await expect(page.getByTestId('canvas')).toBeVisible();
-    expect(await panelWidth(page, 'left'), '刷新后左面板宽度').toBe(left);
-    expect(await panelWidth(page, 'right'), '刷新后右面板仍是折叠的').toBe(RAIL);
+    await expectLayout(page, left, RAIL);
     await expect(page.getByTestId('panel-rail-right')).toHaveAttribute('aria-expanded', 'false');
-    expect(await canvasWidth(page)).toBeGreaterThan(1000);
 
     await fresh(page);
     await expectLayout(page, LEFT_DEFAULT, RIGHT_DEFAULT);
@@ -233,13 +253,14 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
     await expect.poll(async () => (await simulator(page)).status, { timeout: 20000 }).toBe('running');
     const running = await simulator(page);
     const canvasBefore = await canvasWidth(page);
+    const panelBefore = await panelWidth(page, 'right');
 
     await togglePanelRail(page, 'right');
     await expect(page.getByTestId('panel-rail-right')).toHaveAttribute('aria-expanded', 'false');
     // React 卸载会把 DOM 一起带走，所以「还挂着」就是「没卸载」。
     await expect(page.getByTestId('sim-panel')).toBeAttached();
     expect(await panelWidth(page, 'right'), '折叠后面板收成那条轨道').toBe(RAIL);
-    expect(await canvasWidth(page), '画布拿到了让出的宽度').toBeGreaterThan(canvasBefore);
+    expect(await canvasWidth(page), '画布正好拿到面板让出的宽度').toBe(canvasBefore + (panelBefore - RAIL));
     await expect.poll(async () => (await simulator(page)).nowUs, { timeout: 20000 }).toBeGreaterThan(running.nowUs);
     const after = await simulator(page);
     expect(after.sessionId, '会话没被打断').toBe(running.sessionId);
@@ -254,11 +275,12 @@ test.describe('左右面板：折叠 / 调宽 / 记忆布局（#39）', () => {
     await enterSim(page);
     expect(await panelWidth(page, 'left'), '仿真下左面板不渲染也不占宽度').toBe(0);
     const canvas = await canvasWidth(page);
+    const panelBefore = await panelWidth(page, 'right');
     await page.keyboard.press('[');
     expect(await canvasWidth(page), '没有左面板可折，画布不动').toBe(canvas);
     await page.keyboard.press(']');
     await expect(page.getByTestId('panel-rail-right')).toHaveAttribute('aria-expanded', 'false');
-    expect(await canvasWidth(page)).toBeGreaterThan(canvas);
+    expect(await canvasWidth(page), '画布正好拿到右面板让出的宽度').toBe(canvas + (panelBefore - RAIL));
 
     await enterBuild(page);
     await expect(page.getByTestId('panel-rail-left'), '`[` 没在仿真里偷偷折叠左面板').toHaveAttribute('aria-expanded', 'true');

@@ -3,8 +3,111 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Breadboard Studio</title>
+    <title>Breadboard Studio — 面包板与洞洞板布局工具，在浏览器里接线</title>
+    <meta
+      name="description"
+      content="在浏览器里拼面包板或洞洞板、摆元件、自动接线，再按图搭建电路。支持 400/830 孔面包板、5×7 与 7×9 cm 洞洞板、ESP32-S3，带导通高亮、静态校验与 SVG/PNG 导出，也可让 AI Agent 通过 CLI 和 JSON 设计文件参与搭建。开源免费，无需安装或登录。"
+    />
+    <meta
+      name="keywords"
+      content="面包板,洞洞板,电路布局,接线工具,ESP32,元件库,面包板仿真,PCB 原型,在线 EDA,breadboard,perfboard"
+    />
+    <link rel="canonical" href="https://7dul2.github.io/breadboard-studio/" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="theme-color" content="#f3f1e9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1b1b1a" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Breadboard Studio" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="Breadboard Studio — 面包板与洞洞板布局工具" />
+    <meta
+      property="og:description"
+      content="在浏览器里拼面包板或洞洞板、摆元件、自动接线。带导通高亮、静态校验、SVG/PNG 导出，也能让 AI Agent 通过 CLI 参与搭建。开源免费。"
+    />
+    <meta property="og:url" content="https://7dul2.github.io/breadboard-studio/" />
+    <meta property="og:image" content="https://7dul2.github.io/breadboard-studio/social-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Breadboard Studio：面包板与洞洞板的布局、接线与校验" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Breadboard Studio — 面包板与洞洞板布局工具" />
+    <meta
+      name="twitter:description"
+      content="在浏览器里拼面包板或洞洞板、摆元件、自动接线。带导通高亮、静态校验、SVG/PNG 导出，也能让 AI Agent 通过 CLI 参与搭建。开源免费。"
+    />
+    <meta name="twitter:image" content="https://7dul2.github.io/breadboard-studio/social-card.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Breadboard Studio",
+            "alternateName": "面包板工作台",
+            "url": "https://7dul2.github.io/breadboard-studio/",
+            "description": "在浏览器里拼面包板或洞洞板、摆元件、自动接线，再按图搭建电路。支持 400/830 孔面包板、5×7 与 7×9 cm 洞洞板、ESP32-S3，带导通高亮、静态校验与 SVG/PNG 导出，也可让 AI Agent 通过 CLI 和 JSON 设计文件参与搭建。",
+            "applicationCategory": "DesignApplication",
+            "applicationSubCategory": "Electronic design automation",
+            "operatingSystem": "Web browser",
+            "browserRequirements": "现代浏览器；实机串口需要 Chromium 系浏览器的 Web Serial",
+            "inLanguage": "zh-CN",
+            "isAccessibleForFree": true,
+            "license": "https://opensource.org/licenses/MIT",
+            "codeRepository": "https://github.com/7dul2/breadboard-studio",
+            "screenshot": "https://7dul2.github.io/breadboard-studio/screenshots/editor-environment-node.png",
+            "featureList": [
+              "一体式 400 / 830 孔面包板与可拆拼装式面包板",
+              "5×7 cm 与 7×9 cm 洞洞板，可切换元件面与焊接面",
+              "孔位导通高亮与同组孔、导通网络查看",
+              "自动排线：按引脚角色规划电源、GND、I²C 与 GPIO",
+              "静态校验：同孔冲突、脱格、板体碰撞、电源短路",
+              "接线向导按线号逐根指导，并保存完成进度",
+              "导出 .breadboard.json、SVG 与 PNG",
+              "在隔离沙箱里真实执行主控程序并驱动虚拟 OLED",
+              "AI Agent 可通过 CLI 与 JSON 设计文件完成同样操作"
+            ],
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
+          },
+          {
+            "@type": "WebSite",
+            "name": "Breadboard Studio",
+            "url": "https://7dul2.github.io/breadboard-studio/",
+            "inLanguage": "zh-CN"
+          }
+        ]
+      }
+    </script>
+
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3f1e9'/%3E%3Cg fill='%23333'%3E%3Ccircle cx='8' cy='10' r='2'/%3E%3Ccircle cx='16' cy='10' r='2'/%3E%3Ccircle cx='24' cy='10' r='2'/%3E%3Ccircle cx='8' cy='22' r='2'/%3E%3Ccircle cx='16' cy='22' r='2'/%3E%3Ccircle cx='24' cy='22' r='2'/%3E%3C/g%3E%3Crect x='4' y='14.5' width='24' height='3' fill='%23d9d5c7'/%3E%3C/svg%3E" />
+    <!--
+      Styles for the pre-hydration intro in #root. Inline so it applies before the
+      bundle's stylesheet arrives; scoped to .bbs-intro so it stops mattering the
+      moment React clears the container.
+    -->
+    <style>
+      .bbs-intro {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 3rem 1.25rem;
+        font: 16px/1.75 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        color: #23231f;
+      }
+      .bbs-intro h1 { font-size: 1.9rem; line-height: 1.3; margin: 0 0 0.5rem; }
+      .bbs-intro .bbs-intro-tagline { font-size: 1.05rem; color: #5f5d54; margin: 0 0 1.25rem; }
+      .bbs-intro h2 { font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+      .bbs-intro ul { margin: 0; padding-left: 1.25rem; }
+      .bbs-intro li { margin: 0.2rem 0; }
+      .bbs-intro a { color: #8a5a2b; }
+      .bbs-intro nav { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid #d9d5c7; font-size: 0.92rem; }
+      @media (prefers-color-scheme: dark) {
+        .bbs-intro { color: #e8e6df; }
+        .bbs-intro .bbs-intro-tagline { color: #a3a096; }
+        .bbs-intro a { color: #d8a86a; }
+        .bbs-intro nav { border-top-color: #3a3936; }
+      }
+    </style>
     <script>
       // 首帧前写好 <html data-theme>（issue #23）：等 React 起来再切会先闪一下浅色。
       // key 与解析规则必须和 apps/web/src/theme.ts 保持一致。
@@ -20,7 +123,51 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      This is the site's only crawlable prose. The editor is client-rendered, so before
+      React mounts there is nothing else here: Google and Bing may run JS on a delayed
+      second pass, but AI crawlers (GPTBot, ClaudeBot, PerplexityBot) and Baidu do not
+      run it at all, and would otherwise index an empty page.
+
+      React's createRoot clears the container on mount (react-dom's
+      clearContainerSparingly), so this disappears the instant the app is ready. Keep it
+      accurate — it doubles as the pre-hydration screen a slow connection sees.
+    -->
+    <div id="root">
+      <div class="bbs-intro">
+        <h1>Breadboard Studio</h1>
+        <p class="bbs-intro-tagline">在浏览器里拼面包板或洞洞板、摆元件、自动接线，再按图搭建你的电路。</p>
+        <p>
+          一个开源的面包板与洞洞板布局工具。你可以直接操作画布，也可以让 AI Agent 通过 CLI 和 JSON
+          设计文件参与搭建——两种方式共用同一套孔位、导通关系和校验规则。无需安装或登录。
+        </p>
+
+        <h2>可以做什么</h2>
+        <ul>
+          <li>按实物结构拼板：一体式 400 / 830 孔面包板、可拆拼装式，以及 5×7 cm、7×9 cm 洞洞板。</li>
+          <li>洞洞板每个镀锡焊盘默认独立不导通，元件可直接焊在孔位，画布可在元件面与焊接面之间切换。</li>
+          <li>点击孔位查看同组孔与整个导通网络的高亮，检查连接关系。</li>
+          <li>多选主控与外设后自动排线，按引脚角色规划电源、GND、I²C 与 GPIO，可选择杜邦线或硬质跳线。</li>
+          <li>静态校验会报告同孔冲突、脱格、板体碰撞和电源对地短路。</li>
+          <li>接线向导按线号逐根列出两端孔位与颜色，并保存完成进度。</li>
+          <li>设计导出为 <code>.breadboard.json</code>，也可以导出 SVG 或 PNG 分享布局。</li>
+          <li>在隔离沙箱里真实执行主控程序：驱动板载 RGB、打印串口、经真实 I²C 总线把画面写进 OLED。</li>
+        </ul>
+
+        <h2>支持的元件</h2>
+        <p>
+          内置 ESP32-S3 N16R8、XIAO ESP32-S3 Sense、0.96 英寸 SSD1315 OLED、KY-040
+          旋转编码器、轻触按键、TTP224 触摸模块、SHT41 / BMP390 / LTR390 / SEN66
+          传感器与供电模块等；也可以在元件库导入自定义定义，无需修改应用代码。
+        </p>
+
+        <nav aria-label="站内导航">
+          <!--bbs-docs-nav-->
+          <br />
+          源码：<a href="https://github.com/7dul2/breadboard-studio">GitHub</a>（MIT 许可）
+        </nav>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

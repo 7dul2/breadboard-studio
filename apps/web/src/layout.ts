@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /**
  * 左右面板的宽度与折叠（issue #39）。
@@ -167,14 +167,20 @@ export interface LayoutState extends PanelLayout {
   toggle: (side: PanelSide) => void;
 }
 
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** 只在 commit 时换对象，所以这个快照的引用在两次改动之间是稳定的（useSyncExternalStore 的要求）。 */
+function getSnapshot(): PanelLayout {
+  return ensureInit();
+}
+
+/** 用 useSyncExternalStore 而不是 useState + useEffect 订阅：首次渲染与订阅之间没有空窗。 */
 export function useLayout(): LayoutState {
-  const [snapshot, setSnapshot] = useState<PanelLayout>(() => ({ ...ensureInit() }));
-  useEffect(() => {
-    const listener = () => setSnapshot({ ...current });
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot);
   return { ...snapshot, setWidth: setPanelWidth, toggle: togglePanel };
 }
