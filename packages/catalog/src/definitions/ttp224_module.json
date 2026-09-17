@@ -8,6 +8,7 @@
   "model": "TTP224 4-channel capacitive touch sensor module",
   "variant": "走线焊盘面从左到右：VCC / GND / OUT4 / OUT3 / OUT2 / OUT1",
   "description": "35×29 mm 四路电容触摸模块，带四个触摸区和状态指示灯。正面为走线焊盘面，排针朝上时从左到右为 VCC、GND、OUT4、OUT3、OUT2、OUT1；反面为触摸按键与元件面，同一排针从左到右为 OUT1、OUT2、OUT3、OUT4、GND、VCC。",
+  "keywords": ["触摸","touch","TTP224","四路触摸","电容触摸","触摸按键"],
   "category": "input",
   "mount": "breadboard",
   "origin": "top_left",

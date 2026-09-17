@@ -201,6 +201,12 @@ export const componentDefinitionSchema = {
     model: { type: 'string' },
     variant: { type: 'string' },
     description: { type: 'string' },
+    /** Search aliases: Chinese names, common nicknames, part numbers (issue #42). */
+    keywords: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      uniqueItems: true
+    },
     category: { type: 'string', enum: ['mcu', 'display', 'sensor', 'input', 'power', 'passive', 'connector', 'other'] },
     mount: { type: 'string', enum: ['breadboard', 'off_board'] },
     origin: { const: 'top_left' },

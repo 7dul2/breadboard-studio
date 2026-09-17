@@ -7,6 +7,15 @@
   "model": "XIAO ESP32S3 Sense",
   "variant": "with Sense expansion board (camera, mic, microSD)",
   "description": "14 引脚 XIAO 外形（两列各 7 针，2.54 mm 间距，列间 15.24 mm）。USB-C 在上边缘；Sense 扩展板叠在主板上方，外接天线从上边缘附近的 IPEX 座引出。",
+  "keywords": [
+    "XIAO",
+    "Seeed",
+    "ESP32-S3",
+    "ESP32S3",
+    "主控",
+    "开发板",
+    "Sense"
+  ],
   "category": "mcu",
   "mount": "breadboard",
   "origin": "top_left",

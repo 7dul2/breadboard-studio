@@ -6,6 +6,7 @@
   "manufacturer": "generic",
   "model": "0.91 inch 128×32 OLED breakout, SSD1306 controller",
   "description": "细长 4 针 I²C OLED 转接板，针排通常位于短边。针序必须按丝印确认。",
+  "keywords": ["OLED","屏幕","显示屏","0.91","0.91寸"],
   "category": "display",
   "mount": "breadboard",
   "origin": "top_left",

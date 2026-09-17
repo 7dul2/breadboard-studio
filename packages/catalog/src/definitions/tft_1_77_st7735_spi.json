@@ -8,6 +8,15 @@
   "model": "1.77 inch 128x160 SPI TFT module with ST7735S driver",
   "variant": "8 针主接口 + 6 针 TF 卡接口，34.0 x 53.7 mm",
   "description": "1.77 寸 128x160 SPI TFT 模块，驱动 IC ST7735S。模块丝印给出的接口定义：1 GND / 2 VCC / 3 SCK / 4 SDA / 5 RES / 6 RS / 7 CS / 8 LEDA 为一排 8 针；9-14（LEDA / CT-CS / CT-SI / CT-SO / CT-SCL / GND）是 TF 卡接口，本定义未建模。",
+  "keywords": [
+    "TFT",
+    "彩屏",
+    "LCD",
+    "ST7735",
+    "1.77",
+    "1.77寸",
+    "屏幕"
+  ],
   "category": "display",
   "mount": "breadboard",
   "origin": "top_left",

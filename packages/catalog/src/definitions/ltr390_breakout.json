@@ -6,6 +6,13 @@
   "manufacturer": "generic",
   "model": "Lite-On LTR-390UV on generic I2C breakout",
   "description": "LTR390 UV/ALS 传感器（I²C 地址固定 0x53）。转接板外形、针序与板载稳压未知。",
+  "keywords": [
+    "紫外",
+    "环境光",
+    "LTR390",
+    "UV",
+    "光感"
+  ],
   "category": "sensor",
   "mount": "breadboard",
   "origin": "top_left",

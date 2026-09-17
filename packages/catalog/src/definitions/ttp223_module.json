@@ -6,6 +6,7 @@
   "manufacturer": "generic",
   "model": "TTP223 capacitive touch breakout (HW-139 style)",
   "description": "3 针单排触摸按键模块。针序（常见 VCC / IO / GND 或 GND / IO / VCC）与输出模式（A/B 焊盘决定高/低有效、自锁）以实物为准。",
+  "keywords": ["触摸","touch","TTP223","触摸按键","电容触摸"],
   "category": "input",
   "mount": "breadboard",
   "origin": "top_left",

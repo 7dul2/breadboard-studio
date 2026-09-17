@@ -86,7 +86,11 @@ export function libraryCategoryKey(def: CatalogDefinition): string {
 }
 
 function matchesFilter(def: CatalogDefinition, query: string): boolean {
-  return `${def.id} ${def.name} ${def.model ?? ''}`.toLowerCase().includes(query);
+  // id / name / model stay first-class; manufacturer and keywords cover the
+  // Chinese names, nicknames and part numbers users actually type (issue #42).
+  const parts = [def.id, def.name, def.model ?? '', def.manufacturer ?? ''];
+  if (def.kind === 'component' && def.keywords) parts.push(...def.keywords);
+  return parts.join(' ').toLowerCase().includes(query);
 }
 
 /** Featured first, original catalog order otherwise (Array#sort is stable). */

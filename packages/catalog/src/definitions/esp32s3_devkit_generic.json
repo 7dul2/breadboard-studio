@@ -6,6 +6,14 @@
   "manufacturer": "generic",
   "model": "ESP32-S3-DevKitC-1 style, dual USB-C, N16R8",
   "description": "可配置的双排针开发板模板：每侧针数、排距、针名和外形都可通过 params 修改。默认值取自 Espressif ESP32-S3-DevKitC-1 v1.1 的 44 针排布，双 USB-C 克隆板通常沿用同样的针序，但外形和排距必须以实物为准。",
+  "keywords": [
+    "ESP32",
+    "ESP32-S3",
+    "DevKit",
+    "主控",
+    "开发板",
+    "N16R8"
+  ],
   "category": "mcu",
   "mount": "breadboard",
   "origin": "top_left",

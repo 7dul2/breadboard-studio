@@ -53,6 +53,26 @@ describe('元件库分组（issue #32）', () => {
     expect(buildLibraryGroups(defs, { filter: 'no_such_part', embeddedRefs: noRefs, expanded: noExpanded })).toEqual([]);
   });
 
+  it('搜索命中 keywords 与 manufacturer（issue #42）', () => {
+    const hit = (filter: string) =>
+      buildLibraryGroups(defs, { filter, embeddedRefs: noRefs, expanded: noExpanded }).flatMap((g) => ids(g.items));
+
+    // 中文别名 / 常见简称 / 料号，不必出现在 id/name/model 里。
+    expect(hit('发光二极管')).toContain('led_5mm');
+    expect(hit('轻触开关')).toContain('tactile_6x6');
+    expect(hit('旋转编码器')).toContain('encoder_ky040');
+    expect(hit('KY-040')).toContain('encoder_ky040');
+    expect(hit('温湿度')).toContain('sht41_breakout');
+    expect(hit('触摸')).toEqual(expect.arrayContaining(['ttp223_module', 'ttp224_module']));
+
+    // 厂商名。
+    expect(hit('seeed')).toContain('xiao_esp32s3_sense');
+    expect(hit('sensirion')).toContain('sht41_breakout');
+
+    // 旧定义（无 keywords）行为不变：仍靠 id/name/model。
+    expect(hit('breadboard_400')).toContain('breadboard_400');
+  });
+
   it('内嵌定义永远露出，即使没有 featured', () => {
     const embedded = new Set(['power_module_3v3@1']);
     const power = buildLibraryGroups(defs, { filter: '', embeddedRefs: embedded, expanded: noExpanded }).find((g) => g.key === 'power')!;

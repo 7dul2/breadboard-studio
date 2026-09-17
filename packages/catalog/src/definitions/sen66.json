@@ -6,6 +6,14 @@
   "manufacturer": "Sensirion",
   "model": "SEN66",
   "description": "带风扇的一体化空气质量模块（PM、VOC、NOx、CO₂、温湿度），通过 6 针 JST-GH 1.25 mm 线缆连接，不能直接插面包板。作为板外线缆器件使用。",
+  "keywords": [
+    "空气质量",
+    "PM2.5",
+    "SEN66",
+    "Sensirion",
+    "颗粒物",
+    "CO2"
+  ],
   "category": "sensor",
   "mount": "off_board",
   "origin": "top_left",

@@ -86,6 +86,22 @@ describe('built-in catalog', () => {
     }
   });
 
+  it('keeps search keywords unique and non-empty when present (issue #42)', () => {
+    const c = builtinCatalog();
+    for (const d of c.listComponents()) {
+      if (d.keywords === undefined) continue;
+      expect(d.keywords.length, d.id).toBeGreaterThan(0);
+      for (const kw of d.keywords) {
+        expect(kw.trim(), `${d.id} has blank keyword`).toBe(kw);
+        expect(kw.length, `${d.id} has empty keyword`).toBeGreaterThan(0);
+      }
+      expect(new Set(d.keywords).size, `${d.id} has duplicate keywords`).toBe(d.keywords.length);
+    }
+    // 入门与精选型号必须带上中文/常见别名，否则搜索扩容白做。
+    expect(c.getComponent('led_5mm@1')!.keywords).toEqual(expect.arrayContaining(['LED', '发光二极管']));
+    expect(c.getComponent('tactile_6x6@1')!.keywords).toEqual(expect.arrayContaining(['按键', 'button']));
+  });
+
   it('parses model references', () => {
     expect(parseModelRef('breadboard_400@1')).toEqual({ id: 'breadboard_400', version: 1 });
     expect(parseModelRef('breadboard_400')).toBeNull();
