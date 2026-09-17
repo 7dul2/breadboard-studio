@@ -25,9 +25,23 @@
 { "id": "bb_a", "name": "板 A", "model": "breadboard_400@1", "position_um": [0, 0], "rotation_deg": 0, "locked": false, "notes": "" }
 ```
 
-- `model`：`<定义 id>@<版本>`。内置：`breadboard_400@1`（轨道连续）、`breadboard_830@1`（每条轨在 25/26 断开）、`perfboard_5x7@1` / `perfboard_7x9@1`（每孔独立焊盘）。
+- `model`：`<定义 id>@<版本>`。内置：`breadboard_400@1`（轨道连续）、`breadboard_830@1`（每条轨在 25/26 断开）、`perfboard_5x7@1` / `perfboard_7x9@1`（每孔独立焊盘）。画布尺寸编辑或 `resize_board` 会派生一份 `id_custom` 定义并内嵌进 `embedded_catalog`（见下文"尺寸派生"）。
 - `position_um`：板体左上角的全局坐标；`rotation_deg` ∈ {0, 90, 180, 270}，顺时针。
 - 孔名：面包板为 `a1`–`j30`（830 板到 `j63`）；洞洞板为大写行号加列号，例如 `A1`、`X18`、`AA27`；轨孔为 `top_outer_1`…、`top_inner_…`、`bottom_inner_…`、`bottom_outer_…`。
+
+### 尺寸派生（`resize_board`）
+
+`resize_board` 不直接修改 `boards[]` 里的字段，而是以原型号为模板派生一份新定义，内嵌进 `embedded_catalog`，并把板的 `model` 指向它：
+
+```json
+{ "op": "resize_board", "id": "bb_1", "columns": 40, "rows": 5 }
+```
+
+- 列数整数 5–120，行数 1–原行数（面包板按每块接线块的行数算，洞洞板按整板物理行数算）。
+- 越界**拒绝**（不 clamp）；裁掉仍被元件锚点、导线端点或 `net_intent` 引用的孔位时也拒绝，并列出孔号。
+- 派生定义的 `id` = `<原 id>_custom`（冲突时追加数字），`version` = 原版本 +1，`geometry_status` 固定回 `approximate`，`sources` 换成派生说明。
+- 同一块板再次调整仍从**原型号**重新派生（不从上一次自定义定义派生），所以型号链不会越滚越长。
+- 一次 `resize_board` = 一次事务（`revision` +1，可撤销）。
 
 ## 元件 `components[]`
 

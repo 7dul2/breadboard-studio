@@ -52,3 +52,9 @@
 `pin_meta.multiplex` 可列出 strapping/usb/jtag。外接导线或器件后报 `gpio_strapping_used` / `gpio_usb_used` / `gpio_jtag_used`（warning）；strapping 提醒复位采样，USB/JTAG 提醒条件性冲突，不推断运行固件/eFuse。自动排线将它们作为避让池，普通 GPIO 用尽才回退，显式 signal_pins 也会提示。`reserved: flash|psram` 仍是不可分配的板型事实，并补齐手工接线时的 `reserved_pin_used`。
 
 参考：[Espressif ESP32-S3 GPIO 文档](https://docs.espressif.com/projects/esp-idf/en/v5.1/esp32s3/api-reference/peripherals/gpio.html)、[ESP32-S3 数据手册](https://documentation.espressif.com/esp32_s3_datasheet_en.pdf)、[NXP I²C 规范 UM10204](https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/nxp-designs/931/1/UM10204.pdf)。来源说明芯片/协议事实，具体商品仍需板级核对。
+
+## 洞洞板与派生定义的特殊规则
+
+- **洞洞板（`render.style === "perfboard"`）**：每块洞洞板的焊盘是独立导通组，没有电源轨与列间隐式导通。验证时需逐焊盘确认电气连接，不能沿用面包板的"同列五孔导通"推论。丝印标注的"+"/−或红/蓝线只是 `marking`，不是电气证据。
+- **`resize_board` 生成的派生定义**：通过 `id_custom` + `version+1` 生成，`geometry_status` 固定为 `approximate`（派生几何没有独立实测证据）；`electrical_status` 沿用源定义的当前状态，`sources` 换成一条派生说明——内置型号的证据链不被改动。自定义尺寸（列 5–120、行 1–shape.rows）本身不重新校验几何，所以派生定义没有独立的 `measured`/`verified` 证据链——需要单独实测时应另建新版本定义。
+- **导线落在已被引脚占用的焊盘上**：洞洞板允许第一根导线与引脚共用同一焊点（焊接工艺事实），不报 `wire_endpoint_occupied`；但同一焊盘的**第二根导线**仍报 `wire_hole_conflict`。这一行为属于电气/工艺约定而非几何测量，所以不作为 `verified` 的判定依据。

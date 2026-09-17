@@ -91,6 +91,8 @@ pnpm bb ops             # apply 支持的操作
 
 操作清单：`add_board`、`remove_board`、`move_board`、`rotate_board`、`resize_board`、`add_component`、`remove_component`、`move_component`、`rotate_component`、`add_wire`、`remove_wire`、`update_wire`、`update_property`、`add_net_intent`、`remove_net_intent`、`update_net_intent`、`add_constraint`、`remove_constraint`、`set_metadata`、`replace_design`、`add_definition`、`remove_definition`、`auto_wire`、`add_program`、`update_program`、`remove_program`、`set_simulation_config`。字段见 `pnpm bb ops`。
 
+`resize_board` 按孔距缩放已有板件：`{ op: "resize_board", id: "bb_1", columns: 40, rows: 5 }`。以原型号为模板**派生**一份新定义（`id_custom` + `version+1`），内嵌进 `embedded_catalog`；不改内置型号。列数整数 5–120，行数 1–原行数（面包板按每块接线块的行数算，洞洞板按整板物理行数算）；越界**拒绝**（不是 clamp），裁掉仍被元件/导线/net_intent 引用的孔位时也拒绝并报出孔号。同一块板再次调整仍从**原型号**重新派生，所以一次尺寸编辑 = 一次事务 = 一次撤销。
+
 `autowire` / `auto_wire` 按目录中的引脚角色连接一个主控或电源主板与多个外设：
 
 - **选点**：每个外设引脚所在孔组的空闲孔 × 目标网络最近的若干可用孔/端子，全部用画布同一套避障路由器（元件实体 + 先前硬质跳线都是障碍）试算，取实际路径最短的一对；因此串接的 I²C 会自动走空闲的一排而不是绕路。
@@ -103,7 +105,7 @@ pnpm bb ops             # apply 支持的操作
 
 ## 程序与仿真
 
-schema 1.1 起，设计文件可以带 `programs[]`（主控实例的 Studio TS 源码）和 `simulation`（启动程序、倍速、随机种子、USB 供电主板），格式见 [设计文件格式](DESIGN_FORMAT.md)。源码是设计内容：修改走 `add_program` / `update_program` / `remove_program` / `set_simulation_config`，每次都是一次事务（`revision` +1、参与 hash、可撤销），目标元件必须存在，删除主控需要 `cascade` 才会连程序一起删。`bb programs` 列出程序与配置（`inspect` 也包含 `programs`/`simulation`），`bb program export` 把源码原样写出，`bb program import` 从源码文件新建（需要 `--target`）或更新程序，`--activate` 同时设为启动程序；它与 `apply` 一样支持 `--dry-run`、`--out`、`--expect-revision`/`--expect-hash`（冲突退出码 3），失败时不写文件。**阶段 0 只保存与校验，不执行**：没有任何命令会运行代码，`program_target_unsupported` 等警告只说明目标型号还没有仿真驱动。
+schema 1.1 起，设计文件可以带 `programs[]`（主控实例的 Studio TS 源码）和 `simulation`（启动程序、倍速、随机种子、USB 供电主板），格式见 [设计文件格式](DESIGN_FORMAT.md)。源码是设计内容：修改走 `add_program` / `update_program` / `remove_program` / `set_simulation_config`，每次都是一次事务（`revision` +1、参与 hash、可撤销），目标元件必须存在，删除主控需要 `cascade` 才会连程序一起删。`bb programs` 列出程序与配置（`inspect` 也包含 `programs`/`simulation`），`bb program export` 把源码原样写出，`bb program import` 从源码文件新建（需要 `--target`）或更新程序，`--activate` 同时设为启动程序；它与 `apply` 一样支持 `--dry-run`、`--out`、`--expect-revision`/`--expect-hash`（冲突退出码 3），失败时不写文件。**CLI 不执行代码**：没有任何命令会运行仿真；代码在浏览器的 QuickJS 沙箱里真实执行，详见 [`SIMULATOR_DESIGN.md`](SIMULATOR_DESIGN.md)。目标定义缺少 `simulation.driver` 时 `bb validate` 报 `program_target_unsupported`（警告），不是错误。
 
 ## 结果格式
 

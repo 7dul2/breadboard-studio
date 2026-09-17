@@ -138,6 +138,46 @@ export async function dragWireEnd(page: Page, wireId: string, end: 'from' | 'to'
   await page.mouse.up();
 }
 
+/**
+ * 面板宽度（issue #39）。`--panel-*-width` 是用户设定的宽度，折叠时写 0；面板在页面上
+ * 实际占的宽度由 `panelWidth` 量（它就是布局后的盒子宽度，折叠后剩下边缘那条常驻轨道；
+ * 该面板没渲染时是 0）。画布让出的宽度等于面板宽度的差值，而不是变量本身。
+ */
+export function panelWidthVar(page: Page, side: 'left' | 'right'): Promise<number> {
+  return page.evaluate((s) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(`--panel-${s}-width`)), side);
+}
+
+export function panelWidth(page: Page, side: 'left' | 'right'): Promise<number> {
+  return page.evaluate((s) => document.getElementById(`panel-${s}`)?.getBoundingClientRect().width ?? 0, side);
+}
+
+/** 画布列当前拿到的宽度（px）。折叠/拖拽面板时必须真的变，不能只是看着变了。 */
+export function canvasWidth(page: Page): Promise<number> {
+  return page.evaluate(() => document.querySelector('[data-testid="canvas"]')!.getBoundingClientRect().width);
+}
+
+/** 布局视口宽度（不含滚动条）：两个面板与画布宽度之和就是它。 */
+export function viewportWidth(page: Page): Promise<number> {
+  return page.evaluate(() => document.documentElement.clientWidth);
+}
+
+/** 拖面板轨道（issue #39）：`outward > 0` = 把面板拖宽，左右两侧用同一个符号。 */
+export async function dragPanelRail(page: Page, side: 'left' | 'right', outward: number): Promise<void> {
+  const box = await page.getByTestId(`panel-rail-${side}`).boundingBox();
+  expect(box, `${side} 面板的轨道应当可见可拖`).not.toBeNull();
+  const x = box!.x + box!.width / 2;
+  const y = box!.y + box!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + (side === 'left' ? outward : -outward), y, { steps: 8 });
+  await page.mouse.up();
+}
+
+/** 点面板轨道折叠 / 展开。 */
+export async function togglePanelRail(page: Page, side: 'left' | 'right'): Promise<void> {
+  await page.getByTestId(`panel-rail-${side}`).click();
+}
+
 export async function loadExample(page: Page, key: string): Promise<void> {
   await page.getByTestId('menu-project').click();
   await page.getByTestId(`example-${key}`).click();
