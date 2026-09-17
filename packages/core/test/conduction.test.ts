@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DesignDocument } from '@breadboard-studio/schema';
+import { validateComponentDefinition, type DesignDocument } from '@breadboard-studio/schema';
 import type { Op } from '../src/index.js';
 import { analyzeDesign, groupHoles, holeAddress, parseResistance, pinKey } from '../src/index.js';
 import { build, oneBoard } from './helpers.js';
@@ -159,5 +159,168 @@ describe('a resistor conducts without being one node', () => {
     );
     const a = analyzeDesign(collapsed);
     expect(a.results.some((r) => r.code === 'pins_shorted_by_board' && r.objects.includes('r1'))).toBe(true);
+  });
+});
+
+/**
+ * A mechanical contact is not a resistor. The resistor rule was "current gets
+ * across, but the two legs are not one node"; a closed switch is the opposite on
+ * the second half — it *is* a wire — so it joins `direct` as well as `full`. That
+ * is what makes a closed switch across a supply a short rather than a load, and
+ * it is why the state has to come from the instance rather than the definition.
+ */
+function switchOp(closed: boolean): Op {
+  return {
+    op: 'add_component',
+    component: {
+      id: 'sw1',
+      model: 'tactile_6x6@1',
+      placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e10', anchor_pin: 'A', rotation_deg: 0 },
+      params: { closed }
+    }
+  };
+}
+
+describe('a switch conducts only while it is closed', () => {
+  const A = () => pinKey('sw1', 'A');
+  const B = () => pinKey('sw1', 'B');
+
+  it('is open by default and joins nothing', () => {
+    const unset = build(
+      [...oneBoard, { op: 'add_component', component: { id: 'sw1', model: 'tactile_6x6@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e10', anchor_pin: 'A', rotation_deg: 0 } } }],
+      undefined,
+      true
+    );
+    const conn = analyzeDesign(unset).connectivity;
+    expect(conn.full.connected(A(), B()), 'an open contact carries no current').toBe(false);
+    expect(conn.direct.connected(A(), B()), 'and is not one node').toBe(false);
+    expect(conn.conducted).toEqual([]);
+  });
+
+  it('joins both graphs once closed, because a contact is a wire', () => {
+    const conn = analyzeDesign(build([...oneBoard, switchOp(true)], undefined, true)).connectivity;
+    expect(conn.full.connected(A(), B())).toBe(true);
+    expect(conn.direct.connected(A(), B()), 'unlike a resistor, it makes one node').toBe(true);
+    expect(conn.conducted).toEqual([{ componentId: 'sw1', kind: 'switch', pins: ['A', 'B'], ohms: 0, marking: null }]);
+  });
+
+  /** 3V3 → switch → GND, which is what a closed switch across a supply is. */
+  function switchAcrossSupply(closed: boolean): DesignDocument {
+    const base = build([...oneBoard, MCU, switchOp(closed)], undefined, true);
+    return build(
+      [
+        { op: 'add_wire', wire: { id: 'w_pos', from: { hole: tapPoint(base, 'mcu', '3V3') }, to: { hole: tapPoint(base, 'sw1', 'A') }, color: 'red' } },
+        { op: 'add_wire', wire: { id: 'w_gnd', from: { hole: tapPoint(base, 'mcu', 'GND') }, to: { hole: tapPoint(base, 'sw1', 'B') }, color: 'black' } }
+      ],
+      base,
+      true
+    );
+  }
+
+  it('is neither a load nor a short while it is open', () => {
+    const a = analyzeDesign(switchAcrossSupply(false));
+    expect(a.results.some((r) => r.code === 'power_ground_short')).toBe(false);
+    expect(a.results.some((r) => r.code.startsWith('passive_load'))).toBe(false);
+  });
+
+  it('is a short once closed, and the advice names the closed link', () => {
+    const a = analyzeDesign(switchAcrossSupply(true));
+    const short = a.results.find((r) => r.code === 'power_ground_short');
+    expect(short?.severity).toBe('error');
+    expect(short!.suggestion, 'point at the switch, not only at the wires').toContain('sw1');
+  });
+
+  it('in series with a resistor it is still a load, and still 3V3 / 220 Ω', () => {
+    const base = build(
+      [
+        ...oneBoard,
+        MCU,
+        switchOp(true),
+        { op: 'add_component', component: { id: 'r1', model: 'resistor_axial@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e20', anchor_pin: 'P1', rotation_deg: 0 }, params: { value: '220' } } }
+      ],
+      undefined,
+      true
+    );
+    const design = build(
+      [
+        { op: 'add_wire', wire: { id: 'w1', from: { hole: tapPoint(base, 'mcu', '3V3') }, to: { hole: tapPoint(base, 'sw1', 'A') } } },
+        { op: 'add_wire', wire: { id: 'w2', from: { hole: tapPoint(base, 'sw1', 'B') }, to: { hole: tapPoint(base, 'r1', 'P1') } } },
+        { op: 'add_wire', wire: { id: 'w3', from: { hole: tapPoint(base, 'r1', 'P2') }, to: { hole: tapPoint(base, 'mcu', 'GND') } } }
+      ],
+      base,
+      true
+    );
+    const a = analyzeDesign(design);
+    expect(a.results.some((r) => r.code === 'power_ground_short'), 'the contact is closed but the resistor is in the way').toBe(false);
+    const load = a.results.find((r) => r.code === 'passive_load');
+    expect(load, 'a closed switch adds 0 Ω, not an unknown').toBeDefined();
+    expect(load!.message).toContain('15 mA');
+  });
+});
+
+/**
+ * `short` and `open` are statements the rules can trust: a link is a wire, and a
+ * capacitor joins nothing at DC. Neither is a resistor, so neither may be summed
+ * as an impedance — and `open` is a declaration, not an omission.
+ */
+describe('conduction kinds beyond resistors', () => {
+  function linkDef(id: string, kind: string): Record<string, unknown> {
+    return {
+      kind: 'component',
+      id,
+      version: 1,
+      name: id,
+      category: 'passive',
+      mount: 'breadboard',
+      origin: 'top_left',
+      generator: { type: 'axial_two_pin' },
+      params_schema: { type: 'object', additionalProperties: false, properties: { span_pitches: { type: 'integer', minimum: 2, maximum: 12 } } },
+      params_default: { span_pitches: 2 },
+      body: { size_um: [7620, 2540], height_um: 1000, standoff_um: 0 },
+      pins: [],
+      pin_meta: { P1: { role: 'passive', direction: 'passive' }, P2: { role: 'passive', direction: 'passive' } },
+      conduction: [{ kind, pins: ['P1', 'P2'] }],
+      electrical: { supply_voltage_v: null, supply_current_ma: null, io_voltage_v: null, i2c: null },
+      render: [],
+      geometry_status: 'approximate',
+      electrical_status: 'approximate',
+      sources: [{ title: 'test fixture' }],
+      license: { spdx: 'MIT', attribution: 'test fixture' }
+    };
+  }
+
+  function place(kind: 'short' | 'open'): DesignDocument {
+    return build(
+      [
+        ...oneBoard,
+        { op: 'add_definition', definition: linkDef(`link_${kind}`, kind) },
+        { op: 'add_component', component: { id: 'l1', model: `link_${kind}@1`, placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e10', anchor_pin: 'P1', rotation_deg: 0 } } }
+      ],
+      undefined,
+      true
+    );
+  }
+
+  it('a link is a wire: it joins both graphs', () => {
+    const conn = analyzeDesign(place('short')).connectivity;
+    expect(conn.full.connected(pinKey('l1', 'P1'), pinKey('l1', 'P2'))).toBe(true);
+    expect(conn.direct.connected(pinKey('l1', 'P1'), pinKey('l1', 'P2'))).toBe(true);
+    expect(conn.conducted).toEqual([{ componentId: 'l1', kind: 'short', pins: ['P1', 'P2'], ohms: 0, marking: null }]);
+  });
+
+  it('an open part joins nothing at all and is not a conducted path', () => {
+    const conn = analyzeDesign(place('open')).connectivity;
+    expect(conn.full.connected(pinKey('l1', 'P1'), pinKey('l1', 'P2'))).toBe(false);
+    expect(conn.direct.connected(pinKey('l1', 'P1'), pinKey('l1', 'P2'))).toBe(false);
+    expect(conn.conducted).toEqual([]);
+  });
+
+  it('accepts the four kinds and still refuses a diode', () => {
+    for (const kind of ['resistor', 'switch', 'short', 'open']) {
+      expect(validateComponentDefinition(linkDef('k', kind)).ok, kind).toBe(true);
+    }
+    // One-way conduction needs a directed graph, so claiming it here would make
+    // a reverse-biased diode look like a wire.
+    expect(validateComponentDefinition(linkDef('k', 'diode')).ok).toBe(false);
   });
 });

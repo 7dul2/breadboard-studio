@@ -316,10 +316,19 @@ export function checkModel(model: DesignModel): CheckOutput {
     const shortedGrounds = grounds.filter((g) => powers.some((p) => sameNode(g, p)));
     const shortingPowers = powers.filter((p) => grounds.some((g) => sameNode(g, p)));
     if (shortedGrounds.length && shortingPowers.length) {
+      // A closed switch or a 0 Ω link on this node merges it just as a wire does,
+      // so say that too — otherwise "check your wires" sends the user looking in
+      // the wrong place.
+      const linked = conn.conducted.filter(
+        (p) => p.kind !== 'resistor' && conn.direct.connected(pinKey(p.componentId, p.pins[0]), shortingPowers[0]!.key)
+      );
+      const links = [...new Set(linked.map((p) => p.componentId))];
       results.push(
         res('error', 'power_ground_short', 'net', `电源与地被直接短接：${shortingPowers.map((p) => p.key).join('、')} 与 ${shortedGrounds.map((p) => p.key).join('、')} 在同一网络`, [...new Set([...shortingPowers, ...shortedGrounds].map((p) => p.pc.instance.id))], {
           endpoints: [...shortingPowers, ...shortedGrounds].map((p) => p.key),
-          suggestion: '检查导线端点和同列五孔占用。'
+          suggestion: links.length
+            ? `检查导线端点和同列五孔占用；该节点上还有处于闭合/导通状态的无源链接（${links.join('、')}），它们同样把两端并成同一节点。`
+            : '检查导线端点和同列五孔占用。'
         })
       );
     } else if (grounds.length && powers.length) {
@@ -658,6 +667,11 @@ export function checkModel(model: DesignModel): CheckOutput {
         supplyRoots.add(supplyRoot);
       }
       for (const path of conn.conducted) {
+        // Only a resistor can pull a bus up. A closed switch or a 0 Ω link
+        // between SDA and a supply is a wiring mistake, not a pull-up, and
+        // counting it as an unreadable one would replace a correct warning
+        // with a vague "unknown".
+        if (path.kind !== 'resistor') continue;
         const roots = path.pins.map((pin) => conn.direct.find(pinKey(path.componentId, pin)));
         if (!roots.includes(root) || roots[0] === roots[1]) continue;
         const other = roots[0] === root ? roots[1] : roots[0];

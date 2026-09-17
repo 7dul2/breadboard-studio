@@ -58,6 +58,14 @@ describe('built-in catalog', () => {
     }
   });
 
+  it('models the tactile switch as a contact that conducts only while closed', () => {
+    const sw = builtinCatalog().getComponent('tactile_6x6@1')!;
+    expect(sw.conduction).toEqual([{ kind: 'switch', pins: ['A', 'B'], state_param: 'closed' }]);
+    expect(sw.params_default?.closed, 'a placed switch starts open').toBe(false);
+    const closed = (sw.params_schema?.properties as Record<string, unknown> | undefined)?.closed;
+    expect(closed).toMatchObject({ type: 'boolean' });
+  });
+
   it('reserves the octal-PSRAM lines on exactly the variants that have them', () => {
     const c = builtinCatalog();
     const reservedOf = (ref: string) =>

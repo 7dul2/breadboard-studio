@@ -1,5 +1,6 @@
+import type { ConductionKind } from '@breadboard-studio/schema';
 import { holeAddress, parseAddress, terminalAddress } from './address.js';
-import type { DesignModel, PlacedPin } from './model.js';
+import type { DesignModel, PlacedComponent, PlacedPin } from './model.js';
 
 export class UnionFind {
   private parent = new Map<string, string>();
@@ -69,15 +70,32 @@ export interface Connectivity {
   conducted: ConductedPath[];
 }
 
-/** One passive that current is flowing through, as placed. */
+/**
+ * A conduction path that actually joined two nodes. `open` states that a part
+ * does not conduct, so it never reaches here.
+ */
+export type ConductedKind = Exclude<ConductionKind, 'open'>;
+
+/** One two-terminal part current is flowing through, as placed. */
 export interface ConductedPath {
   componentId: string;
-  kind: 'resistor';
+  kind: ConductedKind;
   pins: [string, string];
-  /** Ohms parsed from the marking, or null when it is missing or unreadable. */
+  /** Ohms parsed from the marking, or null when it is missing or unreadable. 0 for a closed switch or a link. */
   ohms: number | null;
-  /** The raw marking, for diagnostics that quote it. */
+  /** The raw marking, for diagnostics that quote it. Null for kinds that have none. */
   marking: string | null;
+}
+
+/**
+ * Is this switch closed? The state lives in instance `params` (`state_param`,
+ * default `"closed"`) because it is a property of the build, not of the model.
+ * Anything that is not literally `true` counts as open: a missing or unreadable
+ * state must not silently short two nodes, and `params_schema` already reports a
+ * value of the wrong type as `params_invalid`.
+ */
+function switchClosed(pc: PlacedComponent, stateParam: string | undefined): boolean {
+  return pc.resolved.params?.[stateParam ?? 'closed'] === true;
 }
 
 export function pinKey(componentId: string, pin: string): string {
@@ -182,21 +200,29 @@ export function buildConnectivity(model: DesignModel): Connectivity {
     direct.union(w.from.address, w.to.address);
   }
 
-  // Passives last, and only into `full`: a resistor lets current through without
-  // making its two legs one node. Wires are already in, so the path a resistor
-  // completes is the one the user actually built.
+  // Conduction last. A resistor goes into `full` only: it lets current through
+  // without making its two legs one node. Wires are already in, so the path a
+  // resistor completes is the one the user actually built. A closed switch or a
+  // 0 Ω link is a wire, so those join `direct` too.
   const conducted: ConductedPath[] = [];
   for (const pc of model.components.values()) {
     for (const path of pc.def.conduction ?? []) {
       const [a, b] = path.pins;
       if (!pc.pins.some((p) => p.name === a) || !pc.pins.some((p) => p.name === b)) continue;
-      const marking = path.value_param ? (pc.resolved.params?.[path.value_param] as string | number | undefined) : undefined;
-      full.union(pinKey(pc.instance.id, a), pinKey(pc.instance.id, b));
+      // An open contact and a declared non-conductor join nothing, so they are
+      // not paths current is flowing through and stay out of `conducted`.
+      if (path.kind === 'open') continue;
+      if (path.kind === 'switch' && !switchClosed(pc, path.state_param)) continue;
+      const keyA = pinKey(pc.instance.id, a);
+      const keyB = pinKey(pc.instance.id, b);
+      full.union(keyA, keyB);
+      if (path.kind !== 'resistor') direct.union(keyA, keyB);
+      const marking = path.kind === 'resistor' && path.value_param ? (pc.resolved.params?.[path.value_param] as string | number | undefined) : undefined;
       conducted.push({
         componentId: pc.instance.id,
         kind: path.kind,
         pins: [a, b],
-        ohms: parseResistance(marking),
+        ohms: path.kind === 'resistor' ? parseResistance(marking) : 0,
         marking: marking === undefined || marking === null ? null : String(marking)
       });
     }

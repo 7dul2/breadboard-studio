@@ -297,13 +297,32 @@ export type PinRole =
 
 export type PinDirection = 'in' | 'out' | 'bidir' | 'open_drain' | 'passive' | 'unknown';
 
+/**
+ * How a two-terminal part conducts.
+ *
+ * `resistor` is an impedance: current gets across, but the two legs are not one
+ * node. `switch` is a mechanical contact — it conducts only while closed, and
+ * while it is closed its two legs really *are* one node, which is what makes a
+ * closed switch across a supply a short rather than a load. `short` is a 0 Ω
+ * link (jumper wire, solder bridge, 0 Ω resistor) and behaves like a wire.
+ * `open` states that the part does not conduct at DC (a capacitor). It is a
+ * declaration, not an omission: "no conduction path modelled" means something
+ * different, and the rules should not have to guess which one a part means.
+ *
+ * A diode is deliberately absent. v0.2 models linear elements only, and one-way
+ * conduction needs a directed graph, not the union-find this resolves into, so
+ * a diode stays a driver rather than a conduction path.
+ */
+export type ConductionKind = 'resistor' | 'switch' | 'short' | 'open';
+
 export interface ConductionPath {
-  /** v0.2 models linear resistors only; a diode is a driver, not a conduction path. */
-  kind: 'resistor';
+  kind: ConductionKind;
   /** Exactly the two terminals current flows between. */
   pins: [string, string];
-  /** `params` key holding the value marking (e.g. `"4.7k"`). Absent means unknown. */
+  /** `resistor` only: `params` key holding the value marking (e.g. `"4.7k"`). Absent means unknown. */
   value_param?: string;
+  /** `switch` only: `params` key holding the closed state (boolean). Defaults to `"closed"`. */
+  state_param?: string;
 }
 
 export interface PinMeta {
