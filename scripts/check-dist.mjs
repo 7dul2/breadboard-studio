@@ -34,7 +34,43 @@ const textLength = (markup) =>
     .replace(/\s+/g, ' ')
     .trim().length;
 
-for (const needle of ['bbs-intro', '面包板', '洞洞板', 'rel="canonical"', 'property="og:image"', 'application/ld+json']) {
+/**
+ * Inner HTML of the `<div id="…">`, found by matching <div>/</div> depth.
+ *
+ * The crawler-visible content is exactly this region: head styles and scripts are not
+ * page text. Scanning the whole document instead would let the `<style>` block in
+ * <head> satisfy a `bbs-intro` needle even after the real prose inside #root was
+ * deleted (confirmed by deliberately emptying #root: the whole-document check passed).
+ */
+function innerHtmlById(markup, id) {
+  const open = markup.indexOf(`<div id="${id}"`);
+  if (open === -1) return null;
+  const start = markup.indexOf('>', open) + 1;
+  let depth = 1;
+  const tag = /<\/?div\b/g;
+  tag.lastIndex = start;
+  for (let m = tag.exec(markup); m; m = tag.exec(markup)) {
+    depth += m[0] === '</div' ? -1 : 1;
+    if (depth === 0) return markup.slice(start, m.index);
+  }
+  return null;
+}
+
+const rootHtml = innerHtmlById(html, 'root');
+if (rootHtml === null) {
+  staticErrors.push('dist/index.html 找不到 <div id="root"> 或它没有闭合');
+} else {
+  for (const needle of ['bbs-intro', '面包板', '洞洞板']) {
+    if (!rootHtml.includes(needle)) staticErrors.push(`dist/index.html 的 #root 内缺少 ${needle}`);
+  }
+  if (!/<h1[ >]/.test(rootHtml)) staticErrors.push('dist/index.html 的 #root 内没有 <h1>');
+  const rootChars = textLength(rootHtml);
+  if (rootChars < 200) {
+    staticErrors.push(`dist/index.html 的 #root 只有 ${rootChars} 字符正文：不执行 JS 的爬虫会读到一个空页面`);
+  }
+}
+// These belong to <head>, so they are checked against the whole document.
+for (const needle of ['rel="canonical"', 'property="og:image"', 'application/ld+json']) {
   if (!html.includes(needle)) staticErrors.push(`dist/index.html 缺少 ${needle}`);
 }
 const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
@@ -46,8 +82,6 @@ else {
     staticErrors.push(`dist/index.html 的 JSON-LD 不是合法 JSON：${e.message}`);
   }
 }
-if (textLength(html) < 200) staticErrors.push(`dist/index.html 可读正文过短（${textLength(html)} 字符），爬虫会读到一个空页面`);
-
 for (const file of ['social-card.png', 'robots.txt', 'llms.txt', 'sitemap.xml', 'docs.css']) {
   if (!existsSync(join(dist, file))) staticErrors.push(`缺少 dist/${file}`);
 }
