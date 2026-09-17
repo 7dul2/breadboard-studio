@@ -4,13 +4,15 @@
 **规模**: ~38k 行 TypeScript，monorepo（React Web 应用 + CLI/MCP 服务器 + QuickJS 电路模拟器 + SVG 渲染器 + JSON Schema 校验器）
 **方法**: 逐子系统独立审计 + 破坏性复核验证 + 关键路径复现
 **日期**: 2026-09-17
-**归档状态**: 全部结论已开成 issue [#54–#77](https://github.com/7dul2/breadboard-studio/issues?q=is%3Aissue+SEC-OR-PERF-OR-SUP)。
+**归档状态**: 原报告结论已开成 issue #54–#77（[SEC / PERF / SUP](https://github.com/7dul2/breadboard-studio/issues?q=is%3Aissue+SEC-OR-PERF-OR-SUP)）；复核新增的 SEC-14 见 [#79](https://github.com/7dul2/breadboard-studio/issues/79)。
 
 > **整理与复核说明。** 原稿由多个子代理并行产出后直接拼接，SEC-10/SEC-11 两节与「已验证安全」表格各重复了一次。本版已去重重排，并对高危结论做了源码级二次复核：
 >
 > - **3 条危害描述需要下调**：SEC-1、SEC-5、SEC-13；
 > - **1 条的推理有误**：SEC-2 的「跨设备 rename」子项（物理上不可能发生）；
-> - **新增 1 条已实测复现的缺陷**：SEC-14（沙箱顶层死循环挂死 worker），原稿只在「误报表」里留了一句附注，未定性。
+> - **新增 1 条已实测复现的缺陷**：SEC-14（沙箱顶层死循环挂死 worker），原稿只在「误报表」里留了一句附注，未定性 —— 已开成 [#79](https://github.com/7dul2/breadboard-studio/issues/79)。
+>
+> 上面 4 条更正也都以评论形式补到了对应 issue（[#54](https://github.com/7dul2/breadboard-studio/issues/54)、[#55](https://github.com/7dul2/breadboard-studio/issues/55)、[#58](https://github.com/7dul2/breadboard-studio/issues/58)、[#67](https://github.com/7dul2/breadboard-studio/issues/67)），issue 正文保持原始结论未改动。
 >
 > 复核只动本文档，**不改动已归档的 issue**：issue 仍是原始结论。处理这些问题时以本文档的「复核更正」为准，或先给对应 issue 补一条更正评论。
 
@@ -223,6 +225,8 @@ installTestHooks(); // line 9 — 无 import.meta.env.DEV 守卫，生产包中�
 
 ### SEC-14 [高] 沙箱 `loadProgram()` 未 arm deadline — 顶层死循环永久挂死 worker
 
+**Issue**: [#79](https://github.com/7dul2/breadboard-studio/issues/79)（复核时新发现，原稿未归档）
+
 **位置**: `packages/sim/src/worker/session.ts:442`；`packages/sim/src/runtime/studio-ts.ts:183, 226, 417`
 
 ```ts
@@ -362,7 +366,7 @@ strict-peer-dependencies=false
 | 项目 | 结论 |
 |---|---|
 | `packages/sim/src/runtime/prelude.ts` 的 `({}).constructor.constructor` 逃逸 | **不成立**（Node/V8 实测：`delete globalThis.Function` 后 `Object.prototype.constructor` 为 `Object`，该表达式抛 `Function is not defined`）。QuickJS 中未验证。 |
-| `packages/sim/src/runtime/studio-ts.ts` 缺中断处理 | **不成立**：`setInterruptHandler` 在 line 202 已设置。但 **`deadlineMs` 默认 `+Infinity`，若求值前未 arm 则中断永不触发** —— 该附注已升级为 **SEC-14**（实测复现）。 |
+| `packages/sim/src/runtime/studio-ts.ts` 缺中断处理 | **不成立**：`setInterruptHandler` 在 line 202 已设置。但 **`deadlineMs` 默认 `+Infinity`，若求值前未 arm 则中断永不触发** —— 该附注已升级为 **SEC-14**（实测复现，[#79](https://github.com/7dul2/breadboard-studio/issues/79)）。 |
 | `packages/schema/src/migrate.ts` 接受未来版本 / 原地修改输入 | **不成立**：明确拒绝未来版本，不修改输入对象。 |
 | `packages/render/src/svg.ts` 的 `esc()` 转义不足 | **不成立**：`esc()` 处理 `&<>"'`，属性上下文（双引号包裹）与文本上下文均正确。 |
 | `packages/schema` 的 `additionalProperties: false` 完全覆盖 | **部分不成立**：`params`/`config`/`embedded_catalog` items 为开放 → 见 SEC-9。 |
