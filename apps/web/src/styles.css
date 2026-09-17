@@ -198,8 +198,45 @@ a { color: var(--accent); }
 .menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 .main { flex: 1; display: flex; min-height: 0; }
-.left { width: 260px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-.right { width: 340px; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+/* 左右面板的宽度与折叠（issue #39）：宽度只有 --panel-left-width / --panel-right-width
+   一个来源，折叠时写 0。面板内侧留一条 10px 的常驻轨道（.panel-rail）—— 拖它改宽度、
+   点它折叠/展开。轨道是面板自己的一部分，不是盖在画布上的浮层，所以画布的可点区域
+   一点没被占；原先 1px 的分隔线现在由轨道里的握把画在同一个像素位置上。
+   折叠时宽度取 max(轨道, 变量)：变量归 0 后只剩那条轨道（展开入口），展开时整个面板
+   仍是 260 / 340，画布两侧看到的位置与改动前逐像素相同。 */
+:root {
+  --panel-rail-width: 10px;
+  --panel-left-width: 260px;
+  --panel-right-width: 340px;
+  --panel-left-slot: max(var(--panel-rail-width), var(--panel-left-width));
+  --panel-right-slot: max(var(--panel-rail-width), var(--panel-right-width));
+}
+.left { width: var(--panel-left-slot); background: var(--panel); display: flex; min-height: 0; min-width: 0; }
+.right { width: var(--panel-right-slot); background: var(--panel); display: flex; min-height: 0; min-width: 0; }
+/* 折叠时内容宽度被压到 0，超出它的那点像素（面板内元素自己的 padding 撑出来的边距）
+   在这里裁掉。展开时不加 overflow: hidden —— 默认布局的行为与改动前完全一致。 */
+.panel-side[data-collapsed='true'] { overflow: hidden; }
+/* 面板内容。折叠时宽度被压到 0，但不卸载、不 display: none —— 面板内状态（比如正在跑
+   的仿真会话视图）与输入焦点语义都保留，只靠上面那条 overflow: hidden 裁掉。
+   由此带来的已知取舍：折叠后 Tab 仍会走进看不见的面板内容。改成 inert 需要先把
+   .model-detail-layer 这类 fixed 浮层从面板里搬出去，否则浮层会一起失去交互。 */
+.panel-body { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.panel-rail { position: relative; flex: none; width: var(--panel-rail-width); padding: 0; border: 0; border-radius: 0; background: var(--panel); color: var(--muted); cursor: col-resize; display: flex; align-items: stretch; }
+/* 握把贴着画布那一边：展开时正好落在原来那条面板边框上。 */
+.panel-rail.left { justify-content: flex-end; }
+.panel-rail.right { justify-content: flex-start; }
+.panel-rail-grip { width: 1px; background: var(--border); pointer-events: none; }
+.panel-rail:hover { background: var(--hover); color: var(--text); }
+.panel-rail.dragging, .panel-rail.dragging:hover { background: var(--accent-bg); color: var(--accent); }
+.panel-rail:hover .panel-rail-grip, .panel-rail.dragging .panel-rail-grip { background: transparent; }
+.panel-rail-chevron { position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); text-align: center; font-size: 13px; line-height: 1; opacity: 0; pointer-events: none; }
+.panel-rail:hover .panel-rail-chevron, .panel-rail:focus-visible .panel-rail-chevron, .panel-rail.collapsed .panel-rail-chevron { opacity: 1; }
+/* 折叠后轨道是唯一的展开入口：必须一直看得见（不能只在悬停时才现身），所以给它面板
+   自己的底色 —— 画布底色和 --hover-soft 几乎同色，用后者在右侧会看不出这里还有个面板。
+   悬停仍要有反馈，所以 :hover 单独覆盖一次（规则顺序在 .collapsed 之后才生效）。 */
+.panel-rail.collapsed { background: var(--panel); color: var(--text); }
+.panel-rail.collapsed:hover { background: var(--hover); }
+.panel-rail:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .panel-title { font-weight: 600; font-size: 14px; padding: 8px 10px 4px; }
 .panel-footer { padding: 6px 10px; border-top: 1px solid var(--border); font-size: 12px; }
@@ -254,7 +291,7 @@ a { color: var(--accent); }
 .board-form .field { flex: none; }
 .inline-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); }
 .inline-check input { margin: 0; }
-.model-detail-layer { position: fixed; inset: 49px 340px 0 260px; z-index: 30; display: flex; align-items: flex-start; justify-content: flex-start; padding: clamp(24px, 8vh, 84px) 24px; background: var(--detail-scrim); }
+.model-detail-layer { position: fixed; inset: 49px var(--panel-right-slot) 0 var(--panel-left-slot); z-index: 30; display: flex; align-items: flex-start; justify-content: flex-start; padding: clamp(24px, 8vh, 84px) 24px; background: var(--detail-scrim); }
 .model-detail-card { position: relative; width: min(440px, calc(100vw - 64px)); max-height: calc(100vh - 105px); overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 55px #0f172a2e, 0 3px 12px #0f172a1a; }
 .model-detail-card.has-back { width: min(760px, calc(100vw - 64px)); }
 .model-detail-close { position: absolute; top: 9px; right: 9px; z-index: 1; width: 30px; height: 30px; padding: 0; border-radius: 999px; font-size: 21px; line-height: 1; background: var(--panel-translucent); }

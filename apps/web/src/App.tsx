@@ -10,7 +10,9 @@ import { WiringGuide } from './components/WiringGuide';
 import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
 import { HardwarePanel } from './hardware/HardwarePanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
+import { PanelRail } from './components/PanelRail';
 import { useStore } from './store';
+import { togglePanel, useLayout } from './layout';
 
 /** Pointer position on the canvas in µm, so a paste lands where the user is looking. */
 function canvasCursorUm(): [number, number] | null {
@@ -36,6 +38,7 @@ export function App() {
   const rightTab = useStore((s) => s.rightTab);
   const leftTab = useStore((s) => s.leftTab);
   const mode = useStore((s) => s.mode);
+  const layout = useLayout();
   const st = useStore.getState();
 
   useEffect(() => {
@@ -52,6 +55,8 @@ export function App() {
       if (s.mode !== 'build') {
         if (e.key === 'Escape') s.select([]);
         else if (!mod && (e.key === 'f' || e.key === 'F')) (window as unknown as { __bbsCanvas?: { fit: () => void } }).__bbsCanvas?.fit();
+        // 没有左面板可折，所以仿真/实机只认 `]`。
+        else if (!mod && e.key === ']') togglePanel('right');
         return;
       }
       if (mod && e.key.toLowerCase() === 'z') {
@@ -124,6 +129,14 @@ export function App() {
         case 'F':
           (window as unknown as { __bbsCanvas?: { fit: () => void } }).__bbsCanvas?.fit();
           break;
+        // 面板折叠：上面那个 INPUT/TEXTAREA/SELECT 门控保证元件库搜索框和 DSL 文本域里
+        // 打方括号不会被吞掉（`[` 在 DSL 里是合法的数组语法，必须能打）。
+        case '[':
+          togglePanel('left');
+          break;
+        case ']':
+          togglePanel('right');
+          break;
       }
     };
     window.addEventListener('keydown', onKey);
@@ -136,15 +149,20 @@ export function App() {
       <div className="main">
         {/* Nothing can be placed while a design is frozen, so 仿真 gives the canvas the room instead. */}
         {mode === 'build' && (
-          <aside className="left">
-            <div className="tabs">
-              <button className={leftTab === 'library' ? 'active' : ''} onClick={() => st.setLeftTab('library')} data-testid="tab-library">元件库</button>
-              <button className={leftTab === 'selected' ? 'active' : ''} onClick={() => st.setLeftTab('selected')} data-testid="tab-selected">已选元件</button>
+          <aside className="left panel-side" id="panel-left" data-collapsed={layout.leftCollapsed ? 'true' : 'false'}>
+            {/* 折叠只是宽度变 0：内容仍然挂载（不卸载 = 输入焦点、草稿与面板内状态都还在），
+                只由 .panel-side[data-collapsed] 的 overflow: hidden 裁掉，边缘那条轨道留作展开入口。 */}
+            <div className="panel-body">
+              <div className="tabs">
+                <button className={leftTab === 'library' ? 'active' : ''} onClick={() => st.setLeftTab('library')} data-testid="tab-library">元件库</button>
+                <button className={leftTab === 'selected' ? 'active' : ''} onClick={() => st.setLeftTab('selected')} data-testid="tab-selected">已选元件</button>
+              </div>
+              <div className="tab-body">
+                {leftTab === 'library' && <Library />}
+                {leftTab === 'selected' && <PlacedComponents />}
+              </div>
             </div>
-            <div className="tab-body">
-              {leftTab === 'library' && <Library />}
-              {leftTab === 'selected' && <PlacedComponents />}
-            </div>
+            <PanelRail side="left" />
           </aside>
         )}
         <section className="center">
@@ -152,25 +170,29 @@ export function App() {
           <CodeEditor />
           <Validation />
         </section>
-        <aside className="right">
-          {/* 属性 edits the document, so it is a 搭建 panel: 仿真 has one panel and needs no tabs. */}
-          {mode === 'build' && (
-            <div className="tabs">
-              <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
-              <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
-              <button className={rightTab === 'wiring' ? 'active' : ''} onClick={() => st.setRightTab('wiring')} data-testid="tab-wiring">接线向导</button>
-            </div>
-          )}
-          <div className="tab-body">
-            {mode === 'sim' && <SimulatorPanel />}
-            {mode === 'hardware' && <HardwarePanel />}
+        <aside className="right panel-side" id="panel-right" data-collapsed={layout.rightCollapsed ? 'true' : 'false'}>
+          {/* 轨道在面板内侧（靠画布那一边），所以展开时画布看到的边界和改动前是同一个位置。 */}
+          <PanelRail side="right" />
+          <div className="panel-body">
+            {/* 属性 edits the document, so it is a 搭建 panel: 仿真 has one panel and needs no tabs. */}
             {mode === 'build' && (
-              <>
-                {rightTab === 'properties' && <Properties />}
-                {rightTab === 'dsl' && <DslPanel />}
-                {rightTab === 'wiring' && <WiringGuide />}
-              </>
+              <div className="tabs">
+                <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
+                <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
+                <button className={rightTab === 'wiring' ? 'active' : ''} onClick={() => st.setRightTab('wiring')} data-testid="tab-wiring">接线向导</button>
+              </div>
             )}
+            <div className="tab-body">
+              {mode === 'sim' && <SimulatorPanel />}
+              {mode === 'hardware' && <HardwarePanel />}
+              {mode === 'build' && (
+                <>
+                  {rightTab === 'properties' && <Properties />}
+                  {rightTab === 'dsl' && <DslPanel />}
+                  {rightTab === 'wiring' && <WiringGuide />}
+                </>
+              )}
+            </div>
           </div>
         </aside>
       </div>
