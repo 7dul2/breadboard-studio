@@ -113,7 +113,7 @@ interface CanvasApi {
   zoomTo: (z: number) => void;
   rotateBy: (deltaDeg: number) => void;
   rotateTo: (deg: number) => void;
-  toggleSolderSide: () => void;
+  toggleSolderSide: (boardId?: string) => void;
 }
 
 /** 主题三档：浅色 / 深色 / 跟随系统（issue #23）。偏好持久保存在 localStorage。 */
@@ -220,8 +220,8 @@ function ViewMenu({ open, onToggle, onClose }: { open: boolean; onToggle: () => 
             <input type="checkbox" checked={dimUnhighlighted} onChange={st.toggleDimUnhighlighted} data-testid="toggle-dim" />聚焦选中
           </label>
           <div className="menu-sep" />
-          <button className="view-row view-action" onClick={() => canvasApi()?.toggleSolderSide()} title="洞洞板翻到焊接面（只影响显示与命中，不写入设计数据）" data-testid="toggle-solder-side">
-            翻转元件面 / 焊接面
+          <button className="view-row view-action" onClick={() => canvasApi()?.toggleSolderSide()} title="所有洞洞板一起翻面（只影响显示与命中，不写入设计数据；单块翻面在右侧属性面板）" data-testid="toggle-solder-side">
+            全部翻面（元件面 / 焊接面）
           </button>
           <div className="menu-label">当前面显示在画布左下角</div>
         </div>

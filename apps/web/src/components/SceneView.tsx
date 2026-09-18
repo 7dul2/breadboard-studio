@@ -16,12 +16,18 @@ export function renderNode(n: SceneNode, key: React.Key): React.ReactNode {
       return <rect key={key} x={n.x} y={n.y} width={n.w} height={n.h} rx={n.rx} fill={n.fill ?? 'none'} stroke={n.stroke} strokeWidth={n.sw} strokeDasharray={n.dash} {...common} />;
     case 'circle':
       return <circle key={key} cx={n.cx} cy={n.cy} r={n.r} fill={n.fill ?? 'none'} stroke={n.stroke} strokeWidth={n.sw} {...common} />;
-    case 'text':
+    case 'text': {
+      // 焊接面（R2.3）：`unmirrorX` 让文字绕自身锚点再翻一次，抵消父级的板镜像 —— 位置
+      // 仍然跟着板走，字却正着读。放在最内层（字符串最右），先作用于字形本身。
+      const transforms: string[] = [];
+      if (n.rotate) transforms.push(`rotate(${n.rotate} ${n.x} ${n.y})`);
+      if (n.unmirrorX) transforms.push(`translate(${n.x} ${n.y}) scale(-1 1) translate(${-n.x} ${-n.y})`);
       return (
-        <text key={key} x={n.x} y={n.y} fontSize={n.size} fill={n.fill ?? '#111'} textAnchor={n.anchor ?? 'start'} fontWeight={n.weight} fontFamily={n.family ?? FONT} transform={n.rotate ? `rotate(${n.rotate} ${n.x} ${n.y})` : undefined} style={{ pointerEvents: 'none', userSelect: 'none' }} {...common}>
+        <text key={key} x={n.x} y={n.y} fontSize={n.size} fill={n.fill ?? '#111'} textAnchor={n.anchor ?? 'start'} fontWeight={n.weight} fontFamily={n.family ?? FONT} transform={transforms.length ? transforms.join(' ') : undefined} style={{ pointerEvents: 'none', userSelect: 'none' }} {...common}>
           {n.text}
         </text>
       );
+    }
     case 'path':
       return <path key={key} d={n.d} fill={n.fill ?? 'none'} stroke={n.stroke} strokeWidth={n.sw} {...common} />;
     case 'line':

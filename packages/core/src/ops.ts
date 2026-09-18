@@ -720,9 +720,8 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       if (!boardA || !boardB) throw new OpError(`焊锡桥 "${id}" 的端点须指向现有板`);
       if (catalog.getBoard(boardA.model)?.render.style !== 'perfboard' || catalog.getBoard(boardB.model)?.render.style !== 'perfboard') throw new OpError(`焊锡桥 "${id}" 只能焊在洞洞板上`);
       if (boardA.id !== boardB.id) throw new OpError(`焊锡桥 "${id}" 的两端必须在同一块板上`);
-      const used = new Set<string>();
-      for (const s of design.solder_bridges ?? []) for (const ep of [s.a, s.b]) used.add(ep);
-      if (used.has(a) || used.has(b)) throw new OpError(`焊锡桥 "${id}" 的端点已被别的桥接占用`);
+      // 规格（PERFBOARD_UX R1.3）：只禁止"同一对孔重复桥接"。一个焊盘同时属于两座桥
+      // （A1–A2 与 A2–A3 串成一排）是实物上的正常做法，不该被拦。
       const dup = (design.solder_bridges ?? []).some((s) => (s.a === a && s.b === b) || (s.a === b && s.b === a));
       if (dup) throw new OpError(`焊锡桥 "${id}" 的这一对孔已经被桥接过了`);
       design.solder_bridges = [...(design.solder_bridges ?? []), { id, a, b, ...(op.bridge.notes ? { notes: op.bridge.notes } : {}) }];

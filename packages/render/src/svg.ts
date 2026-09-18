@@ -26,7 +26,11 @@ export function nodeToSvg(n: SceneNode): string {
     case 'circle':
       return `<circle${attrs({ cx: n.cx, cy: n.cy, r: n.r, fill: n.fill ?? 'none', stroke: n.stroke, 'stroke-width': n.sw, ...common })}/>`;
     case 'text': {
-      const transform = n.rotate ? `rotate(${n.rotate} ${n.x} ${n.y})` : undefined;
+      // `unmirrorX`：焊接面文字绕自身锚点反镜像，抵消父级的板镜像（R2.3），最内层生效。
+      const transforms: string[] = [];
+      if (n.rotate) transforms.push(`rotate(${n.rotate} ${n.x} ${n.y})`);
+      if (n.unmirrorX) transforms.push(`translate(${n.x} ${n.y}) scale(-1 1) translate(${-n.x} ${-n.y})`);
+      const transform = transforms.length ? transforms.join(' ') : undefined;
       return `<text${attrs({ x: n.x, y: n.y, 'font-size': n.size, fill: n.fill ?? '#111', 'text-anchor': n.anchor ?? 'start', 'font-weight': n.weight, 'font-family': n.family ?? 'system-ui, -apple-system, "PingFang SC", "Noto Sans CJK SC", sans-serif', transform, ...common })}>${esc(n.text)}</text>`;
     }
     case 'path':

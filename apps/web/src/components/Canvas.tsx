@@ -23,7 +23,7 @@ import {
   type Op,
   type RuleResult
 } from '@breadboard-studio/core';
-import { buildScene, componentScene, boardScene, wireScene, mm, wireColor, type SceneNode } from '@breadboard-studio/render';
+import { buildScene, componentScene, boardScene, wireScene, mm, wireColor, boardMirrorPoint, boardMirrorTransform, type SceneNode } from '@breadboard-studio/render';
 import { analysisOf, useStore } from '../store';
 import { SNAP_UM, leadPin, snapBoardPosition, snapPlacement } from '../placement';
 import { useSimulatorStore } from '../simulator/simulatorStore';
@@ -318,6 +318,12 @@ export function Canvas() {
     [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted, wizardFocus, view.sides]
   );
 
+  /** 正在看焊接面的板名（R2.7：HUD 要说清是哪几块，而不是只写"焊接面"） */
+  const flippedBoardNames = useMemo(
+    () => design.boards.filter((b) => view.sides[b.id] === 'solder').map((b) => b.name ?? b.id),
+    [design.boards, view.sides]
+  );
+
   // ---- coordinate helpers ---------------------------------------------------
   const toMm = useCallback((clientX: number, clientY: number): [number, number] => {
     const svg = svgRef.current!;
@@ -335,7 +341,7 @@ export function Canvas() {
       x = dx * c + dy * s;
       y = -dx * s + dy * c;
     }
-    // 按指针所在的镜像板区域用该板反镜像
+    // 按指针所在的镜像板区域用该板自己的反射反算回设计坐标（反射自逆，与渲染同一函数）
     if (Object.keys(v.sides).length > 0) {
       const svgRect = svg.getBoundingClientRect();
       const pointerX = clientX - svgRect.left - v.px;
@@ -346,8 +352,7 @@ export function Canvas() {
         const boardLeft = pb.bounds.x * v.z + v.px;
         const boardRight = (pb.bounds.x + pb.bounds.w) * v.z + v.px;
         if (pointerX >= boardLeft && pointerX <= boardRight) {
-          const axis = pb.bounds.x + pb.bounds.w / 2;
-          x = 2 * axis - x;
+          [x, y] = boardMirrorPoint(pb, [x, y]);
           break;
         }
       }
@@ -495,12 +500,22 @@ export function Canvas() {
         const [rx, ry] = rotateByDeg([cx - v.px, cy - v.py], rot - v.rot);
         setView({ ...v, rot, px: cx - rx, py: cy - ry });
       },
-      toggleSolderSide: () => setView((v) => {
+      /**
+       * 翻面（R2.6）：传 boardId 只翻那一块，不传就"全部翻面"（保留原来的全局快捷方式）。
+       * R2.2：只有洞洞板参与，面包板不翻。
+       */
+      toggleSolderSide: (boardId?: string) => setView((v) => {
+        const perfboards = [...model.boards.values()].filter((b) => b.def.render.style === 'perfboard');
+        const targets = boardId ? perfboards.filter((b) => b.instance.id === boardId) : perfboards;
+        if (!targets.length) return v;
         const sides = { ...v.sides };
-        const boardId = design.boards[0]?.id;
-        if (!boardId) return v;
-        const current = sides[boardId] ?? 'front';
-        sides[boardId] = current === 'front' ? 'solder' : 'front';
+        if (boardId) {
+          sides[boardId] = (sides[boardId] ?? 'front') === 'front' ? 'solder' : 'front';
+        } else {
+          // 全部翻面：只要还有板在元件面就全翻到焊接面，否则全回元件面
+          const to = targets.some((b) => (sides[b.instance.id] ?? 'front') === 'front') ? 'solder' : 'front';
+          for (const b of targets) sides[b.instance.id] = to;
+        }
         return { ...v, sides };
       }),
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
@@ -1193,11 +1208,20 @@ export function Canvas() {
   if (preview && drag.kind === 'objects') {
     const invalid = preview.blocking.length > 0;
     const nodes: SceneNode[] = [];
+    const mirroredBoardIds = new Set(Object.entries(view.sides).filter(([, s]) => s === 'solder').map(([id]) => id));
+    // 焊接面（R2.5）：拖拽预览也要跟着板走，否则"看到的位置"和落点不一致。
+    const mirrorOf = (id: string): string | undefined => {
+      const placement = preview.model.components.get(id)?.instance.placement;
+      const boardId = placement && placement.kind === 'board' ? placement.board_id : undefined;
+      if (!boardId || !mirroredBoardIds.has(boardId)) return undefined;
+      const pb = preview.model.boards.get(boardId);
+      return pb ? boardMirrorTransform(pb) : undefined;
+    };
     for (const id of drag.ids) {
       const pc = preview.model.components.get(id);
-      if (pc) nodes.push(componentScene(pc, { showPinLabels: true, showUnverifiedBadges: false }));
+      if (pc) nodes.push(componentScene(pc, { showPinLabels: true, showUnverifiedBadges: false }, mirrorOf(id)));
       const pb = preview.model.boards.get(id);
-      if (pb) nodes.push(boardScene(pb, preview.model, { showUnverifiedBadges: false }));
+      if (pb) nodes.push(boardScene(pb, preview.model, { showUnverifiedBadges: false, mirroredBoards: mirroredBoardIds }));
     }
     overlays.push(
       <g key="preview" className={`preview ${invalid ? 'preview-invalid' : 'preview-ok'}`} opacity={0.75} style={{ pointerEvents: 'none' }}>
@@ -1205,7 +1229,11 @@ export function Canvas() {
         {drag.ids.map((id) => {
           const pc = preview.model.components.get(id);
           if (!pc) return null;
-          return <rect key={id} x={mm(pc.bounds.x) - 0.6} y={mm(pc.bounds.y) - 0.6} width={mm(pc.bounds.w) + 1.2} height={mm(pc.bounds.h) + 1.2} fill="none" stroke={invalid ? '#dc2626' : '#16a34a'} strokeWidth={0.6} strokeDasharray="1.5 1" />;
+          return (
+            <g key={id} transform={mirrorOf(id)}>
+              <rect x={mm(pc.bounds.x) - 0.6} y={mm(pc.bounds.y) - 0.6} width={mm(pc.bounds.w) + 1.2} height={mm(pc.bounds.h) + 1.2} fill="none" stroke={invalid ? '#dc2626' : '#16a34a'} strokeWidth={0.6} strokeDasharray="1.5 1" />
+            </g>
+          );
         })}
         {invalid && (() => {
           const pc = preview.model.components.get(drag.ids[0]!);
@@ -1224,10 +1252,16 @@ export function Canvas() {
   if (placingPreview) {
     const pc = placingPreview.model.components.get(placingPreview.id)!;
     const invalid = placingPreview.blocking.length > 0;
+    // 落孔预览也按目标板的面镜像，鼠标底下的幽灵位置才等于落点（R2.5）
+    const placement = pc.instance.placement;
+    const targetBoard = placement.kind === 'board' && view.sides[placement.board_id] === 'solder' ? placingPreview.model.boards.get(placement.board_id) : undefined;
+    const placingMirror = targetBoard ? boardMirrorTransform(targetBoard) : undefined;
     overlays.push(
       <g key="placing" opacity={0.8} style={{ pointerEvents: 'none' }}>
-        {renderNode(componentScene(pc, { showPinLabels: true, showUnverifiedBadges: false }), 'placing')}
-        <rect x={mm(pc.bounds.x) - 0.6} y={mm(pc.bounds.y) - 0.6} width={mm(pc.bounds.w) + 1.2} height={mm(pc.bounds.h) + 1.2} fill="none" stroke={invalid ? '#dc2626' : '#16a34a'} strokeWidth={0.6} strokeDasharray="1.5 1" />
+        {renderNode(componentScene(pc, { showPinLabels: true, showUnverifiedBadges: false }, placingMirror), 'placing')}
+        <g transform={placingMirror}>
+          <rect x={mm(pc.bounds.x) - 0.6} y={mm(pc.bounds.y) - 0.6} width={mm(pc.bounds.w) + 1.2} height={mm(pc.bounds.h) + 1.2} fill="none" stroke={invalid ? '#dc2626' : '#16a34a'} strokeWidth={0.6} strokeDasharray="1.5 1" />
+        </g>
         <text x={mm(pc.bounds.x)} y={mm(pc.bounds.y) - 2} fontSize={2.2} className={invalid ? 'overlay-bad' : 'overlay-good'} fontWeight="bold">
           {invalid ? `✕ ${placingPreview.blocking[0]!.code}` : pc.onBoard ? `放在 ${(pc.instance.placement as { board_id: string }).board_id}.${(pc.instance.placement as { anchor_hole: string }).anchor_hole}（R 旋转，Esc 取消）` : '板外放置（R 旋转，Esc 取消）'}
         </text>
@@ -1404,7 +1438,8 @@ export function Canvas() {
       </svg>
       <div className="canvas-hud" data-testid="canvas-hud">
         <span>{Math.round(view.z * 100 / 6)}%</span>
-        <span>{Object.entries(view.sides).some(([, s]) => s === 'solder') ? '焊接面' : '元件面'}</span>
+        {/* R2.7：多板时要说清哪几块在焊接面，不能只写"焊接面" */}
+        <span>{flippedBoardNames.length === 0 ? '元件面' : `焊接面：${flippedBoardNames.join(' · ')}`}</span>
         {cursorMm && (
           <span>
             x {cursorMm[0].toFixed(1)} mm · y {cursorMm[1].toFixed(1)} mm

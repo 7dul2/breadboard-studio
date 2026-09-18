@@ -378,9 +378,7 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
   }
 
   // ---- solder bridges (schema 1.2) ----
-  const BRIDGE_PITCH_UM = 2540;
   const bridges = new Map<string, ResolvedBridge>();
-  const gridDist = (a: PointUm, b: PointUm): [number, number] => [Math.round((a[0] - b[0]) / BRIDGE_PITCH_UM), Math.round((a[1] - b[1]) / BRIDGE_PITCH_UM)];
   for (const s of design.solder_bridges ?? []) {
     const pa = parseAddress(s.a);
     const pb = parseAddress(s.b);
@@ -393,6 +391,9 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
     const aEnd: ResolvedEndpoint | null = pa && boardA && holeA ? { kind: 'hole', address: s.a, board_id: boardA.instance.id, hole: pa.name, global_um: toGlobal(holeA.local_um, boardA.transform) } : null;
     const bEnd: ResolvedEndpoint | null = pb && boardB && holeB ? { kind: 'hole', address: s.b, board_id: boardB.instance.id, hole: pb.name, global_um: toGlobal(holeB.local_um, boardB.transform) } : null;
     const valid = solderable && !!aEnd && !!bEnd;
+    // 邻接按该板自己的孔距算（2.54mm 只是常规洞洞板，定义里的 pitch 才是权威）
+    const pitchUm = boardA?.def.pitch_um ?? 2540;
+    const gridDist = (a: PointUm, b: PointUm): [number, number] => [Math.round((a[0] - b[0]) / pitchUm), Math.round((a[1] - b[1]) / pitchUm)];
     const [dr, dc] = (valid && holeA && holeB) ? gridDist(holeA.local_um, holeB.local_um) : [0, 0];
     const adjacent = (dr === 0 && Math.abs(dc) === 1) || (dc === 0 && Math.abs(dr) === 1);
     if (aEnd && bEnd && solderable) {
