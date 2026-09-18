@@ -13,6 +13,9 @@ const base = {
   view: { zoom: 2, build_done: ['w1'] }
 };
 
+/** 迁移成功后 `r.doc` 的类型：base 内容 + 1.2 新增的 `solder_bridges`。 */
+type MigratedDoc = typeof base & { solder_bridges: { id: string; a: string; b: string }[] };
+
 describe('schema 1.2 migration', () => {
   it('upgrades 1.0 → 1.2 without touching any content and without mutating the input', () => {
     const input = JSON.parse(JSON.stringify(base));
@@ -21,9 +24,10 @@ describe('schema 1.2 migration', () => {
     expect(r.from).toBe('1.0');
     expect(r.to).toBe(SCHEMA_VERSION);
     expect(r.migrated).toBe(true);
-    const doc = r.doc as typeof base;
+    const doc = r.doc as MigratedDoc;
     expect(doc.schema_version).toBe('1.2');
-    const { schema_version: _a, solder_bridges: _b, ...restIn } = base;
+    // base 是 1.0 文档，本来就没有 solder_bridges。
+    const { schema_version: _a, ...restIn } = base;
     const { schema_version: _c, solder_bridges: _d, ...restOut } = doc;
     expect(restOut).toEqual(restIn);
     expect(input.schema_version).toBe('1.0');
@@ -39,7 +43,8 @@ describe('schema 1.2 migration', () => {
     const r = migrateDesign({ ...base, schema_version: '1.1', solder_bridges: bridges });
     expect(r.ok).toBe(true);
     expect(r.to).toBe('1.2');
-    expect(r.doc.solder_bridges).toEqual(bridges);
+    const doc1_1 = r.doc as MigratedDoc;
+    expect(doc1_1.solder_bridges).toEqual(bridges);
     expect(validateDesignSchema(r.doc).ok).toBe(true);
   });
 
