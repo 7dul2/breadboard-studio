@@ -3,6 +3,10 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { chromium } from '@playwright/test';
+// textLength / innerHtmlById live in ./crawler-content.mjs so their boundary
+// behaviour is unit-testable without importing this script (which reads dist/ and
+// may process.exit at import time).
+import { innerHtmlById, textLength } from './crawler-content.mjs';
 
 const dist = join(import.meta.dirname, '..', 'apps', 'web', 'dist');
 const base = '/breadboard-studio/';
@@ -26,36 +30,6 @@ if (/<script[^>]+src="\/assets\//.test(html) || /<link[^>]+href="\/assets\//.tes
 // real build rather than the source file.
 const SITE = 'https://7dul2.github.io/breadboard-studio/';
 const staticErrors = [];
-const textLength = (markup) =>
-  markup
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim().length;
-
-/**
- * Inner HTML of the `<div id="…">`, found by matching <div>/</div> depth.
- *
- * The crawler-visible content is exactly this region: head styles and scripts are not
- * page text. Scanning the whole document instead would let the `<style>` block in
- * <head> satisfy a `bbs-intro` needle even after the real prose inside #root was
- * deleted (confirmed by deliberately emptying #root: the whole-document check passed).
- */
-function innerHtmlById(markup, id) {
-  const open = markup.indexOf(`<div id="${id}"`);
-  if (open === -1) return null;
-  const start = markup.indexOf('>', open) + 1;
-  let depth = 1;
-  const tag = /<\/?div\b/g;
-  tag.lastIndex = start;
-  for (let m = tag.exec(markup); m; m = tag.exec(markup)) {
-    depth += m[0] === '</div' ? -1 : 1;
-    if (depth === 0) return markup.slice(start, m.index);
-  }
-  return null;
-}
-
 const rootHtml = innerHtmlById(html, 'root');
 if (rootHtml === null) {
   staticErrors.push('dist/index.html 找不到 <div id="root"> 或它没有闭合');
