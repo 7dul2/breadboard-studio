@@ -51,6 +51,11 @@
           "upright",
           "flat"
         ]
+      },
+      "closed": {
+        "type": "boolean",
+        "title": "已按下（A-B 导通）",
+        "description": "按键当前的机械状态：true = 按下，A-B 导通；false = 松开。默认松开。仿真的交互式按压由驱动实现，这里记录的是放置/接线时的状态。"
       }
     }
   },
@@ -63,7 +68,8 @@
       5080,
       5080
     ],
-    "mount_orientation": "upright"
+    "mount_orientation": "upright",
+    "closed": false
   },
   "body": {
     "size_um": [
@@ -93,6 +99,16 @@
       "notes": "另一端；接 GND。按下时 A-B 导通，GPIO 读到低电平。"
     }
   },
+  "conduction": [
+    {
+      "kind": "switch",
+      "pins": [
+        "A",
+        "B"
+      ],
+      "state_param": "closed"
+    }
+  ],
   "electrical": {
     "supply_voltage_v": null,
     "supply_current_ma": {
@@ -164,7 +180,7 @@
   ],
   "geometry_status": "approximate",
   "electrical_status": "approximate",
-  "status_notes": "电气上是 2 端点的常开开关（实物 4 脚中同侧两脚内部相通）。脚距按面包板 2 孔（5.08 mm）建模，实物为 6.5×4.5 mm。",
+  "status_notes": "电气上是 2 端点的常开开关（实物 4 脚中同侧两脚内部相通）。脚距按面包板 2 孔（5.08 mm）建模，实物为 6.5×4.5 mm。导通按 conduction.kind=\"switch\" 建模，状态取自 params.closed（默认 false = 松开）；仿真里的交互式按压仍需要驱动。",
   "sources": [
     {
       "title": "Common 6x6x5 mm tactile switch listings",

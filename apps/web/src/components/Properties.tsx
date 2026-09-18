@@ -74,6 +74,22 @@ function JsonField({ label, value, onCommit, hint, options }: { label: string; v
   );
 }
 
+/**
+ * Booleans get a checkbox, not the JSON text box. A switch's closed state (and
+ * any future inverted/latched flag) is something you toggle while looking at the
+ * canvas; having to type `true` to close a switch is a puzzle, and `TRUE`/`1`
+ * would be rejected as invalid JSON.
+ */
+function BoolField({ label, value, onCommit, hint }: { label: string; value: JsonValue | undefined; onCommit: (v: JsonValue) => void; hint?: string }) {
+  return (
+    <label className="field">
+      <span title={hint}>{label}</span>
+      <input type="checkbox" checked={value === true} onChange={(e) => onCommit(e.target.checked)} data-testid={`prop-${label}`} />
+      {hint && <em className="hint-text">{hint}</em>}
+    </label>
+  );
+}
+
 const legacyRgb: Record<string, [number, number, number]> = {
   off: [0, 0, 0],
   red: [255, 0, 0],
@@ -417,9 +433,11 @@ export function Properties() {
         {artworkFor && <ArtworkEditor modelRef={artworkFor} onClose={() => setArtworkFor(null)} />}
         {def && schemaProps(def.params_schema).length > 0 && (
           <details open>
-            <summary>参数（外形/针序）</summary>
+            <summary>参数（外形/针序/状态）</summary>
             {schemaProps(def.params_schema).map(([k, sch]) => (
-              <JsonField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={params[k]} options={Array.isArray(sch.enum) ? sch.enum : undefined} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `params.${k}`, v)} />
+              sch.type === 'boolean'
+                ? <BoolField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={params[k]} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `params.${k}`, v)} />
+                : <JsonField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={params[k]} options={Array.isArray(sch.enum) ? sch.enum : undefined} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `params.${k}`, v)} />
             ))}
           </details>
         )}
@@ -427,7 +445,9 @@ export function Properties() {
           <details open>
             <summary>配置（电气/显示）</summary>
             {schemaProps(def.config_schema).map(([k, sch]) => (
-              sch['x-ui'] === 'rgb' ? (
+              sch.type === 'boolean' ? (
+                <BoolField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={config[k]} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `config.${k}`, v)} />
+              ) : sch['x-ui'] === 'rgb' ? (
                 <RgbField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={config[k]} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `config.${k}`, v)} />
               ) : (
                 <JsonField key={k} label={typeof sch.title === 'string' ? sch.title : k} value={config[k]} options={Array.isArray(sch.enum) ? sch.enum : undefined} hint={typeof sch.description === 'string' ? sch.description : undefined} onCommit={(v) => setProp(comp.id, `config.${k}`, v)} />
