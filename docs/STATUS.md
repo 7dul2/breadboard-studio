@@ -1,6 +1,6 @@
 # 进度与验证状态
 
-最后更新：2026-09-17。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。本轮覆盖实验性编辑器 UI（#18–#38，已合入 main）与洞洞板体验（#27）；`feat/issue-40-conduction` 与顶栏/面板的后续工作仍在进行，见文末「本轮（2026-09-17）」。
+最后更新：2026-09-18。仿真器已上线：https://7dul2.github.io/breadboard-studio/ 。环境：macOS 26.6 (arm64)、Node 26.0.0、pnpm 11.25.0、Chromium 153（Playwright 1.63）。本轮覆盖实验性编辑器 UI（#18–#38，已合入 main）与洞洞板体验（#27）；`feat/issue-40-conduction` 仍在进行（顶栏与面板已合入 main），见文末「本轮（2026-09-17）」。
 
 ## 里程碑
 
@@ -49,10 +49,10 @@
 
 | 套件 | 结果 |
 | --- | --- |
-| `pnpm typecheck` | 6 个包全部通过（schema、catalog、core、render、sim、cli）。`apps/web` 当前**失败**：未提交的 `apps/web/devtools/docs-content.ts`（文档站，进行中）有 6 个 TS 错误；已提交的 HEAD 上该包也是通过的。 |
-| `pnpm test`（Vitest） | 603 通过（62 个文件，0 失败；按 `--reporter=json` 逐文件统计）：**仿真侧 312**——器件驱动 97（ESP32-S3 16、TTP223 14、BMP390 15、SSD1315 11、SHT4x 8、LTR390 8、SEN6x 7、注册表 7、LED 5、颜色 6）、Studio TS 沙箱 36、数字网络 30、Worker 会话 28、控制器 18、编译 14、I²C 总线 12、电源域 12、泵 12、调度器 9、outbox 9、整链路 20（触摸显示 7、回放 4、BMP390/LED/SHT4x 各 3）、状态机 4、导入边界 5、诊断码注册表 3、倍速 3；**core 147**——自动排线 22、尺寸派生 16（`board-resize`）、导线与端点改接 17、可信度 13（上拉 8、复用 2、证据门槛 3）、放置 12、程序与仿真配置 12、规则 11、事务/往返 11、电阻导通 9、面包板导通 7、内嵌定义 7、洞洞板 5、示例 3、哈希 2；**web 侧 102**——叠加层几何 24、实机 15（状态机 7 + 串口解码 8）、分组与折叠 9、拼装规划 9、面板布局 9、放置吸附 7、内嵌绘图丢弃 6、定义写回 6、时间线几何 6、恢复助手 4、主题 4、录制文件 3；**MCP 协议层 8、CLI 13**；目录 9、schema 迁移 5、渲染 7（作品 3 + 导线聚焦 4）。 |
-| `pnpm test:e2e`（Playwright） | 106 通过（18 个文件，50.3 s，0 失败）：面板 10（默认宽度、折叠把宽度还给画布并逐像素复原、拖轨道改宽且夹在 200–520、折叠后仍有可访问的展开入口、`[`/`]` 不吞输入框里的方括号、布局本地记忆与清空回默认、拖拽与折叠不写设计数据、折叠右面板不卸载仿真会话、仿真里没有左面板、模型详情浮层跟随面板宽度）、尺寸编辑 10（创建时自定义尺寸、不填尺寸不派生、拖把手延长/裁剪与一次撤销、裁剪行后沟槽与电源轨仍在板内、Esc 取消、裁剪保护、重载保留、可拆拼装件也能改、锁定板不进编辑）、元件库 9（新件可见、正反面预览、详情卡预览、拼装两种排法、精选/折叠/搜索/展开态）、应用栏 9、M-S1 验收 6、仿真外壳 5、复制粘贴 5、模式切换 5、M-S2 验收 5、实机 4、深色模式 4、洞洞板 3、已选元件 3、M-S3 I²C 与 OLED 3、关键流程与拼板、自动排线（默认自动线材：硬质 + 杜邦混合、馈线/桥线、意图闭合、整批撤销；再强制全杜邦线）、外观编辑器与写回、时间线与断点 2、传感器滑杆 2、录制回放 1。 |
-| `pnpm build` + `pnpm check:dist` | 在 `/breadboard-studio/` 子路径下加载示例、24 根线、5 个网络、0 控制台错误；并真的启动一次仿真（`nowUs` 开始推进）走通「子路径 + 生产构建 + Worker + wasm」。主 chunk 约 748 KB（阈值 900,000）、不含 quickjs/sucrase 字样、`.wasm` 恰好 1 个。**子路径来自 `VITE_BASE=/breadboard-studio/`**（CI 的 pages.yml 已设置）：裸 `pnpm build` 产出的是 base `/`，此时 `check:dist` 会因 `/assets/...` 404 而超时——本地复现发布构建要带上这个变量。**注意**：文档站（未提交的 `apps/web/devtools/docs-site.ts`）会在 `vite build` 里额外产出 `docs/**`、`sitemap.xml`、`robots.txt`、`llms.txt`；它当前让 `apps/web` 的 typecheck 变红，`pnpm build` 也尚未在本轮复跑。 |
+| `pnpm typecheck` | 6 个包全部通过（schema、catalog、core、render、sim、cli）。`apps/web` 也通过：文档站（`apps/web/devtools/docs-content.ts`）曾在本轮中途有 6 个 TS 错误（`MarkdownIt` 当类型用、`Token.attrGet` 返回 `string \| number \| null` 未窄化），已在 `b3fb83e` 修好并随 #63 合入 main。 |
+| `pnpm test`（Vitest） | 629 通过（64 个文件，0 失败；按 `--reporter=json` 逐文件统计）：**仿真侧 312**——器件驱动 97（ESP32-S3 16、TTP223 14、BMP390 15、SSD1315 11、SHT4x 8、LTR390 8、SEN6x 7、注册表 7、LED 5、颜色 6）、Studio TS 沙箱 36、数字网络 30、Worker 会话 28、控制器 18、编译 14、I²C 总线 12、电源域 12、泵 12、调度器 9、outbox 9、整链路 20（触摸显示 7、回放 4、BMP390/LED/SHT4x 各 3）、状态机 4、导入边界 5、诊断码注册表 3、倍速 3；**core 147**——自动排线 22、尺寸派生 16（`board-resize`）、导线与端点改接 17、可信度 13（上拉 8、复用 2、证据门槛 3）、放置 12、程序与仿真配置 12、规则 11、事务/往返 11、电阻导通 9、面包板导通 7、内嵌定义 7、洞洞板 5、示例 3、哈希 2；**web 侧 122**——叠加层几何 24、实机 15（状态机 7 + 串口解码 8）、文档站渲染 17、分组与折叠 9、拼装规划 9、面板布局 12、放置吸附 7、内嵌绘图丢弃 6、定义写回 6、时间线几何 6、恢复助手 4、主题 4、录制文件 3；**MCP 协议层 8、CLI 13**；目录 9、schema 迁移 5、渲染 7（作品 3 + 导线聚焦 4）、构建护栏 6（check-dist 正文提取）。 |
+| `pnpm test:e2e`（Playwright） | 107 通过（18 个文件，0 失败）：面板 11（默认宽度、折叠把宽度还给画布并逐像素复原、拖轨道改宽且夹在 200–520、折叠后仍有可访问的展开入口、`[`/`]` 不吞输入框里的方括号、布局本地记忆与清空回默认、拖拽与折叠不写设计数据、折叠右面板不卸载仿真会话、仿真里没有左面板、模型详情浮层跟随面板宽度）、尺寸编辑 10（创建时自定义尺寸、不填尺寸不派生、拖把手延长/裁剪与一次撤销、裁剪行后沟槽与电源轨仍在板内、Esc 取消、裁剪保护、重载保留、可拆拼装件也能改、锁定板不进编辑）、元件库 9（新件可见、正反面预览、详情卡预览、拼装两种排法、精选/折叠/搜索/展开态）、应用栏 9、M-S1 验收 6、仿真外壳 5、复制粘贴 5、模式切换 5、M-S2 验收 5、实机 4、深色模式 4、洞洞板 3、已选元件 3、M-S3 I²C 与 OLED 3、关键流程与拼板、自动排线（默认自动线材：硬质 + 杜邦混合、馈线/桥线、意图闭合、整批撤销；再强制全杜邦线）、外观编辑器与写回、时间线与断点 2、传感器滑杆 2、录制回放 1。 |
+| `pnpm build` + `pnpm check:dist` | 在 `/breadboard-studio/` 子路径下加载示例、24 根线、5 个网络、0 控制台错误；并真的启动一次仿真（`nowUs` 开始推进）走通「子路径 + 生产构建 + Worker + wasm」。主 chunk 843,127 B（阈值 900,000，余量约 6%）、不含 quickjs/sucrase 字样、`.wasm` 恰好 1 个。**子路径来自 `VITE_BASE=/breadboard-studio/`**（CI 的 pages.yml 已设置）：裸 `pnpm build` 产出的是 base `/`，此时 `check:dist` 会因 `/assets/...` 404 而超时——本地复现发布构建要带上这个变量。文档站（`apps/web/devtools/docs-site.ts`，已随 `b3fb83e` 合入）在 `vite build` 里额外产出 `docs/**`、`sitemap.xml`、`robots.txt`、`llms.txt` 与 `social-card.png`；`check:dist` 现在对这些页面做回归检查——sitemap 列出的每一页必须存在、带 `<h1>` 与 canonical、正文不低于字数下限，且首页 `#root` 内不执行 JS 也能读到的正文不得消失（`innerHtmlById`/`textLength` 提取为纯模块 `scripts/crawler-content.mjs`，边界用例由单元测试钉住）。 |
 | 浏览器实测（1280 / 1400 / 1500 宽） | 应用栏在 1280 与 1500 下都是单行且留有余量（选中态 220 px / 接线态 114 px）；代码抽屉拖到极限时画布仍保留 ≥120 px、中间栏不溢出；运行→故障后改倍速仍是“故障”且写入文件，不产生过期诊断 |
 
 计划第 10 节的十类关键测试与用例对应：1 `board-connectivity`；2 `two boards`；3 `wires`；4 `placement`（旋转/脱格/同孔）；5 `rules`（短路、未知→needs_review）；6 `I2C rules`；7 `file round trip`；8 `transactions`+`cli`（原子、冲突、撤销、UI/CLI 一致）；9 `e2e`；10 `cli export`（viewBox 内无裁切、徽标与标签存在）。
@@ -95,17 +95,17 @@
 
 元件库数据驱动（#32）、深色模式（#23）、洞洞板作为一等板件（#27）、面包板尺寸编辑（#22）、已选元件面板与拼装对话框（#18）、TTP224 双面预览（#20/#21/#25）、接线向导逐线聚焦（#24）、应用栏三区与视图/接线选项 popover（#37）。逐项验证见上面的里程碑表。
 
-本轮验证：`pnpm test` 603 通过（62 个文件，0 失败）；`pnpm test:e2e` 106 通过（18 个文件，50.3 s，0 失败）；6 个 package 的 typecheck 通过。数字来自 `--reporter=json` 与 Playwright 的实跑输出，不是上一轮的行复制。
+本轮验证：`pnpm test` 629 通过（64 个文件，0 失败）；`pnpm test:e2e` 107 通过（18 个文件，0 失败）；6 个 package 连 `apps/web` 的 typecheck 全部通过。数字来自 `--reporter=json` 与 Playwright 的实跑输出，不是上一轮的行复制。
 
-### 进行中（未提交，不计入上面的数字）
+### 本轮已合入（已计入上面的数字）
 
-- **左右面板折叠 / 调宽 / 记忆布局**（`apps/web/src/layout.ts`、`components/PanelRail.tsx`、`e2e/panels.spec.ts`）：默认左 260 / 右 340 px，拖内侧把手改宽度（夹在 200–520），点把手或 `[` / `]` 折叠；折叠只是宽度变 0，面板内容不卸载（仿真会话不被打断）；布局存 `breadboard-studio.v1.layout`，不写设计数据、不进撤销栈。单测 9 + e2e 10 已经写好并全绿。
-- **仓库文档站**（`apps/web/devtools/docs-content.ts`、`docs-site.ts`）：在 `vite build` 里把 README 与 `docs/*.md` 渲染成静态页面并产出 `sitemap.xml` / `robots.txt` / `llms.txt`，解决 SPA 对爬虫是空白文档的问题。**当前 typecheck 不通过（该文件 6 个 TS 错误）**，`pnpm build` 未复跑；正式发布前必须先修好。
+- **左右面板折叠 / 调宽 / 记忆布局**（`apps/web/src/layout.ts`、`components/PanelRail.tsx`、`e2e/panels.spec.ts`）：默认左 260 / 右 340 px，拖内侧把手改宽度（夹在 200–520），点把手或 `[` / `]` 折叠；折叠只是宽度变 0，面板内容不卸载（仿真会话不被打断）；布局存 `breadboard-studio.v1.layout`，不写设计数据、不进撤销栈。单测 12 + e2e 11。已随 #63 合入（`bb17529`）。折叠时把焦点搬到轨道上、避免按键落进看不见的输入框，这条修复在 `b3fb83e`：代码里一度被留成 `MUTATION` 占位（焦点救援被关掉），e2e 因此确定性失败，不是抖动。
+- **仓库文档站**（`apps/web/devtools/docs-content.ts`、`docs-site.ts`、`docs-content.test.ts`）：在 `vite build` 里把 README 与 `docs/*.md` 渲染成静态页面，并产出 `sitemap.xml` / `robots.txt` / `llms.txt` 与 1200×630 的 `social-card.png`，解决 SPA 对爬虫是空白文档的问题；dev 下同一中间件直接可访问。单测 17。已随 #63 合入（`b3fb83e`）并部署上线——8 个 HTML 页面与 4 个站点级文件线上实测均 200。
 - `feat/issue-40-conduction`（worktree）：洞洞板/轻触按键的导通建模调整（`connectivity.ts`、`rules.ts`、`tactile_6x6`、schema）。未合入，未计入本轮状态。
 
 ### 下一步
 
-第三期「可执行仿真」（规格书阶段 1–4）已全部交付，见 [`SIMULATOR_RUNTIME_PLAN.md`](SIMULATOR_RUNTIME_PLAN.md)；阶段 5「真实固件后端」按计划先做 RFC，结论是已调查并谢绝（[`PHASE5_RFC.md`](PHASE5_RFC.md)），其中站得住的那部分已作为「实机」模式交付。仿真方向接下来若要继续，值得做的是烧录固件（esptool-js，惰性加载）与更多器件建模（烧录短期不做）。**MCP 封装已交付**（见里程碑表），「可信度：实测与 verified」四项已在本地实现：证据门槛、I²C 上拉静态规则、GPIO 复用诊断与避让、社区实测模板。下一步收集真实样品报告并人工复核，按 [证据流程](VERIFICATION.md) 逐项完善目录。其它方向：洞洞板焊接面体验（[`PERFBOARD_UX.md`](PERFBOARD_UX.md) 的 P0 三条）、面板折叠落地、密集线束整理。
+第三期「可执行仿真」（规格书阶段 1–4）已全部交付，见 [`SIMULATOR_RUNTIME_PLAN.md`](SIMULATOR_RUNTIME_PLAN.md)；阶段 5「真实固件后端」按计划先做 RFC，结论是已调查并谢绝（[`PHASE5_RFC.md`](PHASE5_RFC.md)），其中站得住的那部分已作为「实机」模式交付。仿真方向接下来若要继续，值得做的是烧录固件（esptool-js，惰性加载）与更多器件建模（烧录短期不做）。**MCP 封装已交付**（见里程碑表），「可信度：实测与 verified」四项已在本地实现：证据门槛、I²C 上拉静态规则、GPIO 复用诊断与避让、社区实测模板。下一步收集真实样品报告并人工复核，按 [证据流程](VERIFICATION.md) 逐项完善目录。其它方向：洞洞板焊接面体验（[`PERFBOARD_UX.md`](PERFBOARD_UX.md) 的 P0 三条）、密集线束整理、把文档站 sitemap 提交到 Google／Bing／百度站长平台（提交后才能让收录真正启动，见 issue #80）。
 
 ## 体验修补（2026-09-11）
 
