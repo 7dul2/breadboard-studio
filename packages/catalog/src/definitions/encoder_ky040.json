@@ -8,6 +8,14 @@
   "model": "Incremental rotary encoder breakout with push switch (KY-040 style)",
   "variant": "5 针单排 2.54 mm：CLK / DT / SW / + / GND",
   "description": "带轴按下开关的增量式旋转编码器模块。5 个引脚排成一行、间距 2.54 mm，丝印自左向右为 CLK / DT / SW / + / GND。CLK 与 DT 是 A/B 两相正交输出，转动一格产生 4 个状态跳变；SW 是轴按下开关，按下时对地导通。",
+  "keywords": [
+    "编码器",
+    "旋转编码器",
+    "encoder",
+    "rotary",
+    "KY-040",
+    "EC11"
+  ],
   "category": "input",
   "mount": "breadboard",
   "origin": "top_left",

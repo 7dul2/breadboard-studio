@@ -497,6 +497,8 @@ export interface ComponentDefinition {
   model?: string;
   variant?: string;
   description?: string;
+  /** Search aliases: Chinese names, common nicknames, part numbers (issue #42). */
+  keywords?: string[];
   /** Curated for the default library view; see `BoardDefinition.featured`. */
   featured?: boolean;
   category: 'mcu' | 'display' | 'sensor' | 'input' | 'power' | 'passive' | 'connector' | 'other';

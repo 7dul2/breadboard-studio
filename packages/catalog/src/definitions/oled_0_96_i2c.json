@@ -6,6 +6,7 @@
   "manufacturer": "generic",
   "model": "0.96 inch 128×64 OLED breakout, SSD1306 controller",
   "description": "4 针单排 I²C OLED 转接板。针序因厂商而异（常见 GND-VCC-SCL-SDA 或 VCC-GND-SCL-SDA），必须按板上丝印在 params.pin_names 中确认。直插排针时模块立在面包板上，只占用针排所在的孔位。",
+  "keywords": ["OLED","屏幕","显示屏","0.96","0.96寸"],
   "category": "display",
   "mount": "breadboard",
   "origin": "top_left",

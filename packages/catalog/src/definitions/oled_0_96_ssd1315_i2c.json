@@ -7,6 +7,7 @@
   "manufacturer": "generic",
   "model": "0.96 inch 128×64 OLED breakout, SSD1315 controller",
   "description": "按参考图近似绘制的 4 针 I²C OLED 模块，针序为 GND-VCC-SCL-SDA。屏幕为黑底，可在属性中将模拟显示颜色切换为白色或蓝色。默认使用弯排针平躺在面包板上，板体会遮挡下方孔位。",
+  "keywords": ["OLED","屏幕","显示屏","SSD1315","0.96","0.96寸"],
   "category": "display",
   "mount": "breadboard",
   "origin": "top_left",

@@ -8,6 +8,16 @@
   "model": "ESP32-S3-N16R8 dual USB-C 44-pin development board",
   "variant": "16 MB Flash + 8 MB octal PSRAM, CH343, onboard RGB LED",
   "description": "依据商品尺寸图和面包板实物照片建模的黑色双 Type-C ESP32-S3 开发板。板体约 27.94×57.15 mm，每侧 22 针、2.54 mm 间距，两排中心距约 25.40 mm；平躺跨面包板中央沟槽安装。",
+  "keywords": [
+    "ESP32",
+    "ESP32-S3",
+    "DevKit",
+    "主控",
+    "开发板",
+    "N16R8",
+    "双USB",
+    "Type-C"
+  ],
   "category": "mcu",
   "mount": "breadboard",
   "origin": "top_left",

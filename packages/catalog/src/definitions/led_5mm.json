@@ -6,6 +6,7 @@
   "manufacturer": "generic",
   "model": "5 mm through-hole LED",
   "description": "两脚相距 1 孔距。A=阳极（长脚），K=阴极。两脚之间不是短路。",
+  "keywords": ["LED","发光二极管","二极管","5mm","through-hole LED"],
   "category": "passive",
   "mount": "breadboard",
   "origin": "top_left",

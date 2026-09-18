@@ -6,6 +6,7 @@
   "manufacturer": "generic",
   "model": "configurable 3.3 V supply placeholder",
   "description": "板外电源占位模型：提供 3V3/GND 输出端子。额定/峰值输出能力必须在 config 中显式填写，否则保持 unknown 并进入待审核项。",
+  "keywords": ["电源","供电","3.3V","稳压","power"],
   "category": "power",
   "mount": "off_board",
   "origin": "top_left",

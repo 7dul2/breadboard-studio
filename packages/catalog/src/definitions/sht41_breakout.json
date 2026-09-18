@@ -6,6 +6,14 @@
   "manufacturer": "generic",
   "model": "Sensirion SHT41 on generic I2C breakout",
   "description": "SHT41 数字温湿度传感器（I²C 地址固定 0x44，SHT41-BD1B 变体为 0x45）。转接板外形、针序与板载稳压未知。",
+  "keywords": [
+    "温湿度",
+    "温度",
+    "湿度",
+    "SHT41",
+    "SHT4x",
+    "Sensirion"
+  ],
   "category": "sensor",
   "mount": "breadboard",
   "origin": "top_left",

@@ -6,6 +6,12 @@
   "manufacturer": "generic",
   "model": "1/4 W axial resistor",
   "description": "两端引脚跨距可配置（默认 4 孔距 = 10.16 mm）。两端之间不是短路。",
+  "keywords": [
+    "电阻",
+    "色环电阻",
+    "resistor",
+    "axial"
+  ],
   "category": "passive",
   "mount": "breadboard",
   "origin": "top_left",

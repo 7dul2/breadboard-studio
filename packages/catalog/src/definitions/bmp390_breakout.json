@@ -6,6 +6,13 @@
   "manufacturer": "generic",
   "model": "Bosch BMP390 on generic I2C breakout",
   "description": "BMP390 气压/温度传感器（I²C 地址 0x77 默认，SDO 接地时 0x76）。转接板外形、针序与板载稳压未知。",
+  "keywords": [
+    "气压",
+    "气压计",
+    "BMP390",
+    "Bosch",
+    "压力"
+  ],
   "category": "sensor",
   "mount": "breadboard",
   "origin": "top_left",
