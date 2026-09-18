@@ -1,0 +1,547 @@
+/* Breadboard Studio — lab-bench / PCB silkscreen identity */
+:root {
+  --board: #0b1210;
+  --board-2: #101a16;
+  --hole: #15201c;
+  --silk: #e8f0ec;
+  --silk-dim: #a8bdb2;
+  --muted: #6f877c;
+  --trace: #3dba7a;
+  --trace-dim: #1f6b48;
+  --wire-r: #e53935;
+  --wire-y: #f5c518;
+  --wire-b: #4fc3f7;
+  --rule: rgba(168, 189, 178, 0.18);
+  --max: 1080px;
+  --pad: clamp(20px, 4vw, 40px);
+  --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --mono: "Cascadia Code", "SF Mono", "Consolas", "JetBrains Mono", ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--board);
+  color: var(--silk);
+  line-height: 1.65;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: var(--trace);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--wire-y);
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--wire-y);
+  outline-offset: 3px;
+}
+
+/* ——— hole-grid backdrop ——— */
+.gridskin {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(61, 186, 122, 0.08), transparent 55%),
+    radial-gradient(circle at 1px 1px, var(--hole) 1.1px, transparent 1.2px);
+  background-size: 100% 100%, 25.4px 25.4px;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* ——— top silk strip ——— */
+.topbar {
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--silk-dim);
+}
+
+.topbar-inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 10px var(--pad);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topbar .mark {
+  color: var(--trace);
+  font-weight: 600;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.topbar nav a {
+  color: var(--silk-dim);
+}
+
+.topbar nav a:hover {
+  color: var(--silk);
+}
+
+/* ——— hero ——— */
+.hero {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(36px, 6vw, 64px) var(--pad) clamp(32px, 5vw, 48px);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(28px, 5vw, 56px);
+  align-items: center;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--trace);
+  margin: 0 0 18px;
+}
+
+.hero h1 {
+  margin: 0 0 18px;
+  font-size: clamp(34px, 5.2vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.hero h1 .dim {
+  color: var(--silk-dim);
+  font-weight: 500;
+}
+
+.lede {
+  margin: 0 0 28px;
+  color: var(--silk-dim);
+  font-size: clamp(16px, 1.6vw, 18px);
+  max-width: 36em;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 1px solid var(--trace);
+  color: var(--board);
+  background: var(--trace);
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover {
+  background: var(--wire-y);
+  border-color: var(--wire-y);
+  color: var(--board);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--silk);
+  border-color: var(--rule);
+}
+
+.btn.ghost:hover {
+  border-color: var(--trace);
+  color: var(--trace);
+  background: transparent;
+}
+
+.facts {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.facts span::before {
+  content: "·";
+  margin-right: 10px;
+  color: var(--trace-dim);
+}
+
+.facts span:first-child::before {
+  content: none;
+  margin: 0;
+}
+
+/* signature breadboard */
+.board-art {
+  position: relative;
+  border: 1px solid var(--rule);
+  background:
+    linear-gradient(180deg, #15221c 0%, #0e1713 100%);
+  padding: 18px 16px 14px;
+  min-height: 280px;
+}
+
+.board-art::before {
+  content: "AUTO-WIRE · 2.54 mm";
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.board-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.board-art .legend {
+  margin-top: 10px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.board-art .legend i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ——— section chrome ——— */
+section {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(40px, 6vw, 72px) var(--pad);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 14px;
+  margin-bottom: 28px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 28px);
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.section-head .tag {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+/* ——— process rows (datasheet, not cards) ——— */
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row .num {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--trace);
+  padding-top: 3px;
+}
+
+.row h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.row p {
+  margin: 0;
+  color: var(--silk-dim);
+  font-size: 15px;
+  max-width: 52em;
+}
+
+.row .meta {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ——— shots ——— */
+.shots {
+  display: grid;
+  gap: 18px;
+}
+
+.shot {
+  border: 1px solid var(--rule);
+  background: #070c0a;
+  overflow: hidden;
+}
+
+.shot img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.shot figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--rule);
+  background: var(--board-2);
+}
+
+.shot figcaption strong {
+  color: var(--silk-dim);
+  font-weight: 500;
+}
+
+.shot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+/* ——— agent / MCP ——— */
+.agent-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.codeblock {
+  margin: 0;
+  padding: 16px 18px;
+  background: #070c0a;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--trace);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--silk-dim);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.codeblock .c {
+  color: var(--muted);
+}
+
+.codeblock .k {
+  color: var(--wire-b);
+}
+
+.codeblock .s {
+  color: var(--wire-y);
+}
+
+.bullets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bullets li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--silk-dim);
+  font-size: 15px;
+}
+
+.bullets li strong {
+  color: var(--silk);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ——— honesty strip ——— */
+.honesty {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(61, 186, 122, 0.04), transparent);
+}
+
+.honesty .inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(32px, 5vw, 48px) var(--pad);
+}
+
+.honesty h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.honesty p {
+  margin: 0;
+  color: var(--silk-dim);
+  max-width: 56em;
+}
+
+.honesty ul {
+  margin: 16px 0 0;
+  padding-left: 1.1em;
+  color: var(--silk-dim);
+}
+
+.honesty li {
+  margin-bottom: 6px;
+}
+
+/* ——— footer ——— */
+footer {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 36px var(--pad) 56px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+footer a {
+  color: var(--silk-dim);
+}
+
+footer a:hover {
+  color: var(--trace);
+}
+
+/* ——— wire draw animation ——— */
+.wire {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: draw 2.8s ease forwards;
+}
+
+.wire.r { stroke: var(--wire-r); animation-delay: 0.15s; }
+.wire.y { stroke: var(--wire-y); animation-delay: 0.55s; }
+.wire.b { stroke: var(--wire-b); animation-delay: 0.95s; }
+.wire.g { stroke: var(--trace); animation-delay: 1.35s; }
+
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.hole-dot {
+  fill: #0a100e;
+  stroke: #2a3d34;
+  stroke-width: 0.6;
+}
+
+.pad-v {
+  fill: #24352e;
+}
+
+/* ——— responsive ——— */
+@media (max-width: 860px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-panel,
+  .shot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    grid-template-columns: 48px 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .cta-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .wire {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .btn { transition: none; }
+}

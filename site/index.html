@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Breadboard Studio — 面包板布局，给人和 Agent</title>
+  <meta name="description" content="可校验、可仿真、可导出的面包板布局工作室。画板、接线、跑程序，人和 AI 共用同一套规则。" />
+  <meta name="theme-color" content="#0b1210" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="gridskin" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="mark">BREADBOARD STUDIO · v0.1.0</div>
+      <nav aria-label="页面导航">
+        <a href="#workflow">流程</a>
+        <a href="#shots">界面</a>
+        <a href="#agent">Agent</a>
+        <a href="#honesty">边界</a>
+        <a href="https://github.com/7dul2/breadboard-studio" rel="noopener noreferrer" target="_blank">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow">硬件布局工作室 · 开源 · 浏览器直接跑</p>
+        <h1 id="hero-title">面包板画得清<br /><span class="dim">接线说得准</span></h1>
+        <p class="lede">
+          Breadboard Studio 把「摆元件、接线、校验、仿真、导出」放在同一张画布上。
+          人用鼠标拖，Agent 用 CLI / MCP 改——同一套孔位、导通图和规则，不会各说各话。
+        </p>
+        <div class="cta-row">
+          <a class="btn" href="https://7dul2.github.io/breadboard-studio/" rel="noopener noreferrer" target="_blank">打开在线编辑器</a>
+          <a class="btn ghost" href="https://github.com/7dul2/breadboard-studio" rel="noopener noreferrer" target="_blank">查看源码</a>
+        </div>
+        <div class="facts">
+          <span>MIT</span>
+          <span>pnpm · TypeScript</span>
+          <span>SVG / PNG 导出</span>
+          <span>CLI + MCP</span>
+        </div>
+      </div>
+
+      <aside class="board-art" aria-label="自动布线示意">
+        <svg id="board-svg" viewBox="0 0 420 260" role="img" aria-label="面包板与三根跳线的示意图">
+          <!-- rails + terminal grid drawn by main.js -->
+        </svg>
+        <div class="legend">
+          <span><i style="background:#e53935"></i>VCC</span>
+          <span><i style="background:#4fc3f7"></i>GND</span>
+          <span><i style="background:#f5c518"></i>SDA</span>
+          <span><i style="background:#3dba7a"></i>SCL</span>
+        </div>
+      </aside>
+    </section>
+
+    <section id="workflow" aria-labelledby="workflow-title">
+      <div class="section-head">
+        <h2 id="workflow-title">从空板到可验证电路</h2>
+        <span class="tag">WORKFLOW · 01–06</span>
+      </div>
+      <div class="rows">
+        <article class="row">
+          <div class="num">01</div>
+          <div>
+            <h3>选板、拼板、改尺寸</h3>
+            <p>400 / 830 孔面包板、可拆拼装式、洞洞板。拖把手就能延长或裁剪行列；拼接时按 2.54 mm 栅格对齐。</p>
+            <div class="meta">BoardDefinition · spliceable · custom size</div>
+          </div>
+        </article>
+        <article class="row">
+          <div class="num">02</div>
+          <div>
+            <h3>从目录放元件，而不是画方块</h3>
+            <p>主控、显示、传感器、输入、电源都有带引脚角色与证据状态的定义。搜索支持中文别名与料号。</p>
+            <div class="meta">catalog · pin_meta · featured / fold</div>
+          </div>
+        </article>
+        <article class="row">
+          <div class="num">03</div>
+          <div>
+            <h3>手工接线，或自动排线</h3>
+            <p>拖线、改端点、换颜色。多选后自动规划电源 / 地 / I²C / GPIO，会报告走线长度与待审核项。</p>
+            <div class="meta">autowire · corridor-aware · revision-safe</div>
+          </div>
+        </article>
+        <article class="row">
+          <div class="num">04</div>
+          <div>
+            <h3>校验说人话，不吓人</h3>
+            <p>短路、浮空输入、I²C 地址冲突、未上电、保留引脚……点击结果就能定位到画布上的对象。</p>
+            <div class="meta">rules · needs_review · honest unknowns</div>
+          </div>
+        </article>
+        <article class="row">
+          <div class="num">05</div>
+          <div>
+            <h3>在沙箱里真跑程序</h3>
+            <p>QuickJS + 虚拟时钟：GPIO、I²C、传感器驱动、串口、网络时间线与断点。同样输入可录制回放。</p>
+            <div class="meta">sim package · recording · breakpoints</div>
+          </div>
+        </article>
+        <article class="row">
+          <div class="num">06</div>
+          <div>
+            <h3>导出到实物工作台</h3>
+            <p>SVG / PNG 含图例与徽标；JSON / DSL 可往返；接线步骤可给搭板的人照着做。实机模式可看串口（不烧录）。</p>
+            <div class="meta">export · steps · Web Serial</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="shots" aria-labelledby="shots-title">
+      <div class="section-head">
+        <h2 id="shots-title">界面即证据</h2>
+        <span class="tag">SCREENSHOTS · 真机抓取</span>
+      </div>
+      <div class="shots">
+        <figure class="shot">
+          <img src="assets/ui-build.png" width="1440" height="900" alt="搭建模式：左侧元件库，中间面包板与元件，右侧属性面板" loading="eager" />
+          <figcaption>
+            <strong>搭建模式 · 环境节点示例</strong>
+            <span>库 / 画布 / 属性 · 应用栏三区</span>
+          </figcaption>
+        </figure>
+        <div class="shot-grid">
+          <figure class="shot">
+            <img src="assets/ui-sim.png" width="1440" height="900" alt="仿真模式：运行控件、诊断与串口输出" loading="eager" />
+            <figcaption>
+              <strong>仿真模式</strong>
+              <span>运行 · 诊断 · 串口</span>
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/ui-dark.png" width="1440" height="900" alt="深色主题下的编辑器界面" loading="eager" />
+            <figcaption>
+              <strong>深色主题</strong>
+              <span>浅色 / 深色 / 系统</span>
+            </figcaption>
+          </figure>
+        </div>
+        <figure class="shot">
+          <img src="assets/autowire-bundled.png" width="1600" height="1466" alt="自动排线结果：电源轨与信号线成束布线" loading="eager" />
+          <figcaption>
+            <strong>自动排线 · 杜邦线成束</strong>
+            <span>电源馈线 · I²C 总线 · 角色规划</span>
+          </figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/editor-environment-node.png" width="1500" height="950" alt="环境节点完整布局：ESP32 与温湿度、气压、紫外、空气质量传感器" loading="eager" />
+          <figcaption>
+            <strong>示例工程 · environment_node</strong>
+            <span>可编辑 · 可仿真 · 可导出</span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="agent" aria-labelledby="agent-title">
+      <div class="section-head">
+        <h2 id="agent-title">给人用，也给 Agent 用</h2>
+        <span class="tag">CLI · MCP · 同一引擎</span>
+      </div>
+      <div class="agent-panel">
+        <pre class="codeblock" aria-label="CLI 示例"><span class="c"># 校验一份设计（error 时退出码 1）</span>
+<span class="k">pnpm bb validate</span> design.breadboard.json --json
+
+<span class="c"># 自动排线，先 dry-run 再写回</span>
+<span class="k">pnpm bb autowire</span> design.breadboard.json \
+  --host mcu --components sht41,bmp390 \
+  --dry-run --json
+
+<span class="c"># 把同一引擎挂成 MCP 工具</span>
+<span class="k">node</span> packages/cli/bin/bb.mjs <span class="s">mcp</span></pre>
+        <ul class="bullets">
+          <li>
+            <strong>默认只读</strong>
+            autowire / apply 不带 write 就不落盘；写入可用 expected_revision / hash 防并发冲突。
+          </li>
+          <li>
+            <strong>两种失败分清</strong>
+            设计里有 error 是调用成功；用法或事务错误才是真失败。
+          </li>
+          <li>
+            <strong>不另起一套语义</strong>
+            MCP 工具返回体就是 CLI --json 载荷，shell 和 Agent 不会漂移。
+          </li>
+          <li>
+            <strong>文件是事实来源</strong>
+            没有云端私有格式；JSON / DSL / SVG 都能进版本库。
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <div class="honesty" id="honesty">
+    <div class="inner">
+      <h2>诚实边界</h2>
+      <p>宣传站也该像目录一样说实话——这是仓库的一贯约定：</p>
+      <ul>
+        <li>内置几何目前多为 <strong>approximate / unknown</strong>，不是「已实测 verified」。</li>
+        <li>仿真覆盖 GPIO、I²C、若干传感器与显示；<strong>没有</strong> ADC / PWM / OneWire，也没有真实固件。</li>
+        <li>「实机」模式只读串口并可复位，<strong>不能烧录</strong>。</li>
+        <li>Studio TS 只做语法转译，不做类型检查。</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <div>Breadboard Studio · MIT · 面向人与 Agent 的面包板布局</div>
+    <div>
+      <a href="https://github.com/7dul2/breadboard-studio" rel="noopener noreferrer" target="_blank">github.com/7dul2/breadboard-studio</a>
+      ·
+      <a href="https://7dul2.github.io/breadboard-studio/" rel="noopener noreferrer" target="_blank">在线演示</a>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
