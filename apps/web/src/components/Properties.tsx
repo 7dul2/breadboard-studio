@@ -5,6 +5,14 @@ import { analysisOf, useStore } from '../store';
 import { ArtworkEditor } from './ArtworkEditor';
 import { WireColorPicker } from './WireColorPicker';
 
+/**
+ * 画布视图动作（翻面等）走 Toolbar 同一套 window 桥接，属性面板才能只翻"选中的这块板"
+ * （R2.6 第 2 条：选中该板后右键/属性面板翻面）。
+ */
+function canvasApi(): { toggleSolderSide?: (boardId?: string) => void } | undefined {
+  return (window as unknown as { __bbsCanvas?: { toggleSolderSide?: (boardId?: string) => void } }).__bbsCanvas;
+}
+
 function TextField({ label, value, onCommit, placeholder, multiline, testId }: { label: string; value: string; onCommit: (v: string) => void; placeholder?: string; multiline?: boolean; testId?: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
@@ -366,6 +374,12 @@ export function Properties() {
           </label>
         </div>
         <label className="toggle"><input type="checkbox" checked={!!board.locked} onChange={(e) => setProp(board.id, 'locked', e.target.checked)} data-testid="prop-board-locked" />锁定</label>
+        {/* R2.6：单块洞洞板翻面（面包板不参与，R2.2）*/}
+        {pb?.def.render.style === 'perfboard' && (
+          <button onClick={() => canvasApi()?.toggleSolderSide?.(board.id)} title="只翻这一块板（视图态，不写入设计文件）" data-testid="flip-board">
+            翻面：元件面 ↔ 焊接面
+          </button>
+        )}
         <TextField label="备注" value={board.notes ?? ''} onCommit={(v) => setProp(board.id, 'notes', v)} multiline />
         {pb && <p className="muted">{pb.def.status_notes}</p>}
         <BoardJoinControls boardId={board.id} />

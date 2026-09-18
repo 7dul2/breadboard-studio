@@ -11,8 +11,8 @@ import envExample from '../../../examples/environment_node.breadboard.json';
 import stressExample from '../../../examples/stress_test.breadboard.json';
 import touchExample from '../../../examples/touch_display.breadboard.json';
 
-export type Tool = 'select' | 'wire' | 'pan';
-export type RightTab = 'properties' | 'dsl' | 'wiring' | 'simulation' | 'hardware';
+export type Tool = 'select' | 'wire' | 'pan' | 'solder';
+export type RightTab = 'properties' | 'solder' | 'dsl' | 'wiring' | 'simulation' | 'hardware';
 /** 左栏两个页签：从目录挑新元件，或从已放置的元件里直接点选。 */
 export type LeftTab = 'library' | 'selected';
 /**

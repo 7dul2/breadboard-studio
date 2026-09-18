@@ -1,5 +1,5 @@
 export type Severity = 'error' | 'warning' | 'info' | 'needs_review';
-export type RuleCategory = 'schema' | 'placement' | 'board' | 'wire' | 'net' | 'interface' | 'evidence';
+export type RuleCategory = 'schema' | 'placement' | 'board' | 'wire' | 'net' | 'interface' | 'evidence' | 'solder_bridge';
 
 export interface RuleResult {
   severity: Severity;

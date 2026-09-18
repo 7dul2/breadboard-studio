@@ -1,7 +1,8 @@
 /**
- * JSON Schema (draft 2020-12) for `.breadboard.json` design documents, schema_version 1.1.
+ * JSON Schema (draft 2020-12) for `.breadboard.json` design documents, schema_version 1.2.
  * Structural rules only; geometry and electrical rules live in @breadboard-studio/core.
- * 1.1 adds the optional `programs` and `simulation` sections; 1.0 files migrate losslessly.
+ * 1.1 added the optional `programs` and `simulation` sections;
+ * 1.2 added the optional `solder_bridges` section. Older files migrate losslessly.
  */
 
 const ID_PATTERN = '^[A-Za-z_][A-Za-z0-9_-]{0,63}$';
@@ -37,7 +38,7 @@ const endpointObject = {
 
 export const designSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://breadboard-studio.dev/schema/design-1.1.json',
+  $id: 'https://breadboard-studio.dev/schema/design-1.2.json',
   title: 'Breadboard Studio design document',
   type: 'object',
   required: ['schema_version', 'catalog_versions', 'metadata', 'boards', 'components', 'wires', 'net_intents', 'constraints'],
@@ -139,6 +140,20 @@ export const designSchema = {
           path_mode: { type: 'string', enum: ['auto', 'manual'] },
           waypoints_um: { type: 'array', items: pointUm, maxItems: 64 },
           locked: { type: 'boolean' },
+          notes: { type: 'string' }
+        }
+      }
+    },
+    solder_bridges: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'a', 'b'],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', pattern: ID_PATTERN },
+          a: { type: 'string', pattern: HOLE_ADDRESS_PATTERN },
+          b: { type: 'string', pattern: HOLE_ADDRESS_PATTERN },
           notes: { type: 'string' }
         }
       }

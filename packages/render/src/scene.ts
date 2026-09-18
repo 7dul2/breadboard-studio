@@ -3,12 +3,12 @@
  * The editor renders the same primitives with React; the exporter serialises them to SVG.
  */
 import type { RenderPrimitiveDef } from '@breadboard-studio/schema';
-import { type DesignModel, type PlacedBoard, type PlacedComponent, type ResolvedWire, type Rect, toGlobal, type Transform } from '@breadboard-studio/core';
+import { type DesignModel, type PlacedBoard, type PlacedComponent, type ResolvedEndpoint, type ResolvedWire, type Rect, toGlobal, type Transform } from '@breadboard-studio/core';
 
 export type SceneNode =
   | { t: 'rect'; x: number; y: number; w: number; h: number; rx?: number; fill?: string; stroke?: string; sw?: number; opacity?: number; dash?: string; cls?: string; data?: Record<string, string> }
   | { t: 'circle'; cx: number; cy: number; r: number; fill?: string; stroke?: string; sw?: number; opacity?: number; cls?: string; data?: Record<string, string> }
-  | { t: 'text'; x: number; y: number; text: string; size: number; fill?: string; anchor?: 'start' | 'middle' | 'end'; rotate?: number; weight?: string; family?: string; cls?: string; opacity?: number; data?: Record<string, string> }
+  | { t: 'text'; x: number; y: number; text: string; size: number; fill?: string; anchor?: 'start' | 'middle' | 'end'; rotate?: number; weight?: string; family?: string; cls?: string; opacity?: number; data?: Record<string, string>; unmirrorX?: boolean }
   | { t: 'path'; d: string; fill?: string; stroke?: string; sw?: number; cls?: string; opacity?: number; data?: Record<string, string> }
   | { t: 'line'; x1: number; y1: number; x2: number; y2: number; stroke?: string; sw?: number; cls?: string; dash?: string; opacity?: number; data?: Record<string, string> }
   | { t: 'polyline'; points: [number, number][]; stroke?: string; sw?: number; cls?: string; dash?: string; opacity?: number; linecap?: string; data?: Record<string, string> }
@@ -31,6 +31,11 @@ export interface SceneOptions {
    * 由调用方决定什么时候开（一般 = 有选中项 且 用户没关掉这个开关）。
    */
   dimUnhighlighted?: boolean;
+  /** Board ids whose face is mirrored (solder side). Each board is flipped
+   * around its own local x centre so objects on other boards stay put. */
+  mirroredBoards?: Set<string>;
+  /** Show pad layer on perfboard (solder side). */
+  showPads?: boolean;
 }
 
 export const mm = (um: number): number => Math.round(um / 10) / 100;
@@ -62,6 +67,55 @@ export function wireColor(c: string): string {
  */
 export function transformAttr(t: Transform): string {
   return `translate(${mm(t.position[0])} ${mm(t.position[1])}) rotate(${t.rotation})`;
+}
+
+/**
+ * SVG transform that mirrors around the local x axis at `cxMm`.
+ * Equivalent to `translate(cx,0) scale(-1,1) translate(-cx,0)`.
+ */
+export function mirrorTransformX(cxMm: number): string {
+  return `translate(${cxMm} 0) scale(-1 1) translate(${-cxMm} 0)`;
+}
+
+/**
+ * 焊接面（R2.4）：把「活在全局坐标里的顶层节点」（元件 / 导线 / 焊桥）绕**所属板
+ * 自身的镜像轴**反射。板体自己是 `B · M(w/2)`（子节点写在板局部坐标里），顶层节点
+ * 写在全局坐标里，所以等价形式是 `B · M(w/2) · B⁻¹` —— 板被旋转 90°/270° 时同样
+ * 成立，因为镜像轴恒为该板局部 `x = w/2`。
+ */
+export function boardMirrorTransform(pb: PlacedBoard): string {
+  const [x, y] = pb.transform.position;
+  const r = pb.transform.rotation;
+  const w = mm(pb.def.size_um[0]);
+  return `translate(${mm(x)} ${mm(y)}) rotate(${r}) ${mirrorTransformX(w / 2)} rotate(${-r}) translate(${-mm(x)} ${-mm(y)})`;
+}
+
+/**
+ * `boardMirrorTransform` 的点形式，用于直接算坐标的节点（焊桥两端、跨板导线端点）。
+ * 反射是自逆的，所以屏幕坐标反算回设计坐标时用的是同一个函数。
+ */
+export function boardMirrorPoint(pb: PlacedBoard, p: [number, number]): [number, number] {
+  const rad = (pb.transform.rotation * Math.PI) / 180;
+  const nx = Math.cos(rad); // 轴法线 = 板局部 +x 方向
+  const ny = Math.sin(rad);
+  const cx = mm(pb.def.size_um[0] / 2);
+  const ox = mm(pb.transform.position[0]) + cx * nx;
+  const oy = mm(pb.transform.position[1]) + cx * ny;
+  const d = (p[0] - ox) * nx + (p[1] - oy) * ny;
+  return [p[0] - 2 * d * nx, p[1] - 2 * d * ny];
+}
+
+/**
+ * 焊接面文字（R2.3）：板体几何镜像后，文字必须**就地反镜像**才能正着读 —— 绕文字
+ * 自身锚点做 `scale(-1,1)`（`unmirrorX`）。位置不做特殊处理，跟着父级镜像走，
+ * 标签才会跟着自己那个孔；start/end 锚点对调，文字才落在镜像前同一侧。
+ */
+function unmirrorTextNodes(nodes: SceneNode[]): SceneNode[] {
+  return nodes.map((n) => {
+    if (n.t === 'text') return { ...n, unmirrorX: true, anchor: n.anchor === 'start' ? 'end' : n.anchor === 'end' ? 'start' : n.anchor };
+    if (n.t === 'group') return { ...n, children: unmirrorTextNodes(n.children) };
+    return n;
+  });
 }
 
 /** One definition drawing primitive (µm) as a scene node (mm). */
@@ -174,12 +228,53 @@ export function boardScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptio
     }
   }
   children.push({ t: 'group', cls: 'holes', children: holeNodes });
+  // R3.3 焊盘分层（perfboard）：焊盘按状态着色画在孔之上（非文字，镜像时随板翻转）
+  if (perfboard) children.push({ t: 'group', cls: 'pads', children: padScene(pb, model, opts) });
   const name = pb.instance.name ?? pb.instance.id;
   children.push({ t: 'text', x: 2, y: h - 1.2, text: `${name} · ${def.name}`, size: 1.6, fill: '#8a8577', anchor: 'start', cls: 'board-name' });
   const selected = opts.selectedIds?.has(pb.instance.id);
   if (selected) children.push({ t: 'rect', x: -0.6, y: -0.6, w: w + 1.2, h: h + 1.2, fill: 'none', stroke: '#2563eb', sw: 0.5, dash: '1.5 1', cls: 'selection' });
   if (pb.instance.locked) children.push({ t: 'text', x: w - 2, y: h - 1.2, text: '🔒', size: 2, anchor: 'end', cls: 'lock' });
+  // 镜像板（焊接面）：整块板几何绕局部 x = w/2 翻转；文字仍写在镜像组里（位置跟着
+  // 自己那个孔走），但按 R2.3 就地反镜像，所以正着读。角标（R2.7）说明这块板的面。
+  const boardMirrored = opts.mirroredBoards?.has(pb.instance.id);
+  if (boardMirrored) {
+    const sideLabel: SceneNode = { t: 'text', x: 2, y: 2.6, text: '焊接面', size: 1.4, fill: '#92400e', anchor: 'start', cls: 'board-side-label' };
+    return { t: 'group', id: `board:${pb.instance.id}`, transform: transformAttr(pb.transform), cls: 'board', data: { board: pb.instance.id }, children: [
+      { t: 'group', transform: mirrorTransformX(w / 2), children: unmirrorTextNodes([...children, sideLabel]) }
+    ] };
+  }
   return { t: 'group', id: `board:${pb.instance.id}`, transform: transformAttr(pb.transform), cls: 'board', data: { board: pb.instance.id }, children };
+}
+
+/** Perfboard pad layer（R3.3）：焊盘按状态着色画在孔之上 — 空/有引脚/有导线/已桥接。 */
+function padScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptions): SceneNode[] {
+  const pads: SceneNode[] = [];
+  for (const hole of pb.resolved.holes.values()) {
+    const addr = `${pb.instance.id}.${hole.name}`;
+    const st = model.holes.get(addr);
+    const cx = mm(hole.local_um[0]);
+    const cy = mm(hole.local_um[1]);
+    const r = HOLE_R + 0.45;
+    let stroke = '#b0956c'; // 空：淡铜色
+    let sw = 0.3;
+    if (st?.bridges.length) {
+      stroke = '#d97706'; // 已桥接：琥珀
+      sw = 0.55;
+    } else if (st?.status === 'occupied') {
+      stroke = '#a16207'; // 有引脚：亮铜
+      sw = 0.5;
+    } else if (st?.wires.length) {
+      stroke = '#0f766e'; // 有导线：青绿
+      sw = 0.45;
+    }
+    if (opts.highlightHoles?.has(addr)) {
+      stroke = '#f59e0b';
+      sw = 0.6;
+    }
+    pads.push({ t: 'circle', cx, cy, r, fill: 'none', stroke, sw, cls: `pad pad-${st?.status ?? 'free'}`, data: { hole: addr } });
+  }
+  return pads;
 }
 
 function statusShort(s: string): string {
@@ -210,13 +305,24 @@ function badge(x: number, y: number, text: string, anchor: 'start' | 'end', targ
   };
 }
 
-export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNode {
+export function componentScene(pc: PlacedComponent, opts: SceneOptions, mirrorTransform?: string): SceneNode {
   const rc = pc.resolved;
   const children: SceneNode[] = [];
   const outline = rc.outline;
   const upright = rc.orientation === 'upright';
   const selected = opts.selectedIds?.has(pc.instance.id);
   const hl = opts.highlightComponents?.has(pc.instance.id);
+  /**
+   * 元件焊在被翻面的板上（焊接面）：几何跟着板一起镜像（由调用方传入该板的反射变换），
+   * 并按 R3.1 整体压暗、R3.2 引脚高亮。
+   */
+  const onSolderSide = Boolean(mirrorTransform);
+  // R3.1 压暗：未选未高亮的元件按 0.28 渲染。R3.4：悬停或选中恢复不透明。
+  const dimmed = (Boolean(opts.dimUnhighlighted) || onSolderSide) && !hl && !selected;
+  const opacity = dimmed ? 0.28 : undefined;
+  const baseTransform = transformAttr(pc.transform);
+  // 顶层节点写在全局坐标里，反射套在最外层（R2.4：轴 = 所属板局部 x = w/2）
+  const transform = mirrorTransform ? `${mirrorTransform} ${baseTransform}` : baseTransform;
   if (upright) {
     // Ghost of the module face (as if unfolded) + solid pin strip footprint.
     if (opts.showUprightGhost !== false) {
@@ -236,14 +342,17 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     }
     // Invisible hit target covering the body for selection/drag.
     children.push({ t: 'rect', x: mm(outline.x), y: mm(outline.y), w: mm(outline.w), h: mm(outline.h), fill: 'transparent', stroke: 'none', cls: 'component-hit', data: { component: pc.instance.id } });
-    children.push({ t: 'text', x: mm(outline.x + outline.w / 2), y: mm(outline.y) - 0.9, text: pc.instance.name ?? pc.instance.id, size: 1.6, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' });
+    const nameX = mm(outline.x + outline.w / 2);
+    const nameY = mm(outline.y) - 0.9;
+    children.push({ t: 'text', x: nameX, y: nameY, text: pc.instance.name ?? pc.instance.id, size: 1.6, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' });
   }
   // pins
   for (const pin of pc.pins) {
     const [x, y] = [mm(pin.local_um[0]), mm(pin.local_um[1])];
     const header = pin.kind === 'header';
     const pinAddr = `${pc.instance.id}.${pin.name}`;
-    const pinHl = opts.highlightPins?.has(pinAddr);
+    // R3.2：焊接面上，穿过该板焊盘的排针就是"要下烙铁的点"，一律高亮
+    const pinHl = opts.highlightPins?.has(pinAddr) || (onSolderSide && header && Boolean(pin.hole));
     if (pinHl) children.push({ t: 'circle', cx: x, cy: y, r: 1.5, fill: '#fde68a', stroke: '#f59e0b', sw: 0.35, cls: 'pin-highlight' });
     const pinRender = header ? pc.def.pin_render : undefined;
     const pinSize = mm(pinRender?.size_um ?? 1400);
@@ -282,15 +391,37 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     children.push({ t: 'rect', x: mm(outline.x) - 0.6, y: mm(outline.y) - 0.6, w: mm(outline.w) + 1.2, h: mm(outline.h) + 1.2, fill: 'none', stroke: selected ? '#2563eb' : '#f59e0b', sw: 0.5, dash: selected ? '1.5 1' : undefined, cls: 'selection' });
   }
   if (pc.instance.locked) children.push({ t: 'text', x: mm(outline.x + outline.w) - 1, y: mm(outline.y) + 2.2, text: '🔒', size: 2, anchor: 'end', cls: 'lock' });
-  return { t: 'group', id: `component:${pc.instance.id}`, transform: transformAttr(pc.transform), cls: `component ${pc.onBoard ? 'on-board' : 'off-board'}`, data: { component: pc.instance.id }, children };
+  return { t: 'group', id: `component:${pc.instance.id}`, transform, cls: `component ${pc.onBoard ? 'on-board' : 'off-board'}`, data: { component: pc.instance.id }, opacity, children: onSolderSide ? unmirrorTextNodes(children) : children };
 }
 
-export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): SceneNode {
+export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions, model: DesignModel): SceneNode {
   const w = rw.instance;
-  const pts = rw.points.map((p) => [mm(p[0]), mm(p[1])] as [number, number]);
   const color = wireColor(w.color);
   const selected = opts.selectedIds?.has(w.id);
   const hl = opts.highlightWires?.has(w.id);
+  /**
+   * 焊接面（R2.4）：导线要跟着"自己端点所焊的那块板"走。
+   * 两端都在同一块翻面的板上 → 整根线绕该板镜像轴反射（同板导线，最常见）；
+   * 只有一端在翻面板上（跨板 / 接到板外器件）→ 只镜像那一端，另一端留在原处，
+   * 这样两头都仍然插在自己的孔里（"板外的对象完全不动"）。
+   */
+  const boardIdOf = (ep: ResolvedEndpoint | null): string | undefined => {
+    if (!ep) return undefined;
+    if (ep.kind === 'hole') return ep.board_id;
+    const placement = model.components.get(ep.component_id)?.instance.placement;
+    return placement && placement.kind === 'board' ? placement.board_id : undefined;
+  };
+  const fromBoard = boardIdOf(rw.from);
+  const toBoard = boardIdOf(rw.to);
+  const fromMirrorBoard = fromBoard && opts.mirroredBoards?.has(fromBoard) ? model.boards.get(fromBoard) : undefined;
+  const toMirrorBoard = toBoard && opts.mirroredBoards?.has(toBoard) ? model.boards.get(toBoard) : undefined;
+  const wholeMirror = fromMirrorBoard && toMirrorBoard && fromBoard === toBoard ? fromMirrorBoard : undefined;
+  const pts = rw.points.map((p) => [mm(p[0]), mm(p[1])] as [number, number]);
+  if (!wholeMirror) {
+    if (fromMirrorBoard && pts.length) pts[0] = boardMirrorPoint(fromMirrorBoard, pts[0]!);
+    if (toMirrorBoard && pts.length > 1) pts[pts.length - 1] = boardMirrorPoint(toMirrorBoard, pts[pts.length - 1]!);
+  }
+  const wireMirrored = Boolean(wholeMirror);
   const children: SceneNode[] = [];
   if (pts.length >= 2) {
     if (selected || hl) children.push({ t: 'polyline', points: pts, stroke: selected ? '#2563eb' : '#f59e0b', sw: 2.2, opacity: 0.5, linecap: 'round', cls: 'wire-halo' });
@@ -320,7 +451,7 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
     const mx = (pts[bi]![0] + pts[bi - 1]![0]) / 2;
     const my = (pts[bi]![1] + pts[bi - 1]![1]) / 2;
     children.push({ t: 'circle', cx: mx, cy: my, r: 1.35, fill: '#ffffff', stroke: color, sw: 0.3, cls: 'wire-tag' });
-    children.push({ t: 'text', x: mx, y: my + 0.55, text: String(index), size: 1.5, fill: '#111827', anchor: 'middle', weight: 'bold', cls: 'wire-tag', family: 'monospace' });
+    children.push({ t: 'text', x: mx, y: my + 0.55, text: String(index), size: 1.5, fill: '#111827', anchor: 'middle', weight: 'bold', cls: 'wire-tag', family: 'monospace', unmirrorX: wireMirrored });
   } else if (pts.length === 1) {
     children.push({ t: 'circle', cx: pts[0]![0], cy: pts[0]![1], r: 0.9, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-draft' });
   }
@@ -331,7 +462,10 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
   }
   // 聚焦模式：没被高亮也没被选中的导线整体压暗（连编号一起淡掉）
   const dimmed = Boolean(opts.dimUnhighlighted) && !hl && !selected;
-  return { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, opacity: dimmed ? 0.16 : undefined, children };
+  // 同板导线整根跟着板走（绕该板自身的镜像轴，见 boardMirrorTransform）
+  const transform = wholeMirror ? boardMirrorTransform(wholeMirror) : undefined;
+  const wireGroup: SceneNode = { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, transform, opacity: dimmed ? 0.16 : undefined, children };
+  return wireGroup;
 }
 
 export interface Scene {
@@ -343,10 +477,42 @@ export interface Scene {
 export function buildScene(model: DesignModel, opts: SceneOptions = {}): Scene {
   const nodes: SceneNode[] = [];
   for (const pb of model.boards.values()) nodes.push(boardScene(pb, model, opts));
+  /** 该板翻到焊接面时返回它的反射变换，否则 undefined。 */
+  const mirrorOf = (boardId: string | undefined): string | undefined => {
+    if (!boardId || !opts.mirroredBoards?.has(boardId)) return undefined;
+    const pb = model.boards.get(boardId);
+    return pb ? boardMirrorTransform(pb) : undefined;
+  };
   const comps = [...model.components.values()];
-  for (const pc of comps) nodes.push(componentScene(pc, opts));
+  for (const pc of comps) {
+    // R2.4：焊在被翻面板上的元件跟着板一起镜像（轴 = 该板局部 x = w/2）
+    const placement = pc.instance.placement;
+    nodes.push(componentScene(pc, opts, mirrorOf(placement.kind === 'board' ? placement.board_id : undefined)));
+  }
   const wires = [...model.wires.values()].sort((a, b) => a.instance.id.localeCompare(b.instance.id, undefined, { numeric: true }));
-  wires.forEach((rw, i) => nodes.push(wireScene(rw, i + 1, opts)));
+  wires.forEach((rw, i) => nodes.push(wireScene(rw, i + 1, opts, model)));
+  // R1.3 焊锡桥：组件面画亮铜线，焊接面画滴状焊桥
+  for (const bridge of model.bridges.values()) {
+    if (!bridge.valid || !bridge.a || !bridge.b) continue;
+    const bridgeBoardId = bridge.a.kind === 'hole' ? bridge.a.board_id : undefined;
+    const pb = bridgeBoardId ? model.boards.get(bridgeBoardId) : undefined;
+    if (!pb) continue;
+    const mirrored = opts.mirroredBoards?.has(pb.instance.id);
+    // 与 wireScene 同一套镜像（桥是顶层节点，翻转后必须跟着板走）：端点 global_um 是
+    // 翻转前的位置，绕该板自身的镜像轴反射（板旋转 90°/270° 也成立）。
+    const [ax, ay] = mirrored ? boardMirrorPoint(pb, [mm(bridge.a.global_um[0]), mm(bridge.a.global_um[1])]) : [mm(bridge.a.global_um[0]), mm(bridge.a.global_um[1])];
+    const [bx, by] = mirrored ? boardMirrorPoint(pb, [mm(bridge.b.global_um[0]), mm(bridge.b.global_um[1])]) : [mm(bridge.b.global_um[0]), mm(bridge.b.global_um[1])];
+    // 组件面：细亮铜线（提示板下有桥）
+    if (!mirrored) {
+      nodes.push({ t: 'line', x1: ax, y1: ay, x2: bx, y2: by, stroke: '#f59e0b', sw: 0.4, cls: 'bridge-copper', opacity: 0.85, data: { bridge: bridge.instance.id } });
+    } else {
+      // 焊接面：滴状焊桥（用圆角矩形近似）
+      const cx = (ax + bx) / 2;
+      const cy = (ay + by) / 2;
+      const lw = Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2);
+      nodes.push({ t: 'rect', x: cx - lw / 2, y: cy - 1.2, w: lw + 1.2, h: 2.4, rx: 1.2, fill: '#d97706', stroke: '#92400e', sw: 0.2, cls: 'solder-bridge', data: { bridge: bridge.instance.id } });
+    }
+  }
   // Badges and hints live in an unrotated global layer so text stays readable.
   const annotations: SceneNode[] = [];
   if (opts.showUnverifiedBadges !== false) {

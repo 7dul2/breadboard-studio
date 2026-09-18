@@ -283,14 +283,18 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
   }, [ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const planChanged = resizable && shape !== null && (columns !== shape.columns || rows !== shape.rows);
   const plan = planChanged ? clampResizePlan({ columns, rows }, shape!) : undefined;
+  // 没改过尺寸时，`plan` 是 undefined —— 但那不等于"算不出尺寸"（R1.6：默认态曾误报
+  // "尺寸无效"）。默认态直接用原定义，预览与添加都用它。
   const planDef = useMemo(() => {
-    if (!plan || def.kind !== 'board') return null;
+    if (def.kind !== 'board' || !resizable) return null;
+    if (!planChanged) return def;
+    if (!plan) return null;
     try {
       return resizeBoardDefinition(def, plan, `${def.id}_custom`);
     } catch {
       return null;
     }
-  }, [def, plan?.columns, plan?.rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [def, resizable, planChanged, plan?.columns, plan?.rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="model-detail-layer" onPointerDown={onClose} data-testid="model-detail-layer">
@@ -345,7 +349,7 @@ function ModelDetailCard({ def, catalog, onClose, onAdd, onMouseEnter, onMouseLe
             </div>
             <p className="muted" style={{ fontSize: 11 }}>
               {planDef
-                ? <>按孔距缩放：外形 {mm(planDef.size_um[0])} × {mm(planDef.size_um[1])} mm，电源轨 {planDef.rails[0]?.holes ?? 0} 孔，孔距保持 2.54 mm。行数是<b>{def.render.style === 'perfboard' ? '整板物理行' : '每块接线块'}</b>的行数。</>
+                ? <>{planChanged ? '按孔距缩放：' : '当前：'}外形 {mm(planDef.size_um[0])} × {mm(planDef.size_um[1])} mm，电源轨 {planDef.rails[0]?.holes ?? 0} 孔，孔距 {planChanged ? '保持 ' : ''}2.54 mm。行数是<b>{def.render.style === 'perfboard' ? '整板物理行' : '每块接线块'}</b>的行数。</>
                 : <>尺寸无效：列数 {RESIZE_LIMITS.columns.min}–{RESIZE_LIMITS.columns.max}，行数 1–{shape!.rows}。</>}
             </p>
           </details>
