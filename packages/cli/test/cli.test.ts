@@ -333,7 +333,7 @@ describe('bb CLI', () => {
     expect(json(['validate', file]).code).toBe(0);
   });
 
-  it('importing into a schema 1.0 file writes 1.1 with the rest of the content unchanged', () => {
+  it('importing into a schema 1.0 file writes 1.2 with the rest of the content unchanged', () => {
     const modernFile = join(examples, 'desk_device.breadboard.json');
     const modernBytes = readFileSync(modernFile, 'utf8');
     const original = JSON.parse(modernBytes) as Record<string, unknown> & { metadata: { revision: number; updated_at?: string } };
@@ -348,14 +348,14 @@ describe('bb CLI', () => {
     const r = json(['program', 'import', legacy, 'p1', '--source', src, '--target', 'mcu', '--out', legacyOut]);
     expect(r.code).toBe(0);
     const written = JSON.parse(readFileSync(legacyOut, 'utf8')) as typeof original;
-    expect(written.schema_version).toBe('1.1');
+    expect(written.schema_version).toBe('1.2');
     expect((written.programs as { id: string }[]).map((p) => p.id)).toEqual(['p1']);
     expect(written.metadata.revision).toBe(original.metadata.revision + 1);
 
     // Everything the import did not touch is byte-for-byte the original content (wires are
     // re-normalized by every apply, so they are compared against a 1.1 import below).
-    const { programs: _p, simulation: _s, schema_version: _v, metadata: _m, wires: _w, ...rest } = written;
-    const { schema_version: _ov, metadata: _om, wires: _ow, ...origRest } = original;
+    const { programs: _p, simulation: _s, schema_version: _v, metadata: _m, wires: _w, solder_bridges: _sb, ...rest } = written;
+    const { schema_version: _ov, metadata: _om, wires: _ow, solder_bridges: _osb, ...origRest } = original;
     expect(rest).toEqual(origRest);
     expect({ ...written.metadata, revision: original.metadata.revision, updated_at: original.metadata.updated_at }).toEqual(original.metadata);
 

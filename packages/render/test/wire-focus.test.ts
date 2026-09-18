@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { ResolvedWire } from '@breadboard-studio/core';
 import { wireScene } from '../src/index.js';
+import { buildModel } from '@breadboard-studio/core';
+
+const emptyModel = buildModel({ boards: [], components: [], wires: [], net_intents: [], constraints: [] } as any, {} as any);
 
 /**
  * 聚焦模式（dimUnhighlighted）只该影响"没被高亮也没被选中"的导线。
@@ -27,20 +30,20 @@ const dimmed = (node: ReturnType<typeof wireScene>): boolean =>
 
 describe('wire focus dimming', () => {
   it('does not dim anything when the option is off', () => {
-    expect(dimmed(wireScene(fixture('w1'), 1, {}))).toBe(false);
+    expect(dimmed(wireScene(fixture('w1'), 1, {}, emptyModel))).toBe(false);
   });
 
   it('dims an unrelated wire when focus mode is on', () => {
-    expect(dimmed(wireScene(fixture('w1'), 1, { dimUnhighlighted: true }))).toBe(true);
+    expect(dimmed(wireScene(fixture('w1'), 1, { dimUnhighlighted: true }, emptyModel))).toBe(true);
   });
 
   it('keeps a highlighted wire bright', () => {
-    const node = wireScene(fixture('w1'), 1, { dimUnhighlighted: true, highlightWires: new Set(['w1']) });
+    const node = wireScene(fixture('w1'), 1, { dimUnhighlighted: true, highlightWires: new Set(['w1']) }, emptyModel);
     expect(dimmed(node)).toBe(false);
   });
 
   it('keeps the selected wire bright even if it is not in the highlight set', () => {
-    const node = wireScene(fixture('w1'), 1, { dimUnhighlighted: true, selectedIds: new Set(['w1']) });
+    const node = wireScene(fixture('w1'), 1, { dimUnhighlighted: true, selectedIds: new Set(['w1']) }, emptyModel);
     expect(dimmed(node)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { EXAMPLES, useStore, type AppMode } from '../store';
+import { EXAMPLES, analysisOf, useStore, type AppMode } from '../store';
 import { useSimulatorStore } from '../simulator/simulatorStore';
 import { exportJsonFile, exportPngFile, exportSvgFile } from '../exporters';
 import { SimulatorToolbar } from '../simulator/ui/SimulatorToolbar';
@@ -286,6 +286,8 @@ export function Toolbar() {
   const hasClipboard = useStore((s) => !!s.clipboard);
   const canRestore = useStore((s) => s.canRestorePrevious);
   const st = useStore.getState();
+  // R1.1：焊接工具只在画布里有洞洞板时出现——放到洞洞板才有"焊接"这件事（analysisOf 按设计缓存，开销可忽略）。
+  const hasPerfboard = design.boards.some((b) => analysisOf(design).model.boards.get(b.id)?.def.render.style === 'perfboard');
   const [menu, setMenu] = useState<null | 'project' | 'export' | 'view' | 'wire'>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -362,6 +364,7 @@ export function Toolbar() {
             <div className="tool-group" role="group" aria-label="工具">
               <button className={tool === 'select' ? 'active' : ''} onClick={() => st.setTool('select')} title="选择/移动 (V)" data-testid="tool-select">选择</button>
               <button className={tool === 'wire' ? 'active' : ''} onClick={() => st.setTool('wire')} title="接线 (W)" data-testid="tool-wire">接线</button>
+              {hasPerfboard && <button className={tool === 'solder' ? 'active' : ''} onClick={() => st.setTool('solder')} title="焊接 (S)：悬停焊盘看状态，拖动两个焊盘建立焊锡桥" data-testid="tool-solder">焊接</button>}
               <button className={tool === 'pan' ? 'active' : ''} onClick={() => st.setTool('pan')} title="平移 (H / 空格拖动)" data-testid="tool-pan">平移</button>
             </div>
             {tool === 'wire' && <WireOptionsMenu open={menu === 'wire'} onToggle={() => setMenu(menu === 'wire' ? null : 'wire')} onClose={() => setMenu((m) => (m === 'wire' ? null : m))} />}

@@ -12,8 +12,8 @@
  */
 
 /** Schema written by this build. Older supported versions are migrated on load (see migrate.ts). */
-export const SCHEMA_VERSION = '1.1' as const;
-export const SUPPORTED_SCHEMA_VERSIONS = ['1.0', '1.1'] as const;
+export const SCHEMA_VERSION = '1.2' as const;
+export const SUPPORTED_SCHEMA_VERSIONS = ['1.0', '1.1', '1.2'] as const;
 
 export type Um = number;
 export type PointUm = [Um, Um];
@@ -84,7 +84,6 @@ export type WireEndpoint = { hole: string; terminal?: undefined } | { terminal: 
 
 export type WireRoute = 'flat' | 'elevated';
 export type WirePathMode = 'auto' | 'manual';
-
 export interface WireInstance {
   id: string;
   name?: string;
@@ -97,6 +96,21 @@ export interface WireInstance {
   /** Intermediate bend points in global µm. Endpoints are derived from `from`/`to`. */
   waypoints_um: PointUm[];
   locked?: boolean;
+  notes?: string;
+}
+
+/**
+ * A solder bridge joins two perfboard pads with a blob of solder (schema 1.2).
+ * It is deliberately not a wire: it never routes, has no colour and does not
+ * count toward wire numbers, totals or colour pickers. Endpoints are hole
+ * addresses `<board>.<hole>` on the same solderable board.
+ */
+export interface SolderBridgeInstance {
+  id: string;
+  /** First pad, `<board>.<hole>`. */
+  a: string;
+  /** Second pad, `<board>.<hole>`. */
+  b: string;
   notes?: string;
 }
 
@@ -169,6 +183,8 @@ export interface DesignDocument {
   boards: BoardInstance[];
   components: ComponentInstance[];
   wires: WireInstance[];
+  /** Solder bridges between perfboard pads (schema 1.2). Optional so 1.0/1.1 files validate unchanged. */
+  solder_bridges?: SolderBridgeInstance[];
   net_intents: NetIntent[];
   constraints: Constraint[];
   /** Definitions pinned inside the document so old designs survive catalog upgrades. */

@@ -541,3 +541,20 @@ table.sim-nets td { padding: 2px 4px; border-top: 1px solid var(--table-border);
 .code-gutter, .code-text { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; }
 .code-gutter { flex: none; min-width: 34px; padding: 6px 6px 6px 8px; color: var(--muted); text-align: right; background: var(--bg); border-right: 1px solid var(--border); overflow: hidden; user-select: none; }
 .code-text { flex: 1; padding: 6px 8px; border: none; border-radius: 0; resize: none; white-space: pre; overflow: auto; outline: none; tab-size: 2; }
+
+/* ---- right-panel 焊接 (R1.2) ---- */
+.solder-hole-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.solder-status { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.solder-status-occupied, .solder-status-blocked { background: var(--hint-bg); color: #92400e; border-color: #fde047; }
+.solder-link { border: none; background: transparent; padding: 2px 4px; text-align: left; font-size: 12px; color: var(--accent); cursor: pointer; }
+.solder-link:hover { text-decoration: underline; }
+.solder-actions { display: flex; gap: 6px; margin-top: 6px; }
+.solder-actions button { font-size: 12px; padding: 4px 8px; }
+.solder-progress-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.solder-progress-bar { height: 6px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.solder-progress-fill { height: 100%; background: var(--accent); }
+.solder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.solder-list li { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.solder-remove { flex: none; border: none; background: transparent; color: var(--error); cursor: pointer; padding: 2px 6px; font-size: 12px; border-radius: 4px; }
+.solder-remove:hover { background: var(--error-bg); }
+.solder-empty { font-size: 12px; color: var(--muted); margin: 0; }

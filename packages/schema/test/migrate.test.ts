@@ -13,8 +13,8 @@ const base = {
   view: { zoom: 2, build_done: ['w1'] }
 };
 
-describe('schema 1.1 migration', () => {
-  it('upgrades 1.0 → 1.1 without touching any content and without mutating the input', () => {
+describe('schema 1.2 migration', () => {
+  it('upgrades 1.0 → 1.2 without touching any content and without mutating the input', () => {
     const input = JSON.parse(JSON.stringify(base));
     const r = migrateDesign(input);
     expect(r.ok).toBe(true);
@@ -22,21 +22,32 @@ describe('schema 1.1 migration', () => {
     expect(r.to).toBe(SCHEMA_VERSION);
     expect(r.migrated).toBe(true);
     const doc = r.doc as typeof base;
-    expect(doc.schema_version).toBe('1.1');
-    const { schema_version: _a, ...restIn } = base;
-    const { schema_version: _b, ...restOut } = doc;
+    expect(doc.schema_version).toBe('1.2');
+    const { schema_version: _a, solder_bridges: _b, ...restIn } = base;
+    const { schema_version: _c, solder_bridges: _d, ...restOut } = doc;
     expect(restOut).toEqual(restIn);
     expect(input.schema_version).toBe('1.0');
     expect('programs' in doc).toBe(false);
     expect('simulation' in doc).toBe(false);
+    // The 1.1 → 1.2 step only adds the `solder_bridges` default.
+    expect(doc.solder_bridges).toEqual([]);
     expect(validateDesignSchema(doc).ok).toBe(true);
   });
 
-  it('accepts 1.1 as-is and rejects unknown versions explicitly', () => {
-    const current = migrateDesign({ ...base, schema_version: '1.1' });
+  it('upgrades 1.1 → 1.2 keeping existing solder_bridges content', () => {
+    const bridges = [{ id: 'sb_1', a: 'bb.a1', b: 'bb.a2' }];
+    const r = migrateDesign({ ...base, schema_version: '1.1', solder_bridges: bridges });
+    expect(r.ok).toBe(true);
+    expect(r.to).toBe('1.2');
+    expect(r.doc.solder_bridges).toEqual(bridges);
+    expect(validateDesignSchema(r.doc).ok).toBe(true);
+  });
+
+  it('accepts 1.2 as-is and rejects unknown versions explicitly', () => {
+    const current = migrateDesign({ ...base, schema_version: '1.2' });
     expect(current.ok).toBe(true);
     expect(current.migrated).toBe(false);
-    for (const v of ['0.9', '1.2', '9.0']) {
+    for (const v of ['0.9', '1.3', '9.0']) {
       const r = migrateDesign({ ...base, schema_version: v });
       expect(r.ok, v).toBe(false);
       expect(r.error, v).toContain(v);
@@ -44,7 +55,8 @@ describe('schema 1.1 migration', () => {
     expect(migrateDesign({ ...base, schema_version: undefined }).ok).toBe(false);
     expect(migrateDesign([]).ok).toBe(false);
     expect(SUPPORTED_SCHEMA_VERSIONS).toContain('1.0');
-    expect((designSchema as { $id: string }).$id).toContain('1.1');
+    expect(SUPPORTED_SCHEMA_VERSIONS).toContain('1.2');
+    expect((designSchema as { $id: string }).$id).toContain('1.2');
   });
 
   it('validates programs and simulation sections structurally', () => {

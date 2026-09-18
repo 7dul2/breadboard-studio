@@ -19,6 +19,7 @@ import {
   toGlobal,
   toLocal,
   type DesignModel,
+  type HoleState,
   type Op,
   type RuleResult
 } from '@breadboard-studio/core';
@@ -35,8 +36,9 @@ interface View {
   py: number;
   /** 视图旋转（度）。只影响显示，不写进设计数据。 */
   rot: number;
-  /** 洞洞板焊接面：只影响显示与命中，不写入设计数据。 */
-  side: 'front' | 'solder';
+  /** 每块板的显示面。键为 boardId，值为 'front'（元件面）或 'solder'（焊接面）。
+   *  空对象表示所有板都显示元件面。 */
+  sides: Record<string, 'front' | 'solder'>;
 }
 
 /** 把设计坐标按视图角度旋转（度）。 */
@@ -75,7 +77,12 @@ type DragMode =
    * 拖一根已经接好的线的端点。`from` 是拖起来那一刻的端点，用来判断"拖回原地"
    * 与"两端撞到同一个孔"，也让取消（松手前没动）什么都不改。
    */
-  | { kind: 'wire-end'; wireId: string; end: WireEnd; startMm: [number, number]; from: WireEndpoint; moved: boolean; pointerId: number };
+  | { kind: 'wire-end'; wireId: string; end: WireEnd; startMm: [number, number]; from: WireEndpoint; moved: boolean; pointerId: number }
+  /**
+   * R1.3：焊接工具下按下焊盘开始桥接拖动。`from` 是起焊盘地址，`current` 跟着
+   * 指针画虚线预览；松手落在另一个焊盘才建桥，单击（没动）只切到右栏「焊接」面板。
+   */
+  | { kind: 'solder-bridge'; from: string; startMm: [number, number]; current: [number, number]; moved: boolean; pointerId: number };
 
 interface Preview {
   ops: Op[];
@@ -87,6 +94,16 @@ interface Preview {
 /** 一根导线的两端。`from` 画在第一个点上，`to` 画在最后一个点上。 */
 type WireEnd = 'from' | 'to';
 
+
+/** R1.1：焊接工具下悬停焊盘的状态文案（最具体的状态优先：桥接 > 已焊 > 接线 > 空闲）。 */
+function padStatusText(hs: HoleState | undefined): string {
+  if (!hs) return '空闲';
+  if (hs.bridges.length) return `已桥接 ${hs.bridges[0]}`;
+  if (hs.status === 'occupied') return hs.component_id && hs.pin ? `已焊 ${hs.component_id}.${hs.pin}` : '已焊';
+  if (hs.wires.length) return `已接线 ${hs.wires[0]}`;
+  if (hs.status === 'blocked') return '被板体遮挡';
+  return '空闲';
+}
 
 export function Canvas() {
   const design = useStore((s) => s.design);
@@ -108,10 +125,10 @@ export function Canvas() {
   const buildStep = useStore((s) => s.buildStep);
   const wireColorName = useStore((s) => s.wireColor);
   const wireRoute = useStore((s) => s.wireRoute);
-  const { apply, select, selectHole, setWireDraft, cancelInteraction, toast } = useStore.getState();
+  const { apply, select, selectHole, setWireDraft, setRightTab, cancelInteraction, toast } = useStore.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0, side: 'front' });
+  const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0, sides: {} });
   const viewRef = useRef(view);
   viewRef.current = view;
   const dragRef = useRef<DragMode>({ kind: 'none' });
@@ -128,6 +145,8 @@ export function Canvas() {
   const [wpDrag, setWpDrag] = useState<{ wireId: string; index: number; pos: PointUm } | null>(null);
   /** 正在拖的线端点：跟着指针画一条虚线，并标出候选落点。 */
   const [endDrag, setEndDrag] = useState<{ wireId: string; end: WireEnd; pos: PointUm } | null>(null);
+  /** R1.1：焊接工具下指针悬停的焊盘地址（HUD 显示孔地址 + 状态文案，同时高亮该焊盘）。 */
+  const [cursorHole, setCursorHole] = useState<string | null>(null);
   /**
    * 尺寸编辑模式（issue #22）：双击面包板进入，显示边缘把手；Esc / 再次双击退出。
    * 只有 drag.kind === 'resize' 进行中才真正改设计。
@@ -266,6 +285,8 @@ export function Canvas() {
       if (parsed && model.boards.has(parsed.owner)) holes.add(ep);
       else pins.add(ep);
     }
+    // R1.1：焊接工具下悬停的焊盘跟随指针高亮（scene 里 highlightHoles 压暗其余焊盘）。
+    if (tool === 'solder' && cursorHole) holes.add(cursorHole);
     if (wizardStep) {
       // 向导聚焦以当前步骤为准：清掉之前画布选择/整网高亮的干扰，
       // 只留当前这根线（含编号）和它的两端。
@@ -277,7 +298,7 @@ export function Canvas() {
       addWireEndpoints(wizardStep);
     }
     return { holes, pins, wires, comps };
-  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wizardStep, pinAtHole]);
+  }, [selectedHole, selectedIds, highlightEndpoints, model, analysis, connectivityHighlight, wizardStep, pinAtHole, tool, cursorHole]);
 
   const scene = useMemo(
     () =>
@@ -290,13 +311,11 @@ export function Canvas() {
         highlightPins: highlight.pins,
         highlightWires: highlight.wires,
         highlightComponents: highlight.comps,
-        // 向导聚焦时清空选中轮廓：当前步骤是唯一的主角，
-        // 连之前选中的那根线的蓝色 halo 也一起让位压暗。
         selectedIds: wizardFocus ? new Set<string>() : new Set(selectedIds),
-        // 有选中项时压暗；接线向导聚焦时无条件压暗其余导线
-        dimUnhighlighted: wizardFocus || (dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole)))
+        dimUnhighlighted: wizardFocus || (dimUnhighlighted && (selectedIds.length > 0 || Boolean(selectedHole))),
+        mirroredBoards: new Set(Object.entries(view.sides).filter(([, s]) => s === 'solder').map(([id]) => id))
       }),
-    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted, wizardFocus]
+    [model, showHoleLabels, showPinLabels, highlight, selectedIds, selectedHole, dimUnhighlighted, wizardFocus, view.sides]
   );
 
   // ---- coordinate helpers ---------------------------------------------------
@@ -316,12 +335,25 @@ export function Canvas() {
       x = dx * c + dy * s;
       y = -dx * s + dy * c;
     }
-    if (v.side === 'solder') {
-      const axis = scene.bounds.x + scene.bounds.w / 2;
-      x = 2 * axis - x;
+    // 按指针所在的镜像板区域用该板反镜像
+    if (Object.keys(v.sides).length > 0) {
+      const svgRect = svg.getBoundingClientRect();
+      const pointerX = clientX - svgRect.left - v.px;
+      for (const [boardId, side] of Object.entries(v.sides)) {
+        if (side !== 'solder') continue;
+        const pb = model.boards.get(boardId);
+        if (!pb) continue;
+        const boardLeft = pb.bounds.x * v.z + v.px;
+        const boardRight = (pb.bounds.x + pb.bounds.w) * v.z + v.px;
+        if (pointerX >= boardLeft && pointerX <= boardRight) {
+          const axis = pb.bounds.x + pb.bounds.w / 2;
+          x = 2 * axis - x;
+          break;
+        }
+      }
     }
     return [x, y];
-  }, [scene.bounds.x, scene.bounds.w]);
+  }, [model]);
   const toUm = (p: [number, number]): PointUm => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)];
 
   const fit = useCallback(() => {
@@ -463,7 +495,14 @@ export function Canvas() {
         const [rx, ry] = rotateByDeg([cx - v.px, cy - v.py], rot - v.rot);
         setView({ ...v, rot, px: cx - rx, py: cy - ry });
       },
-      toggleSolderSide: () => setView((v) => ({ ...v, side: v.side === 'front' ? 'solder' : 'front' })),
+      toggleSolderSide: () => setView((v) => {
+        const sides = { ...v.sides };
+        const boardId = design.boards[0]?.id;
+        if (!boardId) return v;
+        const current = sides[boardId] ?? 'front';
+        sides[boardId] = current === 'front' ? 'solder' : 'front';
+        return { ...v, sides };
+      }),
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
       // 「已选元件」面板用它把视图移到目标上（入参是全局 µm 包围盒）。
       // 留 40mm 边距、最高 200%：只框住目标本身会把一根细线放到 500%，除了它什么都看不见。
@@ -711,6 +750,16 @@ export function Canvas() {
       });
       return;
     }
+    if (tool === 'solder') {
+      // R1.1/R1.3：焊接工具只作用于焊盘。按下即选中该焊盘；若能编辑则开始桥接
+      // 拖动——松手落在另一个焊盘才建桥，单击（没动）只切到右栏「焊接」面板。
+      if (!h.hole) return;
+      selectHole(h.hole);
+      if (!canEdit) return;
+      svg.setPointerCapture(e.pointerId);
+      setDrag({ kind: 'solder-bridge', from: h.hole, startMm: p, current: p, moved: false, pointerId: e.pointerId });
+      return;
+    }
     if (h.hole) {
       selectHole(h.hole);
       return;
@@ -742,6 +791,38 @@ export function Canvas() {
     const p = toMm(e.clientX, e.clientY);
     setCursorMm(p);
     cursorRef.current = p;
+    // R1.1：焊接工具下指针悬停的焊盘 → HUD 状态文案 + 高亮。elementFromPoint 与
+    // 拖动捕获无关（文档级查询），所以拖动中也能拿到真正的落点。
+    if (tool === 'solder') {
+      const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+      const h2 = hit({ target: dropTarget ?? e.target, clientX: e.clientX, clientY: e.clientY });
+      // 已占用焊盘（R1.5）：指针常落在元件体/引脚标记上——洞洞板上把命中的
+      // 引脚换算回焊盘。引脚标记没有 data-pin（被元件体盖住时 elementFromPoint
+      // 命中元件），所以 h2.component 也要按几何找最近的引脚。
+      const cursorPt = toMm(e.clientX, e.clientY);
+      let pinAddr: string | undefined = h2.pin;
+      if (!pinAddr && h2.component) {
+        let nearD = 1.15;
+        for (const q of pinPoints) {
+          if (!q.addr.startsWith(`${h2.component}.`)) continue;
+          const d = Math.hypot(q.x - cursorPt[0], q.y - cursorPt[1]);
+          if (d <= nearD) {
+            nearD = d;
+            pinAddr = q.addr;
+          }
+        }
+      }
+      if (h2.hole) setCursorHole(h2.hole);
+      else if (pinAddr) {
+        const parsed = parseAddress(pinAddr);
+        const pc = parsed ? model.components.get(parsed.owner) : undefined;
+        const pin = pc?.pins.find((pl) => pl.name === parsed?.name);
+        if (pin?.hole && isSolderableBoard(model, pin.hole.board_id)) setCursorHole(`${pin.hole.board_id}.${pin.hole.hole}`);
+        else setCursorHole(null);
+      } else setCursorHole(null);
+    } else if (cursorHole) {
+      setCursorHole(null);
+    }
     const d = dragRef.current;
     switch (d.kind) {
       case 'pan':
@@ -759,6 +840,12 @@ export function Canvas() {
       case 'waypoint':
         setWpDrag({ wireId: d.wireId, index: d.index, pos: toUm(p) });
         break;
+      case 'solder-bridge': {
+        // R1.3：跟着指针画虚线预览；超过阈值才算"动了"，单击（没动）不建桥。
+        const moved = d.moved || Math.hypot(p[0] - d.startMm[0], p[1] - d.startMm[1]) > 0.8;
+        if (moved !== d.moved || p[0] !== d.current[0] || p[1] !== d.current[1]) setDrag({ ...d, current: p, moved });
+        break;
+      }
       case 'resize': {
         // 指针 → 板本地 µm → 列/行数（按孔距吸附）。把手拖的是新板的边缘线：
         // 塑料边宽度不变，所以先减掉边缘到最后一列/行的距离。
@@ -873,6 +960,21 @@ export function Canvas() {
         }
         break;
       }
+      case 'solder-bridge': {
+        // R1.3：拖到另一个焊盘才建桥（ops 层守卫非法端点并给出具体原因）；
+        // 单击（没动）或拖回原地只切到右栏「焊接」面板，什么都不改。
+        if (d.moved) {
+          const target = holeTargetForBridge(e);
+          if (target && target !== d.from) {
+            apply([{ op: 'add_solder_bridge', bridge: { a: d.from, b: target } }], '焊锡桥接');
+          } else if (!target) {
+            toast('info', '松手处没有焊盘，未建立焊锡桥');
+          }
+        } else {
+          setRightTab('solder');
+        }
+        break;
+      }
     }
     setDrag({ kind: 'none' });
   }
@@ -911,6 +1013,24 @@ export function Canvas() {
     }
     if (!targetHit.hole && !targetHit.pin) return null; // 松手在空白处 = 取消
     return endpointFromHit(targetHit);
+  }
+
+  /**
+   * R1.3：焊接工具拖桥时把松手位置解析成目标焊盘地址。返回 null 表示松手处没有
+   * 焊盘（= 取消）。与 wireEndTarget 同一套三层解析：DOM 命中 → 几何退回找被
+   * 导线/桥盖住的孔 → 都没有才算没有。焊锡桥直接落在焊盘上（含已插引脚的孔），
+   * 所以不走 endpointFromHit 的"占用拒绝"逻辑——物理上桥是焊在引脚旁边的。
+   */
+  function holeTargetForBridge(e: { target: EventTarget | null; clientX: number; clientY: number }): string | null {
+    const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+    const h = hit({ target: dropTarget ?? e.target, clientX: e.clientX, clientY: e.clientY });
+    if (h.hole) return h.hole;
+    const global = toUm(toMm(e.clientX, e.clientY));
+    for (const pb of model.boards.values()) {
+      const hole = holeAtLocal(pb.resolved, toLocal(global, pb.transform), SNAP_UM);
+      if (hole) return `${pb.instance.id}.${hole.name}`;
+    }
+    return null;
   }
 
   function endpointFromHit(h: ReturnType<typeof hit>): WireEndpoint | null {
@@ -1139,6 +1259,24 @@ export function Canvas() {
       );
     }
   }
+  // R1.3：焊接工具拖桥预览——虚线从起焊盘跟着指针走，落点在另一个焊盘才建桥。
+  if (drag.kind === 'solder-bridge' && drag.moved) {
+    const parsed = parseAddress(drag.from);
+    const pb = parsed ? model.boards.get(parsed.owner) : undefined;
+    const hole = pb?.resolved.holes.get(parsed!.name);
+    if (pb && hole) {
+      const start = toGlobal(hole.local_um, pb.transform);
+      overlays.push(
+        <g key="solder-bridge-draft" style={{ pointerEvents: 'none' }}>
+          <line x1={mm(start[0])} y1={mm(start[1])} x2={drag.current[0]} y2={drag.current[1]} stroke="#d97706" strokeWidth={0.7} strokeDasharray="1.5 1" strokeLinecap="round" opacity={0.9} />
+          <circle cx={mm(start[0])} cy={mm(start[1])} r={1} fill="#d97706" stroke="#92400e" strokeWidth={0.2} />
+          <text className="overlay-hint" x={drag.current[0] + 2} y={drag.current[1] - 2} fontSize={2}>
+            {drag.from} → 拖到另一个焊盘建桥（Esc 取消）
+          </text>
+        </g>
+      );
+    }
+  }
   if (wpDrag) {
     const rw = model.wires.get(wpDrag.wireId);
     if (rw) {
@@ -1253,7 +1391,8 @@ export function Canvas() {
         </defs>
         <rect className="canvas-bg" width="100%" height="100%" fill="#eef0f4" />
         {view.z > 3 && <rect width="100%" height="100%" fill="url(#grid)" style={{ pointerEvents: 'none' }} />}
-        <g transform={`translate(${view.px} ${view.py}) scale(${view.z}) rotate(${view.rot})${view.side === 'solder' ? ` translate(${2 * (scene.bounds.x + scene.bounds.w / 2)} 0) scale(-1 1)` : ''}`}>
+        <g transform={`translate(${view.px} ${view.py}) scale(${view.z}) rotate(${view.rot})`}>
+          {/* 镜像由 buildScene（mirroredBoards）在场景内部完成：焊接面板/其上导线与元件按板中心翻转，板外对象不动 */}
           <g className={drag.kind === 'objects' && drag.moved ? 'scene scene-dim' : 'scene'}>
             <SceneNodes nodes={scene.nodes} />
           </g>
@@ -1265,19 +1404,30 @@ export function Canvas() {
       </svg>
       <div className="canvas-hud" data-testid="canvas-hud">
         <span>{Math.round(view.z * 100 / 6)}%</span>
-        <span>{view.side === 'solder' ? '焊接面' : '元件面'}</span>
+        <span>{Object.entries(view.sides).some(([, s]) => s === 'solder') ? '焊接面' : '元件面'}</span>
         {cursorMm && (
           <span>
             x {cursorMm[0].toFixed(1)} mm · y {cursorMm[1].toFixed(1)} mm
           </span>
         )}
         {selectedHole && <span>孔 {selectedHole}</span>}
+        {tool === 'solder' && cursorHole && (
+          <span data-testid="solder-hover-status">
+            悬停焊盘 {cursorHole} · {padStatusText(model.holes.get(cursorHole))}
+          </span>
+        )}
       </div>
-      {!design.boards.length && !placing && (
+      {(!design.boards.length || Object.values(view.sides).filter((s) => s === 'solder').length === 0) && !placing && (
         <div className="canvas-empty">
           <p>画布是空的。</p>
           {/* The library only exists in 搭建, so 仿真 must not point at a panel that is not there. */}
           <p>{mode === 'build' ? '从左侧元件库添加一块面包板，或从“项目”菜单载入示例。' : '先切到“搭建”放置元件并接线，再回来运行。'}</p>
+        </div>
+      )}
+      {Object.values(view.sides).filter((s) => s === 'solder').length > 0 && !design.boards.some((b) => view.sides[b.id] === 'solder') && (
+        <div className="canvas-empty">
+          <p>没有面包板可以切换到焊接面。</p>
+          <p>先在“搭建”模式下放置一块面包板。</p>
         </div>
       )}
     </div>

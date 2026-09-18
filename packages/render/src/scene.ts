@@ -31,6 +31,11 @@ export interface SceneOptions {
    * 由调用方决定什么时候开（一般 = 有选中项 且 用户没关掉这个开关）。
    */
   dimUnhighlighted?: boolean;
+  /** Board ids whose face is mirrored (solder side). Each board is flipped
+   * around its own local x centre so objects on other boards stay put. */
+  mirroredBoards?: Set<string>;
+  /** Show pad layer on perfboard (solder side). */
+  showPads?: boolean;
 }
 
 export const mm = (um: number): number => Math.round(um / 10) / 100;
@@ -62,6 +67,14 @@ export function wireColor(c: string): string {
  */
 export function transformAttr(t: Transform): string {
   return `translate(${mm(t.position[0])} ${mm(t.position[1])}) rotate(${t.rotation})`;
+}
+
+/**
+ * SVG transform that mirrors around the local x axis at `cxMm`.
+ * Equivalent to `translate(cx,0) scale(-1,1) translate(-cx,0)`.
+ */
+export function mirrorTransformX(cxMm: number): string {
+  return `translate(${cxMm} 0) scale(-1 1) translate(${-cxMm} 0)`;
 }
 
 /** One definition drawing primitive (µm) as a scene node (mm). */
@@ -174,12 +187,57 @@ export function boardScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptio
     }
   }
   children.push({ t: 'group', cls: 'holes', children: holeNodes });
+  // R3.3 焊盘分层（perfboard）：焊盘按状态着色画在孔之上（非文字，镜像时随板翻转）
+  if (perfboard) children.push({ t: 'group', cls: 'pads', children: padScene(pb, model, opts) });
   const name = pb.instance.name ?? pb.instance.id;
   children.push({ t: 'text', x: 2, y: h - 1.2, text: `${name} · ${def.name}`, size: 1.6, fill: '#8a8577', anchor: 'start', cls: 'board-name' });
   const selected = opts.selectedIds?.has(pb.instance.id);
   if (selected) children.push({ t: 'rect', x: -0.6, y: -0.6, w: w + 1.2, h: h + 1.2, fill: 'none', stroke: '#2563eb', sw: 0.5, dash: '1.5 1', cls: 'selection' });
   if (pb.instance.locked) children.push({ t: 'text', x: w - 2, y: h - 1.2, text: '🔒', size: 2, anchor: 'end', cls: 'lock' });
+  // 镜像板：把非文字元素套镜像 transform（围绕板局部 x = w/2 轴），文字保持面向用户
+  const boardMirrored = opts.mirroredBoards?.has(pb.instance.id);
+  if (boardMirrored) {
+    const mirroredChildren: SceneNode[] = [];
+    const textChildren: SceneNode[] = [];
+    for (const child of children) {
+      if (child.t === 'text') { textChildren.push(child); } else { mirroredChildren.push(child); }
+    }
+    return { t: 'group', id: `board:${pb.instance.id}`, transform: transformAttr(pb.transform), cls: 'board', data: { board: pb.instance.id }, children: [
+      { t: 'group', transform: mirrorTransformX(w / 2), children: mirroredChildren },
+      ...textChildren
+    ] };
+  }
   return { t: 'group', id: `board:${pb.instance.id}`, transform: transformAttr(pb.transform), cls: 'board', data: { board: pb.instance.id }, children };
+}
+
+/** Perfboard pad layer（R3.3）：焊盘按状态着色画在孔之上 — 空/有引脚/有导线/已桥接。 */
+function padScene(pb: PlacedBoard, model: DesignModel, opts: SceneOptions): SceneNode[] {
+  const pads: SceneNode[] = [];
+  for (const hole of pb.resolved.holes.values()) {
+    const addr = `${pb.instance.id}.${hole.name}`;
+    const st = model.holes.get(addr);
+    const cx = mm(hole.local_um[0]);
+    const cy = mm(hole.local_um[1]);
+    const r = HOLE_R + 0.45;
+    let stroke = '#b0956c'; // 空：淡铜色
+    let sw = 0.3;
+    if (st?.bridges.length) {
+      stroke = '#d97706'; // 已桥接：琥珀
+      sw = 0.55;
+    } else if (st?.status === 'occupied') {
+      stroke = '#a16207'; // 有引脚：亮铜
+      sw = 0.5;
+    } else if (st?.wires.length) {
+      stroke = '#0f766e'; // 有导线：青绿
+      sw = 0.45;
+    }
+    if (opts.highlightHoles?.has(addr)) {
+      stroke = '#f59e0b';
+      sw = 0.6;
+    }
+    pads.push({ t: 'circle', cx, cy, r, fill: 'none', stroke, sw, cls: `pad pad-${st?.status ?? 'free'}`, data: { hole: addr } });
+  }
+  return pads;
 }
 
 function statusShort(s: string): string {
@@ -217,10 +275,19 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
   const upright = rc.orientation === 'upright';
   const selected = opts.selectedIds?.has(pc.instance.id);
   const hl = opts.highlightComponents?.has(pc.instance.id);
+  // R3.1 压暗：未选未高亮的元件按 0.28 渲染
+  const dimmed = Boolean(opts.dimUnhighlighted) && !hl && !selected;
+  const dimOpacity = dimmed ? 0.28 : undefined;
+  // 判断是否在镜像板面上
+  const boardId = pc.instance.placement.kind === 'board' ? pc.instance.placement.board_id : undefined;
+  const mirrored = boardId && opts.mirroredBoards?.has(boardId);
+  const baseTransform = transformAttr(pc.transform);
+  const mirrorT = mirrored ? mirrorTransformX(mm(rc.outline.x + rc.outline.w / 2)) : '';
+  const transform = mirrorT ? `${baseTransform} ${mirrorT}` : baseTransform;
   if (upright) {
     // Ghost of the module face (as if unfolded) + solid pin strip footprint.
     if (opts.showUprightGhost !== false) {
-      children.push({ t: 'group', opacity: 0.28, cls: 'upright-ghost', children: rc.render.map(primitiveToNode) });
+      children.push({ t: 'group', opacity: dimmed ? 0.28 : 0.28, cls: 'upright-ghost', children: rc.render.map(primitiveToNode) });
       children.push({ t: 'rect', x: mm(outline.x), y: mm(outline.y), w: mm(outline.w), h: mm(outline.h), fill: 'none', stroke: '#475569', sw: 0.25, dash: '1 0.8', cls: 'upright-ghost' });
     }
     const f = rc.footprint;
@@ -228,7 +295,11 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     const label = `${pc.instance.name ?? pc.instance.id}（立式）`;
     const lx = mm(f.x + f.w / 2);
     const ly = mm(f.y) - 1.2;
-    children.push({ t: 'text', x: lx, y: ly, text: label, size: 1.5, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' });
+    // 镜像时文字反镜像
+    const labelNode: SceneNode = mirrored
+      ? { t: 'text', x: lx, y: ly, text: label, size: 1.5, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name', rotate: 180 }
+      : { t: 'text', x: lx, y: ly, text: label, size: 1.5, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' };
+    children.push(labelNode);
   } else {
     children.push(...rc.render.map(primitiveToNode));
     if (!rc.render.length) {
@@ -236,7 +307,13 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
     }
     // Invisible hit target covering the body for selection/drag.
     children.push({ t: 'rect', x: mm(outline.x), y: mm(outline.y), w: mm(outline.w), h: mm(outline.h), fill: 'transparent', stroke: 'none', cls: 'component-hit', data: { component: pc.instance.id } });
-    children.push({ t: 'text', x: mm(outline.x + outline.w / 2), y: mm(outline.y) - 0.9, text: pc.instance.name ?? pc.instance.id, size: 1.6, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' });
+    const nameX = mm(outline.x + outline.w / 2);
+    const nameY = mm(outline.y) - 0.9;
+    // 镜像时文字反镜像（绕锚点 scale(-1,1) 等价于 rotate 180 在此锚点）
+    const nameNode: SceneNode = mirrored
+      ? { t: 'text', x: nameX, y: nameY, text: pc.instance.name ?? pc.instance.id, size: 1.6, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name', rotate: 180 }
+      : { t: 'text', x: nameX, y: nameY, text: pc.instance.name ?? pc.instance.id, size: 1.6, fill: '#0f172a', anchor: 'middle', weight: 'bold', cls: 'component-name' };
+    children.push(nameNode);
   }
   // pins
   for (const pin of pc.pins) {
@@ -275,22 +352,26 @@ export function componentScene(pc: PlacedComponent, opts: SceneOptions): SceneNo
         anchor = dy < 0 ? 'end' : 'start';
         ty = dy < 0 ? y - 1.2 : y + 1.2;
       }
-      children.push({ t: 'text', x: tx, y: ty, text: pin.name, size: 1.1, fill: upright ? '#0f172a' : '#f8fafc', anchor, rotate, cls: 'pin-label', family: 'monospace' });
+      children.push({ t: 'text', x: tx, y: ty, text: pin.name, size: 1.1, fill: upright ? '#0f172a' : '#f8fafc', anchor, rotate: mirrored ? (rotate === 0 ? 180 : -rotate) : rotate, cls: 'pin-label', family: 'monospace' });
     }
   }
   if (selected || hl) {
     children.push({ t: 'rect', x: mm(outline.x) - 0.6, y: mm(outline.y) - 0.6, w: mm(outline.w) + 1.2, h: mm(outline.h) + 1.2, fill: 'none', stroke: selected ? '#2563eb' : '#f59e0b', sw: 0.5, dash: selected ? '1.5 1' : undefined, cls: 'selection' });
   }
   if (pc.instance.locked) children.push({ t: 'text', x: mm(outline.x + outline.w) - 1, y: mm(outline.y) + 2.2, text: '🔒', size: 2, anchor: 'end', cls: 'lock' });
-  return { t: 'group', id: `component:${pc.instance.id}`, transform: transformAttr(pc.transform), cls: `component ${pc.onBoard ? 'on-board' : 'off-board'}`, data: { component: pc.instance.id }, children };
+  const opacity = dimOpacity !== undefined ? dimOpacity : undefined;
+  return { t: 'group', id: `component:${pc.instance.id}`, transform, cls: `component ${pc.onBoard ? 'on-board' : 'off-board'}`, data: { component: pc.instance.id }, opacity, children };
 }
 
-export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): SceneNode {
+export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions, model: DesignModel): SceneNode {
   const w = rw.instance;
   const pts = rw.points.map((p) => [mm(p[0]), mm(p[1])] as [number, number]);
   const color = wireColor(w.color);
   const selected = opts.selectedIds?.has(w.id);
   const hl = opts.highlightWires?.has(w.id);
+  // 镜像板上的导线整体镜像（围绕该板中心 x 轴）
+  const boardId = rw.from?.kind === 'hole' ? rw.from.board_id : rw.to?.kind === 'hole' ? rw.to.board_id : undefined;
+  const wireMirrored = boardId ? Boolean(opts.mirroredBoards?.has(boardId)) : false;
   const children: SceneNode[] = [];
   if (pts.length >= 2) {
     if (selected || hl) children.push({ t: 'polyline', points: pts, stroke: selected ? '#2563eb' : '#f59e0b', sw: 2.2, opacity: 0.5, linecap: 'round', cls: 'wire-halo' });
@@ -320,7 +401,7 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
     const mx = (pts[bi]![0] + pts[bi - 1]![0]) / 2;
     const my = (pts[bi]![1] + pts[bi - 1]![1]) / 2;
     children.push({ t: 'circle', cx: mx, cy: my, r: 1.35, fill: '#ffffff', stroke: color, sw: 0.3, cls: 'wire-tag' });
-    children.push({ t: 'text', x: mx, y: my + 0.55, text: String(index), size: 1.5, fill: '#111827', anchor: 'middle', weight: 'bold', cls: 'wire-tag', family: 'monospace' });
+    children.push({ t: 'text', x: mx, y: my + 0.55, text: String(index), size: 1.5, fill: '#111827', anchor: 'middle', weight: 'bold', cls: 'wire-tag', family: 'monospace', rotate: wireMirrored ? (180 as const) : undefined });
   } else if (pts.length === 1) {
     children.push({ t: 'circle', cx: pts[0]![0], cy: pts[0]![1], r: 0.9, fill: color, stroke: '#111827', sw: 0.2, cls: 'wire-draft' });
   }
@@ -331,7 +412,14 @@ export function wireScene(rw: ResolvedWire, index: number, opts: SceneOptions): 
   }
   // 聚焦模式：没被高亮也没被选中的导线整体压暗（连编号一起淡掉）
   const dimmed = Boolean(opts.dimUnhighlighted) && !hl && !selected;
-  return { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, opacity: dimmed ? 0.16 : undefined, children };
+  // 镜像板上的导线整体镜像（围绕该板中心 x 轴）
+  let transform: string | undefined;
+  if (wireMirrored && boardId) {
+    const pb = model.boards.get(boardId);
+    if (pb) transform = mirrorTransformX(mm(pb.bounds.x + pb.bounds.w / 2));
+  }
+  const wireGroup: SceneNode = { t: 'group', id: `wire:${w.id}`, cls: `wire-group${dimmed ? ' wire-dimmed' : ''}`, data: { wire: w.id }, transform, opacity: dimmed ? 0.16 : undefined, children };
+  return wireGroup;
 }
 
 export interface Scene {
@@ -346,7 +434,31 @@ export function buildScene(model: DesignModel, opts: SceneOptions = {}): Scene {
   const comps = [...model.components.values()];
   for (const pc of comps) nodes.push(componentScene(pc, opts));
   const wires = [...model.wires.values()].sort((a, b) => a.instance.id.localeCompare(b.instance.id, undefined, { numeric: true }));
-  wires.forEach((rw, i) => nodes.push(wireScene(rw, i + 1, opts)));
+  wires.forEach((rw, i) => nodes.push(wireScene(rw, i + 1, opts, model)));
+  // R1.3 焊锡桥：组件面画亮铜线，焊接面画滴状焊桥
+  for (const bridge of model.bridges.values()) {
+    const pb = model.boards.get(bridge.instance.a.split('.')[0]);
+    if (!pb || !bridge.a || !bridge.b) continue;
+    const mirrored = opts.mirroredBoards?.has(pb.instance.id);
+    // 与 wireScene 同一套镜像（桥是顶层节点，翻转后必须跟着板走）：
+    // 端点 global_um 是翻转前的位置；镜像时绕板中线 x 翻转，x → 2·axis − x。
+    const axisUm = pb.bounds.x + pb.bounds.w / 2;
+    const mx = (x: number) => (mirrored ? 2 * axisUm - x : x);
+    const ax = mm(mx(bridge.a.global_um[0]));
+    const ay = mm(bridge.a.global_um[1]);
+    const bx = mm(mx(bridge.b.global_um[0]));
+    const by = mm(bridge.b.global_um[1]);
+    // 组件面：细亮铜线（提示板下有桥）
+    if (!mirrored) {
+      nodes.push({ t: 'line', x1: ax, y1: ay, x2: bx, y2: by, stroke: '#f59e0b', sw: 0.4, cls: 'bridge-copper', opacity: 0.85, data: { bridge: bridge.instance.id } });
+    } else {
+      // 焊接面：滴状焊桥（用圆角矩形近似）
+      const cx = (ax + bx) / 2;
+      const cy = (ay + by) / 2;
+      const lw = Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2);
+      nodes.push({ t: 'rect', x: cx - lw / 2, y: cy - 1.2, w: lw + 1.2, h: 2.4, rx: 1.2, fill: '#d97706', stroke: '#92400e', sw: 0.2, cls: 'solder-bridge', data: { bridge: bridge.instance.id } });
+    }
+  }
   // Badges and hints live in an unrotated global layer so text stays readable.
   const annotations: SceneNode[] = [];
   if (opts.showUnverifiedBadges !== false) {

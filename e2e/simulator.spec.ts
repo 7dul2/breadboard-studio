@@ -184,7 +184,7 @@ test.describe('simulator shell', () => {
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('menu-project').click().then(() => page.getByTestId('menu-export-json').click())]);
     const jsonText = readFileSync(await dl.path(), 'utf8');
     const exported = JSON.parse(jsonText) as { schema_version: string; programs: { id: string }[]; simulation: Record<string, unknown> };
-    expect(exported.schema_version).toBe('1.1');
+    expect(exported.schema_version).toBe('1.2');
     expect(exported.programs).toHaveLength(1);
     expect(exported.programs[0]!.id).toBe('program_main');
     expect(exported.simulation).toMatchObject({ active_program_id: 'program_main', usb_powered_components: ['mcu'] });
@@ -218,7 +218,7 @@ test.describe('simulator shell', () => {
     await page.getByTestId('import-input').setInputFiles({ name: 'legacy.breadboard.json', mimeType: 'application/json', buffer: Buffer.from(legacyText) });
     await expect(page.getByTestId('toast-success').filter({ hasText: '已导入' }).last()).toBeVisible();
     d = await design(page);
-    expect(d.schema_version).toBe('1.1');
+    expect(d.schema_version).toBe('1.2');
     expect(d.programs).toHaveLength(1);
     expect((await analysis(page)).hash).toBe(hashBefore);
   });

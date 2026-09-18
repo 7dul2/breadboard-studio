@@ -259,6 +259,28 @@ export function checkModel(model: DesignModel): CheckOutput {
     }
   }
 
+  // ------------------------------------------------------------ solder bridges
+  for (const b of model.bridges.values()) {
+    if (!b.valid) {
+      results.push(res('error', 'bridge_bad_endpoint', 'solder_bridge', `焊锡桥 ${b.instance.id} 的端点不是同一块洞洞板上的焊盘`, [b.instance.id], {
+        suggestion: '两端都须指向同一块 render.style = perfboard 的板的焊盘。'
+      }));
+      continue;
+    }
+    if (!b.adjacent) {
+      results.push(res('warning', 'bridge_non_adjacent', 'solder_bridge', `焊锡桥 ${b.instance.id} 跨越非相邻焊盘，实物上无法实现`, [b.instance.id], {
+        endpoints: [b.instance.a, b.instance.b],
+        suggestion: '只连接正交相邻的两个焊盘（间距一个孔距）。'
+      }));
+    }
+    const dup = (model.design.solder_bridges ?? []).filter((s) => s.id !== b.instance.id).some(
+      (s) => (s.a === b.instance.a && s.b === b.instance.b) || (s.a === b.instance.b && s.b === b.instance.a)
+    );
+    if (dup) {
+      results.push(res('error', 'bridge_duplicate', 'solder_bridge', `焊锡桥 ${b.instance.id} 的这一对孔已经被别的桥接占用了`, [b.instance.id]));
+    }
+  }
+
   // ------------------------------------------------------------ net intents
   const netsByIntent = new Map<string, Net[]>();
   for (const intent of model.design.net_intents) {

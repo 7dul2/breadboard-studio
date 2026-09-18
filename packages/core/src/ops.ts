@@ -88,7 +88,10 @@ export type Op =
   | { op: 'update_program'; id: string; patch: Partial<Omit<ProgramAsset, 'id'>> }
   | { op: 'remove_program'; id: string }
   /** Merge into `simulation`; `null` clears a key. Referenced programs/components must exist. */
-  | { op: 'set_simulation_config'; patch: SimulationConfigPatch };
+  | { op: 'set_simulation_config'; patch: SimulationConfigPatch }
+  /** Solder bridges between perfboard pads (schema 1.2). */
+  | { op: 'add_solder_bridge'; bridge: { id?: string; a: string; b: string; notes?: string } }
+  | { op: 'remove_solder_bridge'; id: string };
 
 export type SimulationConfigPatch = { [K in keyof SimulationConfig]?: SimulationConfig[K] | null };
 
@@ -147,7 +150,7 @@ function ensureUnlocked(obj: { locked?: boolean; id: string }, what: string): vo
 }
 
 function allIds(design: DesignDocument): { id: string }[] {
-  return [...design.boards, ...design.components, ...design.wires, ...design.net_intents, ...design.constraints, ...(design.programs ?? [])];
+  return [...design.boards, ...design.components, ...design.wires, ...(design.solder_bridges ?? []), ...design.net_intents, ...design.constraints, ...(design.programs ?? [])];
 }
 
 function ensureUniqueId(design: DesignDocument, id: string): void {
@@ -521,13 +524,15 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       const intents = design.net_intents.filter((intent) => intent.endpoints.some((endpoint) => addressBelongsTo(endpoint, owners)));
       const constraints = design.constraints.filter((constraint) => constraint.type === 'isolate' && (addressBelongsTo(constraint.a, owners) || addressBelongsTo(constraint.b, owners)));
       const programs = programsTargeting(design, owners);
-      if ((dependents.length || wires.length || intents.length || constraints.length || programs.length) && !op.cascade) {
-        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((c) => c.id).join(', ') || '无'}；程序 ${programs.map((p) => p.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
+      const bridges = (design.solder_bridges ?? []).filter((s) => addressBelongsTo(s.a, owners) || addressBelongsTo(s.b, owners));
+      if ((dependents.length || wires.length || intents.length || constraints.length || programs.length || bridges.length) && !op.cascade) {
+        throw new OpError(`面包板 "${op.id}" 仍被使用：元件 ${dependents.map((d) => d.id).join(', ') || '无'}；导线 ${wires.map((w) => w.id).join(', ') || '无'}；网络意图 ${intents.map((n) => n.id).join(', ') || '无'}；约束 ${constraints.map((c) => c.id).join(', ') || '无'}；程序 ${programs.map((p) => p.id).join(', ') || '无'}；桥接 ${bridges.map((s) => s.id).join(', ') || '无'}。设置 cascade=true 一并清理`);
       }
       for (const d of dependents) changed.add(d.id);
       for (const w of wires) changed.add(w.id);
       design.components = design.components.filter((c) => !dependents.includes(c));
       design.wires = design.wires.filter((w) => !wires.includes(w));
+      design.solder_bridges = (design.solder_bridges ?? []).filter((s) => !bridges.includes(s));
       design.boards = design.boards.filter((x) => x.id !== op.id);
       pruneDependentReferences(design, owners, new Set(wires.map((wire) => wire.id)), changed);
       changed.add(op.id);
@@ -700,6 +705,34 @@ function applyOne(design: DesignDocument, catalog: Catalog, op: Op, changed: Set
       ensureUnlocked(w, '导线');
       design.wires = design.wires.filter((x) => x.id !== op.id);
       pruneDependentReferences(design, new Set(), new Set([op.id]), changed);
+      changed.add(op.id);
+      return;
+    }
+    case 'add_solder_bridge': {
+      const id = op.bridge.id ?? nextId(design, 'sb');
+      ensureUniqueId(design, id);
+      const { a, b } = op.bridge;
+      const pa = parseAddress(a);
+      const pb = parseAddress(b);
+      if (!pa || !pb) throw new OpError(`焊锡桥 "${id}" 的端点须为 board.hole 形如 bb_1.A1`);
+      const boardA = design.boards.find((x) => x.id === pa.owner);
+      const boardB = design.boards.find((x) => x.id === pb.owner);
+      if (!boardA || !boardB) throw new OpError(`焊锡桥 "${id}" 的端点须指向现有板`);
+      if (catalog.getBoard(boardA.model)?.render.style !== 'perfboard' || catalog.getBoard(boardB.model)?.render.style !== 'perfboard') throw new OpError(`焊锡桥 "${id}" 只能焊在洞洞板上`);
+      if (boardA.id !== boardB.id) throw new OpError(`焊锡桥 "${id}" 的两端必须在同一块板上`);
+      const used = new Set<string>();
+      for (const s of design.solder_bridges ?? []) for (const ep of [s.a, s.b]) used.add(ep);
+      if (used.has(a) || used.has(b)) throw new OpError(`焊锡桥 "${id}" 的端点已被别的桥接占用`);
+      const dup = (design.solder_bridges ?? []).some((s) => (s.a === a && s.b === b) || (s.a === b && s.b === a));
+      if (dup) throw new OpError(`焊锡桥 "${id}" 的这一对孔已经被桥接过了`);
+      design.solder_bridges = [...(design.solder_bridges ?? []), { id, a, b, ...(op.bridge.notes ? { notes: op.bridge.notes } : {}) }];
+      changed.add(id);
+      return;
+    }
+    case 'remove_solder_bridge': {
+      const s = mustFind(design.solder_bridges ?? [], op.id, '焊锡桥');
+      ensureUnlocked(s, '焊锡桥');
+      design.solder_bridges = (design.solder_bridges ?? []).filter((x) => x.id !== op.id);
       changed.add(op.id);
       return;
     }

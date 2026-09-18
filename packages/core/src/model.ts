@@ -1,4 +1,4 @@
-import type { BoardDefinition, BoardInstance, ComponentDefinition, ComponentInstance, DesignDocument, PinMeta, PointUm, WireEndpoint, WireInstance } from '@breadboard-studio/schema';
+import type { BoardDefinition, BoardInstance, ComponentDefinition, ComponentInstance, DesignDocument, PinMeta, PointUm, SolderBridgeInstance, WireEndpoint, WireInstance } from '@breadboard-studio/schema';
 import { Catalog } from '@breadboard-studio/catalog';
 import { holeAddress, parseAddress, terminalAddress } from './address.js';
 import { holeAtLocal, resolveBoard, type ResolvedBoard, type ResolvedHole } from './board.js';
@@ -56,7 +56,19 @@ export interface HoleState {
   pin?: string;
   /** Wire ids whose endpoints use this hole. */
   wires: string[];
+  /** Solder-bridge ids that touch this hole (schema 1.2). */
+  bridges: string[];
 }
+
+export type ResolvedBridge = {
+  instance: SolderBridgeInstance;
+  a: ResolvedEndpoint | null;
+  b: ResolvedEndpoint | null;
+  /** Both endpoints resolve to pads on the same solderable board. */
+  valid: boolean;
+  /** The two pads are orthogonally adjacent on the hole grid (one pitch). */
+  adjacent: boolean;
+};
 
 export type ResolvedEndpoint =
   | { kind: 'hole'; address: string; board_id: string; hole: string; global_um: PointUm }
@@ -82,6 +94,8 @@ export interface DesignModel {
   wires: Map<string, ResolvedWire>;
   /** keyed by hole address `board.hole` */
   holes: Map<string, HoleState>;
+  /** keyed by bridge id `sb_*` (schema 1.2). */
+  bridges: Map<string, ResolvedBridge>;
   /** Structural issues found while building the model. */
   issues: RuleResult[];
   bounds: Rect | null;
@@ -119,6 +133,7 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
   for (const n of design.net_intents) checkId(n.id, 'net_intent');
   for (const c of design.constraints) checkId(c.id, 'constraint');
   for (const p of design.programs ?? []) checkId(p.id, 'program');
+  for (const s of design.solder_bridges ?? []) checkId(s.id, 'solder_bridge');
 
   // ---- boards ----
   for (const b of design.boards) {
@@ -131,7 +146,7 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
     const transform: Transform = { position: b.position_um, rotation: b.rotation_deg };
     boards.set(b.id, { instance: b, def, resolved, transform, bounds: rectToGlobal(resolved.bounds, transform) });
     for (const h of resolved.holes.values()) {
-      holes.set(holeAddress(b.id, h.name), { board_id: b.id, hole: h.name, status: 'free', wires: [] });
+      holes.set(holeAddress(b.id, h.name), { board_id: b.id, hole: h.name, status: 'free', wires: [], bridges: [] });
     }
   }
 
@@ -362,12 +377,39 @@ export function buildModel(design: DesignDocument, baseCatalog: Catalog): Design
     });
   }
 
+  // ---- solder bridges (schema 1.2) ----
+  const BRIDGE_PITCH_UM = 2540;
+  const bridges = new Map<string, ResolvedBridge>();
+  const gridDist = (a: PointUm, b: PointUm): [number, number] => [Math.round((a[0] - b[0]) / BRIDGE_PITCH_UM), Math.round((a[1] - b[1]) / BRIDGE_PITCH_UM)];
+  for (const s of design.solder_bridges ?? []) {
+    const pa = parseAddress(s.a);
+    const pb = parseAddress(s.b);
+    const boardA = pa ? boards.get(pa.owner) : undefined;
+    const boardB = pb ? boards.get(pb.owner) : undefined;
+    const sameBoard = !!boardA && !!boardB && boardA.instance.id === boardB.instance.id;
+    const holeA = pa ? boardA?.resolved.holes.get(pa.name) : undefined;
+    const holeB = pb ? boardB?.resolved.holes.get(pb.name) : undefined;
+    const solderable = sameBoard && boardA.def.render.style === 'perfboard';
+    const aEnd: ResolvedEndpoint | null = pa && boardA && holeA ? { kind: 'hole', address: s.a, board_id: boardA.instance.id, hole: pa.name, global_um: toGlobal(holeA.local_um, boardA.transform) } : null;
+    const bEnd: ResolvedEndpoint | null = pb && boardB && holeB ? { kind: 'hole', address: s.b, board_id: boardB.instance.id, hole: pb.name, global_um: toGlobal(holeB.local_um, boardB.transform) } : null;
+    const valid = solderable && !!aEnd && !!bEnd;
+    const [dr, dc] = (valid && holeA && holeB) ? gridDist(holeA.local_um, holeB.local_um) : [0, 0];
+    const adjacent = (dr === 0 && Math.abs(dc) === 1) || (dc === 0 && Math.abs(dr) === 1);
+    if (aEnd && bEnd && solderable) {
+      const ha = holeAddress(aEnd.board_id, aEnd.hole);
+      const hb = holeAddress(bEnd.board_id, bEnd.hole);
+      const hStateA = holes.get(ha); if (hStateA) hStateA.bridges.push(s.id);
+      const hStateB = holes.get(hb); if (hStateB) hStateB.bridges.push(s.id);
+    }
+    bridges.set(s.id, { instance: s, a: aEnd, b: bEnd, valid, adjacent });
+  }
+
   const allRects = [...[...boards.values()].map((b) => b.bounds), ...[...components.values()].map((c) => c.bounds)];
   for (const w of wires.values()) {
     for (const p of w.points) allRects.push({ x: p[0], y: p[1], w: 0, h: 0 });
   }
 
-  return { design, catalog, boards, components, wires, holes, issues, bounds: rectUnion(allRects) };
+  return { design, catalog, boards, components, wires, holes, bridges, issues, bounds: rectUnion(allRects) };
 }
 
 /** Cable terminals leave the body outward so auto-routed wires do not cross their own module. */
