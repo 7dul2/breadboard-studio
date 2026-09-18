@@ -38,6 +38,69 @@ export class UnionFind {
   }
 }
 
+/**
+ * A union-find that also carries one-way edges, so `full` can answer "can
+ * current get from here to there" across a diode.
+ *
+ * A diode is one-way: current flows anode → cathode, and the reverse direction
+ * must not conduct. A plain union would make the reverse look like a wire, so a
+ * diode joins neither graph — the direction lives in a directed edge that only
+ * `full` follows, layered on top of the undirected roots. The undirected
+ * answer is unchanged until a diode is present; then reachability follows the
+ * directed edges over the undirected roots, so a reverse query still fails.
+ */
+export class DirectedUnionFind extends UnionFind {
+  private directed: [string, string][] = [];
+  private dirty = true;
+  private adjacency: Map<string, string[]> | null = null;
+
+  /** Record a one-way edge: current can follow it, but it makes no node. */
+  addDirected(from: string, to: string): void {
+    this.directed.push([from, to]);
+    this.dirty = true;
+  }
+
+  override union(a: string, b: string): void {
+    super.union(a, b);
+    // A wire bridging a diode's two legs moots that edge; roots changed, so
+    // rebuild the adjacency before answering.
+    this.dirty = true;
+  }
+
+  override connected(a: string, b: string): boolean {
+    const from = this.find(a);
+    const to = this.find(b);
+    if (from === to) return true;
+    if (!this.directed.length) return false;
+    if (this.dirty || !this.adjacency) {
+      const adjacency = new Map<string, string[]>();
+      for (const [f, t] of this.directed) {
+        const rf = this.find(f);
+        const rt = this.find(t);
+        if (rf === rt) continue; // a wire bypasses the diode; the edge is moot
+        const list = adjacency.get(rf);
+        if (list) list.push(rt);
+        else adjacency.set(rf, [rt]);
+      }
+      this.adjacency = adjacency;
+      this.dirty = false;
+    }
+    const seen = new Set<string>([from]);
+    const queue = [from];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const next of this.adjacency.get(cur) ?? []) {
+        if (next === to) return true;
+        if (!seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    return false;
+  }
+}
+
 export interface Net {
   id: string;
   name: string;
@@ -49,8 +112,11 @@ export interface Net {
 }
 
 export interface Connectivity {
-  /** Where current can flow: board groups + inserted pins + internal nets + wires + passives. */
-  full: UnionFind;
+  /**
+   * Where current can flow: board groups + inserted pins + internal nets +
+   * wires + passives, plus one-way diode edges.
+   */
+  full: DirectedUnionFind;
   /**
    * Node identity: everything in `full` *except* conduction through a passive.
    *
@@ -81,7 +147,7 @@ export interface ConductedPath {
   componentId: string;
   kind: ConductedKind;
   pins: [string, string];
-  /** Ohms parsed from the marking, or null when it is missing or unreadable. 0 for a closed switch or a link. */
+  /** Ohms parsed from the marking, or null when it is missing or unreadable. 0 for a closed switch, a link, or a forward diode (whose Vf is not modelled). */
   ohms: number | null;
   /** The raw marking, for diagnostics that quote it. Null for kinds that have none. */
   marking: string | null;
@@ -152,7 +218,7 @@ export function parseResistance(marking: unknown): number | null {
 }
 
 export function buildConnectivity(model: DesignModel): Connectivity {
-  const full = new UnionFind();
+  const full = new DirectedUnionFind();
   const direct = new UnionFind();
   const boardOnly = new UnionFind();
 
@@ -203,7 +269,9 @@ export function buildConnectivity(model: DesignModel): Connectivity {
   // Conduction last. A resistor goes into `full` only: it lets current through
   // without making its two legs one node. Wires are already in, so the path a
   // resistor completes is the one the user actually built. A closed switch or a
-  // 0 Ω link is a wire, so those join `direct` too.
+  // 0 Ω link is a wire, so those join `direct` too. A diode is one-way, so it
+  // joins neither graph — the direction becomes a directed edge only `full`
+  // follows, and the reverse direction stays unconnected.
   const conducted: ConductedPath[] = [];
   for (const pc of model.components.values()) {
     for (const path of pc.def.conduction ?? []) {
@@ -215,6 +283,20 @@ export function buildConnectivity(model: DesignModel): Connectivity {
       if (path.kind === 'switch' && !switchClosed(pc, path.state_param)) continue;
       const keyA = pinKey(pc.instance.id, a);
       const keyB = pinKey(pc.instance.id, b);
+      if (path.kind === 'diode') {
+        // One-way: `a` (anode) → `b` (cathode). The reverse direction must not
+        // conduct, so this is not a union — only `full.connected` follows it,
+        // and `direct` (node identity) is untouched, like a resistor's legs.
+        full.addDirected(keyA, keyB);
+        conducted.push({
+          componentId: pc.instance.id,
+          kind: 'diode',
+          pins: [a, b],
+          ohms: 0,
+          marking: null
+        });
+        continue;
+      }
       full.union(keyA, keyB);
       if (path.kind !== 'resistor') direct.union(keyA, keyB);
       const marking = path.kind === 'resistor' && path.value_param ? (pc.resolved.params?.[path.value_param] as string | number | undefined) : undefined;

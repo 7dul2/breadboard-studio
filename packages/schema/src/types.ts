@@ -305,15 +305,15 @@ export type PinDirection = 'in' | 'out' | 'bidir' | 'open_drain' | 'passive' | '
  * while it is closed its two legs really *are* one node, which is what makes a
  * closed switch across a supply a short rather than a load. `short` is a 0 Ω
  * link (jumper wire, solder bridge, 0 Ω resistor) and behaves like a wire.
- * `open` states that the part does not conduct at DC (a capacitor). It is a
- * declaration, not an omission: "no conduction path modelled" means something
- * different, and the rules should not have to guess which one a part means.
- *
- * A diode is deliberately absent. v0.2 models linear elements only, and one-way
- * conduction needs a directed graph, not the union-find this resolves into, so
- * a diode stays a driver rather than a conduction path.
+ * `diode` is one-way: `pins[0]` is the anode and `pins[1]` the cathode, and
+ * current gets across only in that order. The reverse direction must not
+ * conduct, so a diode joins neither graph — the direction lives in a directed
+ * edge that only `full` follows. `open` states that the part does not conduct
+ * at DC (a capacitor). It is a declaration, not an omission: "no conduction
+ * path modelled" means something different, and the rules should not have to
+ * guess which one a part means.
  */
-export type ConductionKind = 'resistor' | 'switch' | 'short' | 'open';
+export type ConductionKind = 'resistor' | 'switch' | 'diode' | 'short' | 'open';
 
 export interface ConductionPath {
   kind: ConductionKind;

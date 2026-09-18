@@ -76,6 +76,62 @@ function loadThroughPassives(model: DesignModel, conn: Connectivity, net: Net, p
   return [res('info', 'passive_load', 'net', detail, objects, { endpoints })];
 }
 
+/**
+ * A forward diode across the supply is a short. The per-net rules above cannot
+ * see it: a diode joins neither `direct` nor an undirected root, so its two
+ * legs are different nets — which is exactly right for node identity, but it
+ * leaves "supply → diode → ground" silent. This rule reads the direction
+ * instead: the anode side carries a real source and the cathode side a ground.
+ * A reverse diode across the supply does not conduct, so it stays silent here,
+ * and a diode whose legs a wire bridges is moot (same net) and skipped.
+ */
+function diodeAcrossSupplies(model: DesignModel, conn: Connectivity): R[] {
+  const bridging = new Map<
+    string,
+    { diodes: string[]; diodePins: string[]; anodePins: PinRef[]; cathodeGrounds: PinRef[] }
+  >();
+  for (const path of conn.conducted) {
+    if (path.kind !== 'diode' || !model.components.has(path.componentId)) continue;
+    const a = pinKey(path.componentId, path.pins[0]);
+    const b = pinKey(path.componentId, path.pins[1]);
+    const anodeRoot = conn.full.find(a);
+    const cathodeRoot = conn.full.find(b);
+    if (anodeRoot === cathodeRoot) continue;
+    const anodeNet = conn.netByRoot.get(anodeRoot);
+    const cathodeNet = conn.netByRoot.get(cathodeRoot);
+    if (!anodeNet || !cathodeNet) continue;
+    const anodePins = pinsOfNet(model, anodeNet).filter(
+      (p) => p.pin.meta.role === 'power_out' && typeof p.pin.meta.voltage_v === 'number'
+    );
+    const cathodeGrounds = pinsOfNet(model, cathodeNet).filter((p) => p.pin.meta.role === 'ground');
+    if (!anodePins.length || !cathodeGrounds.length) continue;
+    const key = `${anodeRoot}|${cathodeRoot}`;
+    const entry = bridging.get(key);
+    if (entry) {
+      entry.diodes.push(path.componentId);
+      entry.diodePins.push(a, b);
+    } else bridging.set(key, { diodes: [path.componentId], diodePins: [a, b], anodePins, cathodeGrounds });
+  }
+  const results: R[] = [];
+  for (const { diodes, diodePins, anodePins, cathodeGrounds } of bridging.values()) {
+    const named = [...new Set(diodes)].join('、');
+    results.push(
+      res(
+        'error',
+        'power_ground_short',
+        'net',
+        `电源与地经 ${named} 正向相连：二极管正向导通，等效直接短路（压降约 0.7 V，电流只受电源与线路限制）`,
+        [...new Set([...diodes, ...anodePins.map((p) => p.pc.instance.id), ...cathodeGrounds.map((p) => p.pc.instance.id)])],
+        {
+          endpoints: [...diodePins, ...anodePins.map((p) => p.key), ...cathodeGrounds.map((p) => p.key)],
+          suggestion: `跨在电源上的二极管要串限流电阻；确认 ${named} 的方向（阳极 → 阴极）后移除或改接。`
+        }
+      )
+    );
+  }
+  return results;
+}
+
 function isPower(meta: PinMeta): boolean {
   return meta.role === 'power_in' || meta.role === 'power_out';
 }
@@ -473,6 +529,11 @@ export function checkModel(model: DesignModel): CheckOutput {
       }
     }
   }
+
+  // A forward diode across the supply is a short, but the per-net rules cannot
+  // see it: the diode joins neither `direct` nor an undirected root, so its two
+  // legs are different nets. This reads the direction instead.
+  for (const result of diodeAcrossSupplies(model, conn)) results.push(result);
 
   // ------------------------------------------------------------ per component power / ground
   const groundNets = new Map<string, Set<string>>(); // component -> roots of its ground pins

@@ -287,7 +287,7 @@ export const componentDefinitionSchema = {
         additionalProperties: false,
         required: ['kind', 'pins'],
         properties: {
-          kind: { type: 'string', enum: ['resistor', 'switch', 'short', 'open'] },
+          kind: { type: 'string', enum: ['resistor', 'switch', 'diode', 'short', 'open'] },
           pins: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 2 },
           value_param: { type: 'string' },
           state_param: { type: 'string' }
