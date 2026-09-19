@@ -2,19 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { builtinCatalog, type Catalog } from '@breadboard-studio/catalog';
 import type { CatalogDefinition } from '@breadboard-studio/schema';
 import { applyOps, boardShape, buildModel, canResizeBoard, catalogForDesign, clampResizePlan, createEmptyDesign, resizeBoardDefinition, resolveComponent, RESIZE_LIMITS, type Op } from '@breadboard-studio/core';
-import { boardScene, componentScene, mm, modelStatusText, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
+import { boardScene, componentScene, mm, primitiveToNode, type SceneNode } from '@breadboard-studio/render';
 import { useStore, analysisOf } from '../store';
 import { buildLibraryGroups, CATEGORY_LABELS, foldedBuiltinCount, MORE_LABEL, modelRef } from '../library-groups';
 import { spliceOps, spliceSummary, type SpliceSpec } from '../splice-board';
 import { SpliceBoardDialog } from './SpliceBoardDialog';
 import { SceneNodes } from './SceneView';
-
-/** Plain-language meaning of the two evidence statuses, for the card tooltip. */
-const STATUS_WORDS: Record<string, string> = {
-  verified: '有证据且已复核',
-  approximate: '来自资料，未实测',
-  unknown: '未知占位，使用前必须核实'
-};
 
 export function Library() {
   const design = useStore((s) => s.design);
@@ -158,10 +151,6 @@ export function Library() {
     const ref = modelRef(d);
     const embedded = embeddedRefs.has(ref);
     const users = [...design.boards, ...design.components].filter((o) => o.model === ref).map((o) => o.id);
-    const status = modelStatusText(d.geometry_status, d.electrical_status);
-    // The badge text is the short form the canvas uses; the tooltip spells out each
-    // facet, so a `verified` geometry is never described as "未经实测".
-    const statusTitle = `几何数据：${STATUS_WORDS[d.geometry_status]}；电气数据：${STATUS_WORDS[d.electrical_status]}`;
     return (
       <div key={ref} className={`lib-item ${placing?.model === ref || detailRef === ref ? 'active' : ''}`}>
         <button
@@ -181,11 +170,6 @@ export function Library() {
             {users.length ? ` · 用中 ${users.length}` : ''}
           </span>
         </button>
-        {status && (
-          <span className="lib-status" data-testid={`lib-status-${d.id}`} title={statusTitle}>
-            {status}
-          </span>
-        )}
         {embedded && (
           <button
             className="lib-del"

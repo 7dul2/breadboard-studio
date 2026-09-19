@@ -28,7 +28,9 @@ import { analysisOf, useStore } from '../store';
 import { SNAP_UM, leadPin, snapBoardPosition, snapPlacement } from '../placement';
 import { useSimulatorStore } from '../simulator/simulatorStore';
 import { SimulatorOverlay } from '../simulator/ui/SimulatorOverlay';
+import { getLayout, togglePanel } from '../layout';
 import { SceneNodes, renderNode } from './SceneView';
+import { SelectionToolbar, type SelectionToolbarPosition } from './SelectionToolbar';
 
 interface View {
   z: number; // px per mm
@@ -128,6 +130,8 @@ export function Canvas() {
   const { apply, select, selectHole, setWireDraft, setRightTab, cancelInteraction, toast } = useStore.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const [canvasSizeVersion, setCanvasSizeVersion] = useState(0);
   const [view, setView] = useState<View>({ z: 6, px: 40, py: 40, rot: 0, sides: {} });
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -156,6 +160,69 @@ export function Canvas() {
 
   const catalog = useMemo(() => catalogForDesign(design, builtinCatalog()), [design]);
   const model = analysis.model;
+  const draggingObjects = drag.kind === 'objects' && drag.moved;
+
+  useEffect(() => {
+    const el = canvasWrapRef.current;
+    if (!el) return;
+    const notifyResize = () => setCanvasSizeVersion((version) => version + 1);
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(notifyResize) : null;
+    observer?.observe(el);
+    window.addEventListener('resize', notifyResize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', notifyResize);
+    };
+  }, []);
+
+  /** The union of selected object bounds in global µm, used to anchor the floating toolbar. */
+  const selectionBounds = useMemo(() => {
+    if (!selectedIds.length || placing || tool !== 'select' || draggingObjects) return null;
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    for (const id of selectedIds) {
+      const board = model.boards.get(id);
+      const component = model.components.get(id);
+      const wire = model.wires.get(id);
+      if (board) rects.push(board.bounds);
+      else if (component) rects.push(component.bounds);
+      else if (wire && wire.points.length) {
+        const xs = wire.points.map((point) => point[0]);
+        const ys = wire.points.map((point) => point[1]);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        rects.push({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y });
+      }
+    }
+    if (!rects.length) return null;
+    const x = Math.min(...rects.map((rect) => rect.x));
+    const y = Math.min(...rects.map((rect) => rect.y));
+    const right = Math.max(...rects.map((rect) => rect.x + rect.w));
+    const bottom = Math.max(...rects.map((rect) => rect.y + rect.h));
+    return { x, y, w: right - x, h: bottom - y };
+  }, [selectedIds, placing, tool, draggingObjects, model]);
+
+  const selectionToolbarPosition = useMemo<SelectionToolbarPosition | null>(() => {
+    const svg = svgRef.current;
+    const wrap = canvasWrapRef.current;
+    if (!selectionBounds || !svg || !wrap) return null;
+    const svgRect = svg.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const corners: [number, number][] = [
+      [selectionBounds.x, selectionBounds.y],
+      [selectionBounds.x + selectionBounds.w, selectionBounds.y],
+      [selectionBounds.x, selectionBounds.y + selectionBounds.h],
+      [selectionBounds.x + selectionBounds.w, selectionBounds.y + selectionBounds.h]
+    ].map(([x, y]) => rotateByDeg([mm(x), mm(y)], view.rot));
+    const minX = Math.min(...corners.map(([x]) => x));
+    const maxX = Math.max(...corners.map(([x]) => x));
+    const maxY = Math.max(...corners.map(([, y]) => y));
+    const centerX = (minX + maxX) / 2 * view.z + view.px;
+    const bottomY = maxY * view.z + view.py;
+    // Keep the palette in the canvas when the selected object is close to an edge.
+    const left = Math.max(12, Math.min(wrapRect.width - 12, svgRect.left - wrapRect.left + centerX));
+    const top = Math.max(8, Math.min(wrapRect.height - 52, svgRect.top - wrapRect.top + bottomY + 12));
+    return { left, top };
+  }, [selectionBounds, view, canvasSizeVersion]);
 
   /** 与接线向导 buildSteps 相同的排序：保证 buildStep 下标对应同一根线。 */
   const sortedWires = useMemo(
@@ -462,6 +529,23 @@ export function Canvas() {
     };
   }, [resizeEditId]);
 
+  const toggleSolderSide = useCallback((boardId?: string) => {
+    setView((v) => {
+      const perfboards = [...model.boards.values()].filter((board) => board.def.render.style === 'perfboard');
+      const targets = boardId ? perfboards.filter((board) => board.instance.id === boardId) : perfboards;
+      if (!targets.length) return v;
+      const sides = { ...v.sides };
+      if (boardId) {
+        sides[boardId] = (sides[boardId] ?? 'front') === 'front' ? 'solder' : 'front';
+      } else {
+        // 全部翻面：只要还有板在元件面就全翻到焊接面，否则全回元件面
+        const to = targets.some((board) => (sides[board.instance.id] ?? 'front') === 'front') ? 'solder' : 'front';
+        for (const board of targets) sides[board.instance.id] = to;
+      }
+      return { ...v, sides };
+    });
+  }, [model]);
+
   // Expose zoom controls to the toolbar through the store-free window bridge.
   useEffect(() => {
     (window as unknown as { __bbsCanvas?: unknown }).__bbsCanvas = {
@@ -504,20 +588,7 @@ export function Canvas() {
        * 翻面（R2.6）：传 boardId 只翻那一块，不传就"全部翻面"（保留原来的全局快捷方式）。
        * R2.2：只有洞洞板参与，面包板不翻。
        */
-      toggleSolderSide: (boardId?: string) => setView((v) => {
-        const perfboards = [...model.boards.values()].filter((b) => b.def.render.style === 'perfboard');
-        const targets = boardId ? perfboards.filter((b) => b.instance.id === boardId) : perfboards;
-        if (!targets.length) return v;
-        const sides = { ...v.sides };
-        if (boardId) {
-          sides[boardId] = (sides[boardId] ?? 'front') === 'front' ? 'solder' : 'front';
-        } else {
-          // 全部翻面：只要还有板在元件面就全翻到焊接面，否则全回元件面
-          const to = targets.some((b) => (sides[b.instance.id] ?? 'front') === 'front') ? 'solder' : 'front';
-          for (const b of targets) sides[b.instance.id] = to;
-        }
-        return { ...v, sides };
-      }),
+      toggleSolderSide,
       zoomTo: (z: number) => setView((v) => ({ ...v, z })),
       // 「已选元件」面板用它把视图移到目标上（入参是全局 µm 包围盒）。
       // 留 40mm 边距、最高 200%：只框住目标本身会把一根细线放到 500%，除了它什么都看不见。
@@ -538,7 +609,7 @@ export function Canvas() {
         return c ? [Math.round(c[0] * 1000), Math.round(c[1] * 1000)] : null;
       }
     };
-  }, [fit]);
+  }, [fit, toggleSolderSide]);
 
   // ---- hit testing ----------------------------------------------------------
   function hit(e: { target: EventTarget | null; clientX: number; clientY: number }): { hole?: string; pin?: string; component?: string; board?: string; wire?: string; waypoint?: number; badge?: string; end?: WireEnd; resizeHandle?: { board: string; axis: 'x' | 'y' } } {
@@ -1203,6 +1274,11 @@ export function Canvas() {
     if (placing || wireDraft) cancelInteraction();
   }
 
+  const openAutoWire = () => {
+    setRightTab('properties');
+    if (getLayout().rightCollapsed) togglePanel('right');
+  };
+
   // ---- overlays -------------------------------------------------------------
   const overlays: React.ReactNode[] = [];
   if (preview && drag.kind === 'objects') {
@@ -1405,7 +1481,7 @@ export function Canvas() {
   const draggingCls = drag.kind === 'objects' && drag.moved ? 'dragging' : '';
 
   return (
-    <div className="canvas-wrap" data-testid="canvas">
+    <div ref={canvasWrapRef} className="canvas-wrap" data-testid="canvas">
       <svg
         ref={svgRef}
         className={`canvas ${draggingCls}`}
@@ -1436,6 +1512,15 @@ export function Canvas() {
           <SimulatorOverlay model={model} />
         </g>
       </svg>
+      {mode === 'build' && tool === 'select' && !placing && (
+        <SelectionToolbar
+          model={model}
+          selectedIds={selectedIds}
+          position={selectionToolbarPosition}
+          onFlipBoard={(boardId) => toggleSolderSide(boardId)}
+          onOpenAutoWire={openAutoWire}
+        />
+      )}
       <div className="canvas-hud" data-testid="canvas-hud">
         <span>{Math.round(view.z * 100 / 6)}%</span>
         {/* R2.7：多板时要说清哪几块在焊接面，不能只写"焊接面" */}
