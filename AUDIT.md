@@ -262,7 +262,7 @@ pnpm exec tsx packages/sim/audit-pocs/toplevel-hang.ts
 
 **修复**: 在 `session.ts:442` 调用 `loadProgram()` 之前 `armDeadline(clock.nowMs() + sliceMs)`，与 `callEntry` 一致；或把 `deadlineMs` 的初值改成一个有限值，避免「未 arm 即永不打断」这一失败模式。
 
-**修复状态**（2026-09-17，两层都做了）：
+**修复状态**（2026-09-19，两层都做了）：
 
 1. `session.ts` 的 `buildSandbox()` 在 `loadProgram()` 前 `armDeadline(clock.nowMs() + sliceMs)`，与 `callEntry` 一致；trip 按 `budgetFailure('time_slice')` 终止仿真（`callEntry` 同款，host 标志为准）；
 2. `studio-ts.ts` 新增 `SANDBOX_UNARMED_LIMIT_MS = 1_000`，构造函数在任何 eval 之前 arm 这个有限默认值——「未 arm 即永不打断」的失败模式被消除，遗漏的 arm 退化成一次有界运行而不是永久挂死。
