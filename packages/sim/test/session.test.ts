@@ -145,6 +145,32 @@ export async function loop(): Promise<void> {
 }
 `;
 
+// The loop sits at module top level, outside any exported function: it runs
+// during `loadProgram`, before `callEntry` ever arms a deadline (issue #79).
+const TOPLEVEL_SPIN_SOURCE = `import { Serial } from '@bbs/runtime';
+
+let spins = 0;
+while (true) {
+  spins = spins + 1;
+}
+
+export async function setup(): Promise<void> {
+  Serial.begin(115200);
+}
+
+export async function loop(): Promise<void> {
+  Serial.println(String(spins));
+}
+`;
+/**
+ * Where the interrupt sampler lands for this program: the module's first line.
+ *
+ * Measured: a top-level frame is reported at the module body's start, not at
+ * the hot statement — so unlike the SPIN cases, the line here pins the module
+ * frame rather than the loop. The trip itself is the point (issue #79).
+ */
+const TOPLEVEL_SPIN_SAMPLED_LINE = 1;
+
 function blinkHarness(): Harness {
   const snapshot = fixtureSnapshot();
   const harness = new Harness();
@@ -314,6 +340,28 @@ describe('SessionRuntime', () => {
       expect(waiting?.severity).toBe('info');
       expect(harness.codes()).not.toContain('simulation_deadlock');
       expect(harness.statuses()[harness.statuses().length - 1]).toBe('paused');
+      harness.send({ type: 'dispose' });
+    });
+
+    it('SEC-14 interrupts a top-level infinite loop instead of hanging the worker', () => {
+      const snapshot = fixtureSnapshot();
+      const harness = new Harness({ clockStep: 0.25 });
+      // The top-level loop runs during loadProgram, before callEntry ever
+      // arms a deadline, so the load itself must be bounded (issue #79).
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, TOPLEVEL_SPIN_SOURCE) });
+
+      const budget = harness.diagnostics().find((d) => d.code === 'execution_budget_exceeded');
+      expect(budget).toBeDefined();
+      expect(budget!.severity).toBe('error');
+      expect(budget!.source?.programId).toBe(snapshot.programs[0]!.id);
+      expect(budget!.source?.line).toBe(TOPLEVEL_SPIN_SAMPLED_LINE);
+      expect(harness.tick()).toBe(false);
+
+      // The worker survived the trip: the same session can prepare a healthy
+      // program and drive it, which is the property "hangs forever" broke.
+      harness.send({ type: 'prepare', snapshot, program: programWith(snapshot, BLINK_SOURCE) });
+      harness.send({ type: 'run' });
+      harness.run(200, () => harness.lastNowUs() >= 1_000_000);
       harness.send({ type: 'dispose' });
     });
 
