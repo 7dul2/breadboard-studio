@@ -73,6 +73,20 @@ describe('configured component rendering', () => {
     expect(blue.render.some((primitive) => JSON.stringify(primitive).includes('$display_color'))).toBe(false);
   });
 
+  it('switches the MicroSD adapter between an inserted card and an empty slot', () => {
+    const def = builtinCatalog().getComponent('micro_sd_adapter@1')!;
+    const inserted = resolveComponent(def);
+    const empty = resolveComponent(def, undefined, { sd_card_state: 'empty' });
+
+    expect(inserted.body.size_um).toEqual([18000, 18000]);
+    expect(inserted.pins.map((pin) => pin.name)).toEqual(['3V3', 'CS', 'MOSI', 'CLK', 'MISO', 'GND']);
+    expect(inserted.render).toContainEqual(expect.objectContaining({ t: 'rect', fill: '#d8a62a', stroke: '#f5d36a' }));
+    expect(empty.render).toContainEqual(expect.objectContaining({ t: 'rect', fill: '#111820', stroke: '#4b5963' }));
+    expect(inserted.render).toContainEqual(expect.objectContaining({ t: 'text', text: 'SD' }));
+    expect(empty.render).toContainEqual(expect.objectContaining({ t: 'text', text: '空' }));
+    expect(empty.render.some((primitive) => JSON.stringify(primitive).includes('$sd_card_'))).toBe(false);
+  });
+
   it('resolves the 44-pin N16R8 board geometry, pin roles and RGB state', () => {
     const def = builtinCatalog().getComponent('esp32s3_n16r8_dual_usb@1')!;
     const off = resolveComponent(def);
@@ -98,5 +112,22 @@ describe('configured component rendering', () => {
     expect(off.render).toContainEqual(expect.objectContaining({ t: 'circle', fill: 'rgb(0, 0, 0)' }));
     expect(blue.render).toContainEqual(expect.objectContaining({ t: 'circle', fill: '#3b82f6' }));
     expect(custom.render).toContainEqual(expect.objectContaining({ t: 'circle', fill: 'rgb(12, 34, 56)' }));
+  });
+
+  it('keeps the standard XIAO ESP32-S3 separate from the Sense definition', () => {
+    const standard = builtinCatalog().getComponent('xiao_esp32s3@1')!;
+    const sense = builtinCatalog().getComponent('xiao_esp32s3_sense@1')!;
+    const resolved = resolveComponent(standard);
+
+    expect(standard.variant).toContain('无 Sense 扩展板');
+    expect(resolved.body.size_um).toEqual([17800, 21000]);
+    expect(resolved.pins.map((pin) => pin.name)).toEqual([
+      'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6',
+      '5V', 'GND', '3V3', 'D10', 'D9', 'D8', 'D7'
+    ]);
+    expect(standard.features?.map((feature) => feature.label)).toEqual(expect.arrayContaining(['USB-C', 'RST', 'BOOT', 'USER_LED']));
+    expect(standard.back_render?.length).toBeGreaterThan(40);
+    expect(sense.description).toContain('Sense 扩展板');
+    expect(standard.simulation?.pins).toMatchObject({ D4: 5, D5: 6, D8: 7, D9: 8, D10: 9 });
   });
 });

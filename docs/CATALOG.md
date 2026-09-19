@@ -24,14 +24,16 @@
 | `breadboard_830@1` | approximate | approximate | 63 列 + 4×50 孔轨，每轨在 25/26 断开。 |
 | `perfboard_5x7@1` | approximate | approximate | 5×7 cm、18×24 孔，2.54 mm；棕色酚醛板，每个焊盘独立。 |
 | `perfboard_7x9@1` | approximate | approximate | 7×9 cm、27×35 孔，2.54 mm；绿色玻纤板，每个焊盘独立，行号可到 `AI`。 |
-| `xiao_esp32s3_sense@1` | approximate | approximate | 2×7 针 2.54 mm，列距 15.24 mm，21×17.5 mm；USB-C 在上边缘，天线/摄像头区域单独描述。3V3 输出能力未填。 |
+| `xiao_esp32s3@1` | approximate | approximate | 标准版 2×7 针 2.54 mm，列距 15.24 mm，21×17.8 mm；USB-C、R/B 按键、用户 LED、底部连接器与背面 `D0–D10/3V3/GND/5V` 丝印按照片建模。 |
+| `xiao_esp32s3_sense@1` | approximate | approximate | Sense 版 2×7 针 2.54 mm，列距 15.24 mm，21×17.5 mm；带摄像头/天线区域和扩展板占位。3V3 输出能力未填。 |
 | `esp32s3_devkit_generic@1` | approximate | approximate | 通用双排针模板：`pins_per_side`、`row_spacing_um`、`body_size_um`、针名均可改；默认 DevKitC-1 44 针排布。 |
 | `esp32s3_n16r8_dual_usb@1` | approximate | approximate | 27.94×57.15 mm 双 Type-C 44 针黑色开发板；N16R8、CH343、RGB、BOOT/RST，25.40 mm 排距跨面包板沟槽。 |
 | `oled_0_96_i2c@1` / `oled_0_91_i2c@1` | approximate | approximate | 4 针单排 I²C 转接板，针序 `pin_names` 必须按丝印确认；地址 0x3C/0x3D。 |
 | `oled_0_96_ssd1315_i2c@1` | approximate | approximate | 参考图中的 27×26.5 mm SSD1315 四针平躺模块；黑色屏幕，`display_color` 可切换白色/蓝色示例显示；`address_options` 0x3C/0x3D。 |
 | `tft_1_77_st7735_spi@1` | approximate | approximate | 1.77 英寸 128×160 ST7735S SPI 屏，8 针 `GND/VCC/SCK/SDA/RES/RS/CS/LEDA`；背光脚 LEDA 未建模限流。 |
+| `micro_sd_adapter@1` | approximate | approximate | 18×18 mm MicroSD/TF 卡 SPI 转接板，正面丝印 `3V3/CS/MOSI/CLK/MISO/GND`；`config.sd_card_state` 可切换已插卡/空卡槽外观。 |
 | `ttp223_module@1` | approximate | approximate | 3 针；输出电平随供电，`config.supply_v` 决定电平检查。 |
-| `ttp224_module@1` | approximate | approximate | 35×29 mm 四路电容触摸模块，6 针；**唯一带 `back_render` 的定义**（60 个图元），元件库悬停详情并排显示正反面；针序与模式焊盘须按实物复核。 |
+| `ttp224_module@1` | approximate | approximate | 35×29 mm 四路电容触摸模块，6 针；带 `back_render`，元件库悬停详情并排显示正反面；针序与模式焊盘须按实物复核。 |
 | `encoder_ky040@1` | approximate | approximate | EC11 / KY-040 类旋转编码器模块，5 针 `CLK/DT/SW/+/GND`；CLK/DT/SW 标为 `open_drain`，电平未知（`io_voltage_v: null`），上拉要按实物确认。 |
 | `tactile_6x6@1` | approximate | approximate | 6×6×5 mm 四脚轻触按键，但**只建模两个电气端点** `A`/`B`（相距 2 个孔距）：另外两脚是同一开关的另一侧，接它们不会多出通路。 |
 | `sht41_breakout@1` / `bmp390_breakout@1` / `ltr390_breakout@1` | unknown | approximate | 通用 I²C 转接板模板 + 芯片地址；转接板尺寸/针序/稳压未知。 |
@@ -53,7 +55,7 @@
 - 非 `verified` 的定义在卡片上显示状态徽标，文案与画布徽标同源（`几何近似` / `电气未知` 等，两处共用 `modelStatusText()`）。徽标是提醒不是禁令：`unknown` 的占位定义默认折叠，但照样能添加，后果写在 `notes` 里。
 - 目录测试把精选集合钉死（`packages/catalog/test/catalog.test.ts`）：新增定义不会悄悄改变默认视图，精选型号也不会悄悄掉进折叠区。
 
-当前 24 个内置定义里 12 个是精选：`breadboard_400`、`breadboard_400_terminal`、`breadboard_830`、`breadboard_power_strip_25`、`perfboard_5x7`、`perfboard_7x9`、`esp32s3_n16r8_dual_usb`、`oled_0_96_ssd1315_i2c`、`ttp224_module`、`tft_1_77_st7735_spi`、`encoder_ky040`、`tactile_6x6`。其余 12 个（XIAO、通用 DevKit 模板、0.96/0.91 英寸通用 OLED、TTP223、三个传感器转接板、SEN66、电源模块、电阻、LED）折叠在各自类目下，搜索照样直达。
+当前 26 个内置定义里 14 个是精选：`breadboard_400`、`breadboard_400_terminal`、`breadboard_830`、`breadboard_power_strip_25`、`perfboard_5x7`、`perfboard_7x9`、`esp32s3_n16r8_dual_usb`、`xiao_esp32s3`、`oled_0_96_ssd1315_i2c`、`ttp224_module`、`tft_1_77_st7735_spi`、`encoder_ky040`、`tactile_6x6`、`micro_sd_adapter`。其余 12 个（XIAO ESP32-S3 Sense、通用 DevKit 模板、0.96/0.91 英寸通用 OLED、TTP223、三个传感器转接板、SEN66、电源模块、电阻、LED）折叠在各自类目下，搜索照样直达。
 
 ## 洞洞板定义
 

@@ -6,7 +6,7 @@ describe('built-in catalog', () => {
     const c = builtinCatalog();
     expect(c.listBoards().map((b) => b.id).sort()).toEqual(['breadboard_400', 'breadboard_400_terminal', 'breadboard_830', 'breadboard_power_strip_25', 'perfboard_5x7', 'perfboard_7x9']);
     const ids = c.listComponents().map((d) => d.id);
-    for (const id of ['xiao_esp32s3_sense', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'ttp224_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3', 'tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6']) {
+    for (const id of ['xiao_esp32s3_sense', 'xiao_esp32s3', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'ttp223_module', 'ttp224_module', 'sht41_breakout', 'bmp390_breakout', 'ltr390_breakout', 'sen66', 'power_module_3v3', 'tft_1_77_st7735_spi', 'encoder_ky040', 'tactile_6x6', 'micro_sd_adapter']) {
       expect(ids).toContain(id);
     }
   });
@@ -122,12 +122,14 @@ describe('built-in catalog', () => {
       'breadboard_power_strip_25',
       'encoder_ky040',
       'esp32s3_n16r8_dual_usb',
+      'micro_sd_adapter',
       'oled_0_96_ssd1315_i2c',
       'perfboard_5x7',
       'perfboard_7x9',
       'tactile_6x6',
       'tft_1_77_st7735_spi',
-      'ttp224_module'
+      'ttp224_module',
+      'xiao_esp32s3'
     ]);
     // Featuring everything would make the fold pointless: the curated view has to
     // stay a strict subset as the catalog grows (#30/#31 add more models).
@@ -146,7 +148,7 @@ describe('simulation bindings', () => {
   it('bind controls and visuals to existing feature labels and declare versioned drivers', () => {
     const c = builtinCatalog();
     const withSim = c.listComponents().filter((d) => d.simulation);
-    expect(withSim.map((d) => d.id).sort()).toEqual(['bmp390_breakout', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'led_5mm', 'ltr390_breakout', 'oled_0_91_i2c', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'sen66', 'sht41_breakout', 'ttp223_module', 'xiao_esp32s3_sense']);
+    expect(withSim.map((d) => d.id).sort()).toEqual(['bmp390_breakout', 'esp32s3_devkit_generic', 'esp32s3_n16r8_dual_usb', 'led_5mm', 'ltr390_breakout', 'oled_0_91_i2c', 'oled_0_96_i2c', 'oled_0_96_ssd1315_i2c', 'sen66', 'sht41_breakout', 'ttp223_module', 'xiao_esp32s3', 'xiao_esp32s3_sense']);
     for (const d of withSim) {
       const sim = d.simulation!;
       expect(sim.driver, d.id).toMatch(/^[a-z0-9_.-]+@[0-9]+$/);

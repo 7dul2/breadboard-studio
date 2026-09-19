@@ -15,6 +15,7 @@ import breadboard830 from './definitions/breadboard_830.json';
 import perfboard5x7 from './definitions/perfboard_5x7.json';
 import perfboard7x9 from './definitions/perfboard_7x9.json';
 import xiaoEsp32s3Sense from './definitions/xiao_esp32s3_sense.json';
+import xiaoEsp32s3 from './definitions/xiao_esp32s3.json';
 import esp32s3DevkitGeneric from './definitions/esp32s3_devkit_generic.json';
 import esp32s3N16r8DualUsb from './definitions/esp32s3_n16r8_dual_usb.json';
 import oled096 from './definitions/oled_0_96_i2c.json';
@@ -32,6 +33,7 @@ import led from './definitions/led_5mm.json';
 import tft177St7735Spi from './definitions/tft_1_77_st7735_spi.json';
 import encoderKy040 from './definitions/encoder_ky040.json';
 import tactile6x6 from './definitions/tactile_6x6.json';
+import microSdAdapter from './definitions/micro_sd_adapter.json';
 
 export const CATALOG_ID = 'builtin';
 export const CATALOG_VERSION = '0.1.0';
@@ -39,6 +41,7 @@ export const CATALOG_VERSION = '0.1.0';
 const rawBoards: unknown[] = [breadboard400, breadboard830, breadboard400Terminal, breadboardPowerStrip25, perfboard5x7, perfboard7x9];
 const rawComponents: unknown[] = [
   xiaoEsp32s3Sense,
+  xiaoEsp32s3,
   esp32s3DevkitGeneric,
   esp32s3N16r8DualUsb,
   oled096,
@@ -55,7 +58,8 @@ const rawComponents: unknown[] = [
   led,
   tft177St7735Spi,
   encoderKy040,
-  tactile6x6
+  tactile6x6,
+  microSdAdapter
 ];
 
 export interface ModelRef {

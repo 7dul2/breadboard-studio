@@ -92,7 +92,7 @@ describe('元件库分组（issue #32）', () => {
     expect(libraryCategoryKey(builtinCatalog().getComponent('led_5mm@1')!)).toBe('passive');
 
     const keys = buildLibraryGroups(defs, { filter: '', embeddedRefs: noRefs, expanded: noExpanded }).map((g) => g.key);
-    expect(keys).toEqual(['board_integrated', 'board_modular', 'board_perfboard', 'mcu', 'display', 'input', 'sensor', 'power', 'passive']);
+    expect(keys).toEqual(['board_integrated', 'board_modular', 'board_perfboard', 'mcu', 'display', 'input', 'sensor', 'power', 'passive', 'connector']);
   });
 
   it('modelRef 拼出可比较的引用', () => {
