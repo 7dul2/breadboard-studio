@@ -223,7 +223,7 @@ installTestHooks(); // line 9 — 无 import.meta.env.DEV 守卫，生产包中�
 >
 > 所以攻击面只剩「改写已有定义的内容」这一条，且仅限开发服务器运行期间。维持 MEDIUM，但「任意文件写」的措辞应删去。
 
-### SEC-14 [高] 沙箱 `loadProgram()` 未 arm deadline — 顶层死循环永久挂死 worker
+### SEC-14 [高] 沙箱 `loadProgram()` 未 arm deadline — 顶层死循环永久挂死 worker（已修复）
 
 **Issue**: [#79](https://github.com/7dul2/breadboard-studio/issues/79)（复核时新发现，原稿未归档）
 
@@ -258,9 +258,16 @@ const loaded = sandbox.loadProgram();
 pnpm exec tsx packages/sim/audit-pocs/toplevel-hang.ts
 ```
 
-脚本打印两行后进入 `loadProgram()`；它预定 3 秒后触发的看门狗定时器**在 20 秒后仍未触发**，进程只能强杀——即主线程确实被锁死。`packages/sim` 现有的 623 个测试没有一个覆盖这条路径。
+脚本打印两行后进入 `loadProgram()`；它预定 3 秒后触发的看门狗定时器**在 20 秒后仍未触发**，进程只能强杀——即主线程确实被锁死。`packages/sim` 现有的 623 个测试没有一个覆盖这条路径。（以上为修复前的实测记录。）
 
 **修复**: 在 `session.ts:442` 调用 `loadProgram()` 之前 `armDeadline(clock.nowMs() + sliceMs)`，与 `callEntry` 一致；或把 `deadlineMs` 的初值改成一个有限值，避免「未 arm 即永不打断」这一失败模式。
+
+**修复状态**（2026-09-19，两层都做了）：
+
+1. `session.ts` 的 `buildSandbox()` 在 `loadProgram()` 前 `armDeadline(clock.nowMs() + sliceMs)`，与 `callEntry` 一致；trip 按 `budgetFailure('time_slice')` 终止仿真（`callEntry` 同款，host 标志为准）；
+2. `studio-ts.ts` 新增 `SANDBOX_UNARMED_LIMIT_MS = 1_000`，构造函数在任何 eval 之前 arm 这个有限默认值——「未 arm 即永不打断」的失败模式被消除，遗漏的 arm 退化成一次有界运行而不是永久挂死。
+
+回归测试：`session.test.ts`「SEC-14 interrupts a top-level infinite loop」（顶层死循环 → `execution_budget_exceeded`，且 worker 仍能继续 prepare 健康程序）与 `studio-ts.test.ts` S14（未 arm 的 `loadProgram()` 有界返回并 trip）。PoC `toplevel-hang.ts` 已更新为验证修复：有界返回、正常退出，若看门狗触发则说明回归。
 
 ---
 

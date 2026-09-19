@@ -439,7 +439,16 @@ export class SessionRuntime {
       return null;
     }
     const sandbox = this.sandbox;
+    // The deadline is armed here because module top-level evaluation runs guest
+    // code synchronously (issue #79): without it an infinite loop outside any
+    // exported function would never be interrupted.
+    sandbox.armDeadline(this.options.clock.nowMs() + this.sliceMs);
     const loaded = sandbox.loadProgram();
+    // The host flag beats the return value: guest code can catch the interrupt.
+    if (sandbox.takeTripped() !== null) {
+      this.budgetFailure('time_slice');
+      return null;
+    }
     if (!loaded.ok) {
       this.guestFault(loaded.error, true);
       return null;

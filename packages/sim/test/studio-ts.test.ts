@@ -540,6 +540,37 @@ describe('interrupt sampling (§6.7)', () => {
       h.sandbox.dispose();
     }
   });
+
+  it('S14 bounds an unarmed loadProgram: a top-level loop trips instead of hanging', () => {
+    const source = [
+      'let n = 0;', // 1
+      'while (true) {', // 2 — at module top level
+      '  n = (n + 1) % 1000;', // 3
+      '}', // 4
+      'export function loop() { return n; }' // 5
+    ].join('\n');
+    const h = build(compiled(source).code);
+    try {
+      h.clock.step = 100;
+      // No armDeadline before the load (issue #79): "not yet armed" is a
+      // finite default, so the top-level eval is a bounded run whose
+      // interrupt trips, not a permanent hang. Without the bound this call
+      // never returns.
+      const loaded = h.sandbox.loadProgram();
+      expect(loaded.ok).toBe(false);
+      expect(h.sandbox.takeTripped()).toBe('time_slice');
+
+      const sampled = h.sandbox.trippedSource();
+      expect(sampled?.programId).toBe('program_main');
+      // Measured, not predicted: for top-level eval QuickJS attributes the
+      // sampled frame to the module's first line (the module body is a frame
+      // like an async function declaration is in S5's family), not to the hot
+      // statement. The bound and the trip are the point here, not the line.
+      expect(sampled?.line).toBe(1);
+    } finally {
+      h.sandbox.dispose();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
