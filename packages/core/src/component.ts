@@ -60,7 +60,12 @@ function applyRenderConfig(render: RenderPrimitiveDef[], config: Record<string, 
   const displayPaint = displayColor === 'white' ? '#f8fafc' : displayColor === 'blue' ? '#38bdf8' : null;
   const displayLabel = displayColor === 'white' ? 'White' : displayColor === 'blue' ? 'Blue' : null;
   const rgbPaint = rgbPaintOf(config.rgb_led_color);
-  if (!displayPaint && !rgbPaint) return render;
+  const sdCardInserted = config.sd_card_state !== 'empty';
+  const sdCardPaint = sdCardInserted ? '#d8a62a' : '#111820';
+  const sdCardStroke = sdCardInserted ? '#f5d36a' : '#4b5963';
+  const sdCardContact = sdCardInserted ? '#f6d55b' : '#242d34';
+  const sdCardLabel = sdCardInserted ? 'SD' : '空';
+  if (!displayPaint && !rgbPaint && config.sd_card_state === undefined) return render;
   return render.map((primitive) => {
     let resolved = { ...primitive } as RenderPrimitiveDef;
     if (displayPaint && 'fill' in resolved && resolved.fill === '$display_color') resolved = { ...resolved, fill: displayPaint };
@@ -68,6 +73,11 @@ function applyRenderConfig(render: RenderPrimitiveDef[], config: Record<string, 
     if (displayLabel && resolved.t === 'text' && resolved.text === '$display_color_label') resolved = { ...resolved, text: displayLabel };
     if (rgbPaint && 'fill' in resolved && resolved.fill === '$rgb_led_color') resolved = { ...resolved, fill: rgbPaint };
     if (rgbPaint && 'stroke' in resolved && resolved.stroke === '$rgb_led_color') resolved = { ...resolved, stroke: rgbPaint };
+    if ('fill' in resolved && resolved.fill === '$sd_card_fill') resolved = { ...resolved, fill: sdCardPaint };
+    if ('fill' in resolved && resolved.fill === '$sd_card_contact') resolved = { ...resolved, fill: sdCardContact };
+    if ('stroke' in resolved && resolved.stroke === '$sd_card_stroke') resolved = { ...resolved, stroke: sdCardStroke };
+    if ('stroke' in resolved && resolved.stroke === '$sd_card_contact') resolved = { ...resolved, stroke: sdCardContact };
+    if (resolved.t === 'text' && resolved.text === '$sd_card_label') resolved = { ...resolved, text: sdCardLabel };
     return resolved;
   });
 }

@@ -99,6 +99,8 @@ export function opsData() {
     { op: 'remove_wire', fields: 'id' },
     { op: 'update_wire', fields: 'id, patch{name?, color?, route?, path_mode?, waypoints_um?, from?, to?, notes?, locked?}' },
     { op: 'update_property', fields: 'id, path (name|notes|locked|color|params.*|config.*|position_um|rotation_deg|route|path_mode|waypoints_um|endpoints), value' },
+    { op: 'add_solder_bridge', fields: 'bridge{id?, a, b, notes?}' },
+    { op: 'remove_solder_bridge', fields: 'id' },
     { op: 'add_net_intent', fields: 'net_intent{id, name, endpoints[]}' },
     { op: 'remove_net_intent', fields: 'id' },
     { op: 'update_net_intent', fields: 'id, patch{name?, endpoints?, notes?}' },

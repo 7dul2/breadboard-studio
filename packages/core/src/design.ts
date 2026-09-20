@@ -12,6 +12,7 @@ export function createEmptyDesign(name = '未命名项目'): DesignDocument {
     boards: [],
     components: [],
     wires: [],
+    solder_bridges: [],
     net_intents: [],
     constraints: []
   };

@@ -129,7 +129,7 @@ describe('programs and simulation config (schema 1.1)', () => {
     const r = applyOps(d, [{ op: 'replace_design', design: old as never }]);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.design.schema_version).toBe('1.1');
+      expect(r.design.schema_version).toBe('1.2');
       expect(r.design.programs).toBeUndefined();
       expect(r.design.simulation).toBeUndefined();
     }
@@ -147,7 +147,7 @@ describe('programs and simulation config (schema 1.1)', () => {
     const legacy = { ...JSON.parse(serializeDesign(example)), schema_version: '1.0' };
     const r = loadDesign(JSON.stringify(legacy));
     expect(r.ok).toBe(true);
-    expect(r.design!.schema_version).toBe('1.1');
+    expect(r.design!.schema_version).toBe('1.2');
     expect({ ...r.design, schema_version: '1.0' }).toEqual(legacy);
     expect(analyzeDesign(r.design!).summary.error).toBe(0);
   });

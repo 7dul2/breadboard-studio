@@ -259,8 +259,6 @@ a { color: var(--accent); }
 .lib-del:hover:not(:disabled) { color: var(--error); background: var(--error-bg); }
 .lib-name { font-weight: 500; }
 .lib-meta { font-size: 11px; color: var(--muted); }
-/* 未经实测的模型徽标：与画布上的 geometry_status/electrical_status 文案一致 */
-.lib-status { align-self: center; flex: none; margin-right: 6px; padding: 1px 5px; font-size: 10px; line-height: 1.4; white-space: nowrap; color: var(--muted); background: var(--hint-bg); border: 1px solid var(--hint-border); border-radius: 4px; }
 /* 类目里默认折叠的内置型号（issue #32） */
 .lib-more { display: block; width: calc(100% - 8px); margin: 2px 4px 4px; padding: 3px 8px; text-align: left; font-size: 11px; color: var(--muted); background: transparent; border: 1px dashed var(--border); border-radius: 6px; }
 .lib-more:hover { color: var(--text); background: var(--hover); }
@@ -332,6 +330,31 @@ a { color: var(--accent); }
 .canvas .hole { cursor: pointer; }
 .canvas .wire { cursor: pointer; }
 .canvas .waypoint { cursor: grab; }
+.selection-toolbar {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 5px;
+  transform: translateX(-50%);
+  color: var(--text);
+  background: var(--panel-translucent);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 8px 22px #0f172a2e;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+.selection-toolbar-caption { padding: 0 4px; color: var(--muted); font-size: 11px; }
+.selection-toolbar button { padding: 3px 7px; font-size: 12px; }
+.selection-toolbar button.danger { color: var(--error); }
+.selection-toolbar-field, .selection-toolbar-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.selection-toolbar-field select { max-width: 118px; padding: 3px 5px; font-size: 11px; }
+.selection-toolbar-toggle input { margin: 0; }
+.selection-toolbar-config { display: inline-flex; align-items: center; gap: 4px; padding-left: 4px; border-left: 1px solid var(--border); }
+.selection-toolbar-label { color: var(--muted); font-size: 11px; }
 /* 尺寸编辑把手（issue #22）：板右/下边缘的方形把手，拖它延长或裁剪。 */
 .canvas .resize-handle { fill: var(--accent); stroke: #ffffff; stroke-width: 0.28; opacity: 0.92; pointer-events: all; }
 .canvas-hud { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 12px; background: var(--panel-translucent); padding: 3px 8px; border-radius: 6px; font-size: 12px; color: var(--muted); pointer-events: none; }
@@ -541,3 +564,20 @@ table.sim-nets td { padding: 2px 4px; border-top: 1px solid var(--table-border);
 .code-gutter, .code-text { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; }
 .code-gutter { flex: none; min-width: 34px; padding: 6px 6px 6px 8px; color: var(--muted); text-align: right; background: var(--bg); border-right: 1px solid var(--border); overflow: hidden; user-select: none; }
 .code-text { flex: 1; padding: 6px 8px; border: none; border-radius: 0; resize: none; white-space: pre; overflow: auto; outline: none; tab-size: 2; }
+
+/* ---- right-panel 焊接 (R1.2) ---- */
+.solder-hole-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.solder-status { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.solder-status-occupied, .solder-status-blocked { background: var(--hint-bg); color: #92400e; border-color: #fde047; }
+.solder-link { border: none; background: transparent; padding: 2px 4px; text-align: left; font-size: 12px; color: var(--accent); cursor: pointer; }
+.solder-link:hover { text-decoration: underline; }
+.solder-actions { display: flex; gap: 6px; margin-top: 6px; }
+.solder-actions button { font-size: 12px; padding: 4px 8px; }
+.solder-progress-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.solder-progress-bar { height: 6px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.solder-progress-fill { height: 100%; background: var(--accent); }
+.solder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.solder-list li { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.solder-remove { flex: none; border: none; background: transparent; color: var(--error); cursor: pointer; padding: 2px 6px; font-size: 12px; border-radius: 4px; }
+.solder-remove:hover { background: var(--error-bg); }
+.solder-empty { font-size: 12px; color: var(--muted); margin: 0; }

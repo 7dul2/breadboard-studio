@@ -10,8 +10,9 @@ import { WiringGuide } from './components/WiringGuide';
 import { SimulatorPanel } from './simulator/ui/SimulatorPanel';
 import { HardwarePanel } from './hardware/HardwarePanel';
 import { CodeEditor } from './simulator/code/CodeEditor';
+import { SolderPanel } from './components/SolderPanel';
 import { PanelRail } from './components/PanelRail';
-import { useStore } from './store';
+import { analysisOf, useStore } from './store';
 import { togglePanel, useLayout } from './layout';
 
 /** Pointer position on the canvas in µm, so a paste lands where the user is looking. */
@@ -40,6 +41,11 @@ export function App() {
   const mode = useStore((s) => s.mode);
   const layout = useLayout();
   const st = useStore.getState();
+  // R1.2：焊接面板只对含洞洞板的设计有意义，其他设计的右栏不出现这个标签。
+  const design = useStore((s) => s.design);
+  const hasPerfboard = design.boards.some(
+    (b) => analysisOf(design).model.boards.get(b.id)?.def.render.style === 'perfboard'
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -117,6 +123,10 @@ export function App() {
         case 'W':
           s.setTool('wire');
           break;
+        case 's':
+        case 'S':
+          s.setTool('solder');
+          break;
         case 'h':
         case 'H':
           s.setTool('pan');
@@ -180,6 +190,9 @@ export function App() {
                 <button className={rightTab === 'properties' ? 'active' : ''} onClick={() => st.setRightTab('properties')} data-testid="tab-properties">属性</button>
                 <button className={rightTab === 'dsl' ? 'active' : ''} onClick={() => st.setRightTab('dsl')} data-testid="tab-dsl">DSL</button>
                 <button className={rightTab === 'wiring' ? 'active' : ''} onClick={() => st.setRightTab('wiring')} data-testid="tab-wiring">接线向导</button>
+                {hasPerfboard && (
+                  <button className={rightTab === 'solder' ? 'active' : ''} onClick={() => st.setRightTab('solder')} data-testid="tab-solder">焊接</button>
+                )}
               </div>
             )}
             <div className="tab-body">
@@ -188,6 +201,7 @@ export function App() {
               {mode === 'build' && (
                 <>
                   {rightTab === 'properties' && <Properties />}
+                  {rightTab === 'solder' && <SolderPanel />}
                   {rightTab === 'dsl' && <DslPanel />}
                   {rightTab === 'wiring' && <WiringGuide />}
                 </>

@@ -21,7 +21,10 @@ type Doc = Record<string, unknown>;
 const STEPS: Record<string, { to: string; run: (doc: Doc) => Doc }> = {
   // 1.0 → 1.1: `programs` and `simulation` became optional top-level sections.
   // Existing files have neither, so the document itself is unchanged.
-  '1.0': { to: '1.1', run: (doc) => ({ ...doc, schema_version: '1.1' }) }
+  '1.0': { to: '1.1', run: (doc) => ({ ...doc, schema_version: '1.1' }) },
+  // 1.1 → 1.2: `solder_bridges` became an optional top-level section. Only a
+  // default is added; existing content is never touched.
+  '1.1': { to: '1.2', run: (doc) => ({ ...doc, schema_version: '1.2', solder_bridges: doc.solder_bridges ?? [] }) }
 };
 
 /**

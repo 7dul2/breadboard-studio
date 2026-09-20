@@ -5,8 +5,8 @@ import { loadExample } from './helpers.js';
 describe('touch_display example (fixed simulator reference design)', () => {
   const design = loadExample('touch_display.breadboard.json');
 
-  it('is a schema 1.1 document with one Studio TS program on the MCU', () => {
-    expect(design.schema_version).toBe('1.1');
+  it('is a schema 1.2 document with one Studio TS program on the MCU', () => {
+    expect(design.schema_version).toBe('1.2');
     expect(design.programs).toHaveLength(1);
     const program = design.programs![0]!;
     expect(program.id).toBe('program_main');

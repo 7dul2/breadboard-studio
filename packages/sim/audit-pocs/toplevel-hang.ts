@@ -25,8 +25,16 @@ if (!c.ok) throw new Error('compile failed');
 const clock = { nowMs: () => Date.now() };
 const sandbox = new StudioTsSandbox({ quickjs, program: { code: c.code, filename: c.filename }, host, clock, seed: 1 });
 
-setTimeout(() => { console.log('TIMER FIRED: main thread was NOT blocked; loadProgram returned'); process.exit(0); }, 3000);
-console.log('armed deadline before loadProgram?  deadlineMs is +Infinity until armDeadline() is called');
-console.log('calling loadProgram() (module top-level evaluation)...');
+// Before the fix (issue #79) this script hung forever: `deadlineMs` was
+// `+Infinity` until `armDeadline()` was called, so a top-level loop never
+// tripped and the worker was permanently locked. Now the constructor arms a
+// finite default (`SANDBOX_UNARMED_LIMIT_MS`) and the session arms the slice
+// budget before every load, so the loop is interrupted instead of hanging.
+const watchdog = setTimeout(() => { console.log('TIMER FIRED: loadProgram still has not returned — the worker is hung (regression)'); process.exit(1); }, 3000);
+console.log('calling loadProgram() (module top-level evaluation, no explicit armDeadline)...');
 const r = sandbox.loadProgram();
-console.log('loadProgram returned ok=', r.ok);
+clearTimeout(watchdog);
+console.log('loadProgram returned ok=', r.ok, 'within the watchdog window');
+if (r.ok) { console.log('UNEXPECTED: the top-level loop was allowed to finish'); process.exit(1); }
+console.log('SEC-14 fixed: the top-level loop was interrupted, the worker survived');
+process.exit(0);

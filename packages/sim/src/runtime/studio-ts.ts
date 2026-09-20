@@ -41,6 +41,16 @@ export const SANDBOX_MAX_STACK_BYTES = 64 * 1024;
 export const SANDBOX_MEMORY_LIMIT_BYTES = 32 * 1024 * 1024;
 
 /**
+ * The wall-clock budget an eval runs under before anything has armed a deadline
+ * (issue #79). `deadlineMs` starts at this bound instead of `+Infinity`, so an
+ * eval path whose caller forgot to arm is a *bounded run* — the interrupt trips
+ * and the worker survives — not a permanent hang. The session and the loop
+ * re-arm before every entry into the VM, so in practice this only ever covers
+ * the constructor's prelude; it is a backstop, not the real budget.
+ */
+export const SANDBOX_UNARMED_LIMIT_MS = 1_000;
+
+/**
  * `{ ...DefaultIntrinsics, Date: false }`, spelled out so the product code does
  * not have to import a value from `quickjs-emscripten-core`. `studio-ts.test.ts`
  * asserts the two stay equal.
@@ -180,6 +190,12 @@ export class StudioTsSandbox implements GuestBridge {
   private namespace: QuickJSHandle | undefined;
   private driven: QuickJSHandle | undefined;
 
+  /**
+   * Finite by construction (see `SANDBOX_UNARMED_LIMIT_MS`): "not yet armed"
+   * must not be encoded as `+Infinity`, which made `checkBudget()` report "do
+   * not interrupt" forever and hung the worker on a top-level loop (issue #79).
+   * The constructor arms this bound before any eval; callers re-arm per slice.
+   */
   private deadlineMs = Number.POSITIVE_INFINITY;
   private tripped = false;
   private trippedAt: SimSourceLocation | undefined;
@@ -193,6 +209,11 @@ export class StudioTsSandbox implements GuestBridge {
     this.clock = options.clock;
     this.program = options.program;
     this.modules = options.modules ?? GUEST_MODULES;
+
+    // The initial deadline is armed before any VM exists — this is not part of
+    // the fixed construction order below — so the prelude and every eval until
+    // the first re-arm run under a finite bound (issue #79), never `+Infinity`.
+    this.armDeadline(this.clock.nowMs() + SANDBOX_UNARMED_LIMIT_MS);
 
     // Construction order is fixed by plan §6.1 and must not be rearranged.
     const rt = options.quickjs.newRuntime();

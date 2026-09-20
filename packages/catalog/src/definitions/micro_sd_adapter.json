@@ -1,0 +1,240 @@
+{
+  "kind": "component",
+  "featured": true,
+  "id": "micro_sd_adapter",
+  "version": 1,
+  "name": "MicroSD 卡转接板（SPI，6 针）",
+  "manufacturer": "generic",
+  "model": "18×18 mm MicroSD / TF card SPI adapter breakout",
+  "variant": "6 针单排：3V3 / CS / MOSI / CLK / MISO / GND",
+  "description": "18×18 mm 蓝色 MicroSD（TF）卡座转接板。正面为带 3V3、CS、MOSI、CLK、MISO、GND 丝印的一面；背面有卡座金属壳和贴片器件。配置中可切换 SD 卡已插入或卡槽为空的外观状态。",
+  "keywords": [
+    "MicroSD",
+    "microSD",
+    "SD卡",
+    "TF卡",
+    "SD卡模块",
+    "SPI",
+    "存储卡",
+    "卡座"
+  ],
+  "category": "connector",
+  "mount": "breadboard",
+  "origin": "top_left",
+  "generator": {
+    "type": "single_row_header",
+    "edge": "right",
+    "inset_um": 1270
+  },
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pin_names": {
+        "title": "针脚顺序",
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 6,
+        "maxItems": 6,
+        "description": "自上向下针名（正视带丝印的一面）"
+      },
+      "body_size_um": {
+        "title": "板体尺寸 (µm)",
+        "type": "array",
+        "items": { "type": "integer" },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "mount_orientation": {
+        "title": "安装方式",
+        "type": "string",
+        "enum": ["upright", "flat"]
+      }
+    }
+  },
+  "params_default": {
+    "pin_names": ["3V3", "CS", "MOSI", "CLK", "MISO", "GND"],
+    "body_size_um": [18000, 18000],
+    "mount_orientation": "flat"
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "sd_card_state": {
+        "title": "SD 卡状态",
+        "type": "string",
+        "enum": ["inserted", "empty"],
+        "description": "切换正面外观：已插入 SD 卡或卡槽为空"
+      }
+    }
+  },
+  "config_default": {
+    "sd_card_state": "inserted"
+  },
+  "body": {
+    "size_um": [18000, 18000],
+    "height_um": 7000,
+    "standoff_um": 0,
+    "corner_radius_um": 450
+  },
+  "pins": [],
+  "pin_meta": {
+    "3V3": {
+      "role": "power_in",
+      "voltage_v": 3.3,
+      "notes": "模块供电，按丝印连接 3.3 V。"
+    },
+    "CS": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "aliases": ["SS", "SD_CS"],
+      "notes": "SPI 片选，低有效。"
+    },
+    "MOSI": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "aliases": ["DI", "CMD", "SD_MOSI"],
+      "notes": "SPI 主出从入。"
+    },
+    "CLK": {
+      "role": "signal_in",
+      "io_voltage_v": 3.3,
+      "direction": "in",
+      "drive": "push_pull",
+      "aliases": ["SCK", "SCLK"],
+      "notes": "SPI 时钟。"
+    },
+    "MISO": {
+      "role": "signal_out",
+      "io_voltage_v": 3.3,
+      "direction": "out",
+      "drive": "push_pull",
+      "aliases": ["DO", "SD_MISO"],
+      "notes": "SPI 从出主入。"
+    },
+    "GND": {
+      "role": "ground"
+    }
+  },
+  "electrical": {
+    "supply_voltage_v": { "min": 3.3, "max": 3.3 },
+    "supply_current_ma": { "typical": 25, "peak": 100 },
+    "io_voltage_v": 3.3,
+    "i2c": null,
+    "notes": "SPI 接口；本定义不模拟文件系统或卡片数据传输。"
+  },
+  "features": [
+    {
+      "type": "connector",
+      "label": "MicroSD 卡槽",
+      "side": "left",
+      "rect_um": { "x": 0, "y": 5000, "w": 7600, "h": 8500 },
+      "notes": "外观配置可切换已插卡/空卡槽。"
+    }
+  ],
+  "render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 18000, "h": 18000, "rx": 450, "fill": "#075985", "stroke": "#063b57", "sw": 260 },
+    { "t": "rect", "x": 500, "y": 500, "w": 17000, "h": 17000, "rx": 250, "fill": "none", "stroke": "#2a9ac2", "sw": 120 },
+    { "t": "circle", "cx": 14800, "cy": 1250, "r": 1150, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 14800, "cy": 1250, "r": 520, "fill": "#26343b", "stroke": "#737f85", "sw": 130 },
+    { "t": "circle", "cx": 14800, "cy": 16750, "r": 1150, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 14800, "cy": 16750, "r": 520, "fill": "#26343b", "stroke": "#737f85", "sw": 130 },
+    { "t": "circle", "cx": 7900, "cy": 3300, "r": 650, "fill": "#101820", "stroke": "#4b6471", "sw": 150 },
+    { "t": "circle", "cx": 7900, "cy": 14700, "r": 650, "fill": "#101820", "stroke": "#4b6471", "sw": 150 },
+
+    { "t": "rect", "x": -750, "y": 5000, "w": 8200, "h": 8400, "rx": 420, "fill": "#aeb7bb", "stroke": "#707a7f", "sw": 180 },
+    { "t": "rect", "x": -350, "y": 5550, "w": 7100, "h": 7300, "rx": 260, "fill": "#0b1116", "stroke": "#dce1e3", "sw": 100 },
+    { "t": "rect", "x": -700, "y": 6150, "w": 5400, "h": 5900, "rx": 180, "fill": "$sd_card_fill", "stroke": "$sd_card_stroke", "sw": 130 },
+    { "t": "line", "x1": 1500, "y1": 6600, "x2": 1500, "y2": 11600, "stroke": "$sd_card_contact", "sw": 250 },
+    { "t": "line", "x1": 2250, "y1": 6600, "x2": 2250, "y2": 11600, "stroke": "$sd_card_contact", "sw": 250 },
+    { "t": "line", "x1": 3000, "y1": 6600, "x2": 3000, "y2": 11600, "stroke": "$sd_card_contact", "sw": 250 },
+    { "t": "line", "x1": 3750, "y1": 6600, "x2": 3750, "y2": 11600, "stroke": "$sd_card_contact", "sw": 250 },
+    { "t": "text", "x": 250, "y": 9300, "text": "$sd_card_label", "size": 1150, "fill": "#111820", "anchor": "middle", "weight": "700" },
+    { "t": "path", "d": "M -650 12400 L 4900 12400 L 6100 13200 L 5600 13800 L -450 13800 Z", "fill": "#707a7f", "stroke": "#4c5559", "sw": 120 },
+    { "t": "line", "x1": 5250, "y1": 5650, "x2": 5250, "y2": 12600, "stroke": "#e7ebed", "sw": 160 },
+
+    { "t": "text", "x": 14350, "y": 1600, "text": "3V3", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 14350, "y": 4140, "text": "CS", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 14350, "y": 6680, "text": "MOSI", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 14350, "y": 9220, "text": "CLK", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 14350, "y": 11760, "text": "MISO", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 14350, "y": 14300, "text": "GND", "size": 920, "fill": "#f8fafc", "anchor": "end", "weight": "700" },
+    { "t": "text", "x": 10300, "y": 17350, "text": "MicroSD · SPI", "size": 650, "fill": "#b9e6f5", "anchor": "middle", "weight": "600" },
+    { "t": "text", "x": 8050, "y": 4750, "text": "V474", "size": 600, "fill": "#b9e6f5", "rotate": -90, "anchor": "middle" }
+  ],
+  "back_render": [
+    { "t": "rect", "x": 0, "y": 0, "w": 18000, "h": 18000, "rx": 450, "fill": "#075985", "stroke": "#063b57", "sw": 260 },
+    { "t": "rect", "x": 500, "y": 500, "w": 17000, "h": 17000, "rx": 250, "fill": "none", "stroke": "#2a9ac2", "sw": 120 },
+    { "t": "circle", "cx": 1270, "cy": 2650, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 2650, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 1270, "cy": 5190, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 5190, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 1270, "cy": 7730, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 7730, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 1270, "cy": 10270, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 10270, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 1270, "cy": 12810, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 12810, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 1270, "cy": 15350, "r": 825, "fill": "#d4af37", "stroke": "#f7e7a7", "sw": 140 },
+    { "t": "circle", "cx": 1270, "cy": 15350, "r": 310, "fill": "#36454d" },
+    { "t": "circle", "cx": 3200, "cy": 1250, "r": 1150, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 3200, "cy": 1250, "r": 520, "fill": "#26343b", "stroke": "#737f85", "sw": 130 },
+    { "t": "circle", "cx": 3200, "cy": 16750, "r": 1150, "fill": "#d7dce0", "stroke": "#f8fafc", "sw": 180 },
+    { "t": "circle", "cx": 3200, "cy": 16750, "r": 520, "fill": "#26343b", "stroke": "#737f85", "sw": 130 },
+    { "t": "rect", "x": 5100, "y": 4300, "w": 12200, "h": 9800, "rx": 420, "fill": "#b9c0c3", "stroke": "#687277", "sw": 200 },
+    { "t": "rect", "x": 6300, "y": 5400, "w": 9000, "h": 7300, "rx": 300, "fill": "#4b5458", "stroke": "#dfe4e6", "sw": 140 },
+    { "t": "rect", "x": 7100, "y": 6300, "w": 7400, "h": 4900, "rx": 220, "fill": "#111820", "stroke": "#303b42", "sw": 120 },
+    { "t": "path", "d": "M 11800 6600 C 12600 6900 13100 7600 13100 8500 C 13100 9400 12600 10100 11800 10400", "fill": "none", "stroke": "#b4c0c4", "sw": 230 },
+    { "t": "rect", "x": 7300, "y": 1900, "w": 1500, "h": 850, "rx": 100, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 120 },
+    { "t": "rect", "x": 9300, "y": 1900, "w": 1500, "h": 850, "rx": 100, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 120 },
+    { "t": "rect", "x": 11300, "y": 1900, "w": 1500, "h": 850, "rx": 100, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 120 },
+    { "t": "rect", "x": 13300, "y": 1900, "w": 1500, "h": 850, "rx": 100, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 120 },
+    { "t": "rect", "x": 4300, "y": 14800, "w": 1250, "h": 800, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 100 },
+    { "t": "rect", "x": 5950, "y": 14800, "w": 1250, "h": 800, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 100 },
+    { "t": "rect", "x": 7600, "y": 14800, "w": 1250, "h": 800, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 100 },
+    { "t": "rect", "x": 9250, "y": 14800, "w": 1250, "h": 800, "fill": "#d0b27a", "stroke": "#f4d166", "sw": 100 },
+    { "t": "circle", "cx": 4400, "cy": 3600, "r": 540, "fill": "#17222a", "stroke": "#a7b3b8", "sw": 120 },
+    { "t": "circle", "cx": 14600, "cy": 3600, "r": 540, "fill": "#17222a", "stroke": "#a7b3b8", "sw": 120 },
+    { "t": "text", "x": 9000, "y": 16450, "text": "MICRO SD SPI", "size": 680, "fill": "#b9e6f5", "anchor": "middle", "weight": "600" },
+    { "t": "text", "x": 1600, "y": 1600, "text": "3V3", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" },
+    { "t": "text", "x": 1600, "y": 4140, "text": "CS", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" },
+    { "t": "text", "x": 1600, "y": 6680, "text": "MOSI", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" },
+    { "t": "text", "x": 1600, "y": 9220, "text": "CLK", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" },
+    { "t": "text", "x": 1600, "y": 11760, "text": "MISO", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" },
+    { "t": "text", "x": 1600, "y": 14300, "text": "GND", "size": 850, "fill": "#f8fafc", "anchor": "start", "weight": "700" }
+  ],
+  "pin_render": {
+    "shape": "circle",
+    "show_labels": false,
+    "size_um": 1650,
+    "fill": "#d4af37",
+    "stroke": "#f7e7a7",
+    "stroke_width_um": 140,
+    "hole_fill": "#36454d",
+    "hole_size_um": 620
+  },
+  "geometry_status": "approximate",
+  "electrical_status": "approximate",
+  "status_notes": "依据用户提供的 MicroSD 转接板正面、反面、侧视、插卡照片及商品图近似建模；板体按 18×18 mm，6 针 2.54 mm 间距处理，未用卡尺或万用表实测。图片中的水印和宣传文字不属于元件外观。",
+  "sources": [
+    {
+      "title": "用户提供的 MicroSD 转接板照片：正面、反面、侧视和插卡状态",
+      "accessed": "2026-09-19",
+      "note": "用于确认 18×18 mm 外形、正面丝印方向、6 针 SPI 针序、金属卡座和 SD 卡状态；矢量图为原创绘制。"
+    },
+    {
+      "title": "用户提供的 MicroSD 卡模块商品图",
+      "accessed": "2026-09-19",
+      "note": "用于补充卡座、贴片器件和排针的外观参考；未复制商品图中的水印或宣传元素。"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "attribution": "Original drawing by Breadboard Studio contributors"
+  }
+}

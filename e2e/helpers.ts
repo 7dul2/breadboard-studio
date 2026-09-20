@@ -81,7 +81,7 @@ export function simulatorControl(page: Page, componentId: string, controlId: str
   );
 }
 
-export function design(page: Page): Promise<{ schema_version: string; metadata: { name: string; revision: number }; boards: { id: string; position_um: [number, number] }[]; components: { id: string; placement: Record<string, unknown> }[]; wires: { id: string; from: Record<string, string>; to?: Record<string, string> }[]; programs?: { id: string; name: string; target_component_id: string; language: string; source: string }[]; simulation?: { active_program_id?: string; speed?: number; random_seed?: number; usb_powered_components?: string[] } }> {
+export function design(page: Page): Promise<{ schema_version: string; metadata: { name: string; revision: number }; boards: { id: string; position_um: [number, number] }[]; components: { id: string; placement: Record<string, unknown> }[]; wires: { id: string; from: Record<string, string>; to?: Record<string, string> }[]; solder_bridges?: { id: string; a: string; b: string }[]; programs?: { id: string; name: string; target_component_id: string; language: string; source: string }[]; simulation?: { active_program_id?: string; speed?: number; random_seed?: number; usb_powered_components?: string[] } }> {
   return page.evaluate(() => (window as unknown as { __bbs: { getDesign: () => never } }).__bbs.getDesign());
 }
 
@@ -97,6 +97,16 @@ export async function clickHole(page: Page, addr: string, opts: { modifiers?: ('
 
 export async function addFromLibrary(page: Page, modelId: string): Promise<void> {
   await page.getByTestId(`lib-${modelId}`).click();
+}
+
+/** R1.3：焊接工具下拖动两个焊盘建立焊锡桥（按下起点 → 移动 → 落在目标焊盘上）。 */
+export async function dragSolderBridge(page: Page, from: string, to: string): Promise<void> {
+  const a = await page.locator(`[data-hole="${from}"]`).first().boundingBox();
+  const b = await page.locator(`[data-hole="${to}"]`).first().boundingBox();
+  await page.mouse.move(a!.x + a!.width / 2, a!.y + a!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b!.x + b!.width / 2, b!.y + b!.height / 2, { steps: 8 });
+  await page.mouse.up();
 }
 
 /**

@@ -265,6 +265,12 @@ export function buildConnectivity(model: DesignModel): Connectivity {
     full.union(w.from.address, w.to.address);
     direct.union(w.from.address, w.to.address);
   }
+  for (const b of model.bridges.values()) {
+    if (!b.valid || !b.a || !b.b) continue;
+    full.union(b.a.address, b.b.address);
+    direct.union(b.a.address, b.b.address);
+    boardOnly.union(b.a.address, b.b.address);
+  }
 
   // Conduction last. A resistor goes into `full` only: it lets current through
   // without making its two legs one node. Wires are already in, so the path a
