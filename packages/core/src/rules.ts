@@ -77,6 +77,20 @@ function loadThroughPassives(model: DesignModel, conn: Connectivity, net: Net, p
 }
 
 /**
+ * A diode is a hard supply short only when its anode is directly on a supply
+ * node and its cathode is directly on ground. `full` also includes resistors,
+ * so using only its roots would mistake a series current-limiting resistor for
+ * a short (and would miss a diode that is in parallel with one).
+ */
+function isHardForwardDiodeShort(conn: Connectivity, path: { componentId: string; kind: string; pins: [string, string] }, powers: PinRef[], grounds: PinRef[]): boolean {
+  if (path.kind !== 'diode') return false;
+  const anode = pinKey(path.componentId, path.pins[0]);
+  const cathode = pinKey(path.componentId, path.pins[1]);
+  if (conn.direct.connected(anode, cathode)) return false;
+  return powers.some((p) => conn.direct.connected(anode, p.key)) && grounds.some((g) => conn.direct.connected(cathode, g.key));
+}
+
+/**
  * A forward diode across the supply is a short. The per-net rules above cannot
  * see it: a diode joins neither `direct` nor an undirected root, so its two
  * legs are different nets — which is exactly right for node identity, but it
@@ -96,7 +110,6 @@ function diodeAcrossSupplies(model: DesignModel, conn: Connectivity): R[] {
     const b = pinKey(path.componentId, path.pins[1]);
     const anodeRoot = conn.full.find(a);
     const cathodeRoot = conn.full.find(b);
-    if (anodeRoot === cathodeRoot) continue;
     const anodeNet = conn.netByRoot.get(anodeRoot);
     const cathodeNet = conn.netByRoot.get(cathodeRoot);
     if (!anodeNet || !cathodeNet) continue;
@@ -105,6 +118,7 @@ function diodeAcrossSupplies(model: DesignModel, conn: Connectivity): R[] {
     );
     const cathodeGrounds = pinsOfNet(model, cathodeNet).filter((p) => p.pin.meta.role === 'ground');
     if (!anodePins.length || !cathodeGrounds.length) continue;
+    if (!isHardForwardDiodeShort(conn, path, anodePins, cathodeGrounds)) continue;
     const key = `${anodeRoot}|${cathodeRoot}`;
     const entry = bridging.get(key);
     if (entry) {
@@ -390,7 +404,12 @@ export function checkModel(model: DesignModel): CheckOutput {
     } else if (grounds.length && powers.length) {
       // Joined, but through something. Say how much current that draws, because
       // that is the number which decides whether it is a load or a mistake.
-      for (const result of loadThroughPassives(model, conn, net, powers, grounds)) results.push(result);
+      const diodeShort = conn.conducted.some((path) =>
+        net.pins.includes(pinKey(path.componentId, path.pins[0])) &&
+        net.pins.includes(pinKey(path.componentId, path.pins[1])) &&
+        isHardForwardDiodeShort(conn, path, powers, grounds)
+      );
+      if (!diodeShort) for (const result of loadThroughPassives(model, conn, net, powers, grounds)) results.push(result);
     }
     const voltages = new Map<number, string[]>();
     for (const p of powers) {

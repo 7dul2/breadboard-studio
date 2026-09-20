@@ -392,9 +392,11 @@ describe('diode: one-way conduction', () => {
       base,
       true
     );
-    const fwd = analyzeDesign(forward).connectivity;
+    const fwdAnalysis = analyzeDesign(forward);
+    const fwd = fwdAnalysis.connectivity;
     expect(fwd.full.connected(pinKey('mcu', '3V3'), pinKey('mcu', 'GND')), 'forward reaches ground').toBe(true);
     expect(fwd.full.connected(pinKey('mcu', 'GND'), pinKey('mcu', '3V3')), 'current does not run backwards').toBe(false);
+    expect(fwdAnalysis.results.some((r) => r.code === 'power_ground_short'), 'the series resistor limits the diode current').toBe(false);
     const rev = analyzeDesign(reverse).connectivity;
     expect(rev.full.connected(pinKey('mcu', '3V3'), pinKey('mcu', 'GND')), 'the diode blocks this way').toBe(false);
     // In this wiring the anode faces ground, so ground is the direction that conducts.
@@ -447,5 +449,20 @@ describe('diode: one-way conduction', () => {
     expect(short, 'a forward diode across the supply is a short').toBeDefined();
     expect(short!.message).toContain('d1');
     expect(short!.suggestion).toContain('限流电阻');
+  });
+
+  it('does not hide a forward diode short behind a parallel resistor', () => {
+    const base = build([
+      { op: 'add_component', component: { id: 'r1', model: 'resistor_axial@1', placement: { kind: 'board', board_id: 'bb', anchor_hole: 'e20', anchor_pin: 'P1', rotation_deg: 0 }, params: { value: '220', span_pitches: 4 } } }
+    ], diodeBoard(), true);
+    const design = build([
+      { op: 'add_wire', wire: { id: 'w_pos', from: { hole: tapPoint(base, 'mcu', '3V3') }, to: { hole: tapPoint(base, 'd1', 'P1') } } },
+      { op: 'add_wire', wire: { id: 'w_gnd', from: { hole: tapPoint(base, 'mcu', 'GND') }, to: { hole: tapPoint(base, 'd1', 'P2') } } },
+      { op: 'add_wire', wire: { id: 'w_r_pos', from: { hole: tapPoint(base, 'd1', 'P1') }, to: { hole: tapPoint(base, 'r1', 'P1') } } },
+      { op: 'add_wire', wire: { id: 'w_r_gnd', from: { hole: tapPoint(base, 'd1', 'P2') }, to: { hole: tapPoint(base, 'r1', 'P2') } } }
+    ], base, true);
+    const a = analyzeDesign(design);
+    expect(a.results.some((r) => r.code === 'power_ground_short'), 'the diode bypasses the resistor').toBe(true);
+    expect(a.results.some((r) => r.code.startsWith('passive_load')), 'a bypassed resistor is not the active load').toBe(false);
   });
 });
