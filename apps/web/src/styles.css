@@ -346,11 +346,13 @@ a { color: var(--accent); }
   box-shadow: 0 8px 22px #0f172a2e;
   backdrop-filter: blur(8px);
   white-space: nowrap;
+  pointer-events: none;
 }
+.selection-toolbar.below { transform: translateX(-50%); }
 .selection-toolbar-caption { padding: 0 4px; color: var(--muted); font-size: 11px; }
-.selection-toolbar button { padding: 3px 7px; font-size: 12px; }
+.selection-toolbar button { padding: 3px 7px; font-size: 12px; pointer-events: auto; }
 .selection-toolbar button.danger { color: var(--error); }
-.selection-toolbar-field, .selection-toolbar-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.selection-toolbar-field, .selection-toolbar-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; pointer-events: auto; }
 .selection-toolbar-field select { max-width: 118px; padding: 3px 5px; font-size: 11px; }
 .selection-toolbar-toggle input { margin: 0; }
 .selection-toolbar-config { display: inline-flex; align-items: center; gap: 4px; padding-left: 4px; border-left: 1px solid var(--border); }
