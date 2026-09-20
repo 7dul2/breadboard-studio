@@ -216,7 +216,6 @@ export function Canvas() {
     const minX = Math.min(...corners.map(([x]) => x));
     const maxX = Math.max(...corners.map(([x]) => x));
     const minY = Math.min(...corners.map(([, y]) => y));
-    const maxY = Math.max(...corners.map(([, y]) => y));
     const centerX = (minX + maxX) / 2 * view.z + view.px;
     const topY = minY * view.z + view.py;
     // Render the palette above the selection so it cannot cover nearby objects;
