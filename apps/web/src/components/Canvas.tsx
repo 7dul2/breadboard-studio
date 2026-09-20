@@ -215,12 +215,14 @@ export function Canvas() {
     ].map(([x, y]) => rotateByDeg([mm(x), mm(y)], view.rot));
     const minX = Math.min(...corners.map(([x]) => x));
     const maxX = Math.max(...corners.map(([x]) => x));
+    const minY = Math.min(...corners.map(([, y]) => y));
     const maxY = Math.max(...corners.map(([, y]) => y));
     const centerX = (minX + maxX) / 2 * view.z + view.px;
-    const bottomY = maxY * view.z + view.py;
-    // Keep the palette in the canvas when the selected object is close to an edge.
+    const topY = minY * view.z + view.py;
+    // Render the palette above the selection so it cannot cover nearby objects;
+    // clamp the anchor rather than letting it disappear at the canvas edge.
     const left = Math.max(12, Math.min(wrapRect.width - 12, svgRect.left - wrapRect.left + centerX));
-    const top = Math.max(8, Math.min(wrapRect.height - 52, svgRect.top - wrapRect.top + bottomY + 12));
+    const top = Math.max(56, Math.min(wrapRect.height - 8, svgRect.top - wrapRect.top + topY - 12));
     return { left, top };
   }, [selectionBounds, view, canvasSizeVersion]);
 

@@ -338,7 +338,7 @@ a { color: var(--accent); }
   gap: 4px;
   max-width: calc(100% - 24px);
   padding: 5px;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
   color: var(--text);
   background: var(--panel-translucent);
   border: 1px solid var(--border);
