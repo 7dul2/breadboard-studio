@@ -5,6 +5,7 @@ import { useStore } from '../store';
 export interface SelectionToolbarPosition {
   left: number;
   top: number;
+  below?: boolean;
 }
 
 interface SelectionToolbarProps {
@@ -115,7 +116,7 @@ export function SelectionToolbar({ model, selectedIds, position, onFlipBoard, on
 
   return (
     <div
-      className="selection-toolbar"
+      className={`selection-toolbar${position.below ? ' below' : ''}`}
       style={{ left: position.left, top: position.top }}
       data-testid="selection-toolbar"
       onPointerDown={(event) => event.stopPropagation()}
